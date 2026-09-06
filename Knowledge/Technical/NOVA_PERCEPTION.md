@@ -1,37 +1,58 @@
-# Nova Perception Contract — Phase 2 Target
+# Nova Perception Contract — Phase 2
 
-This file is the knowledge contract for the next build phase.
+Status: **IMPLEMENTED CONTRACT / LIVE VISION GATE PENDING**
 
 ## Pipeline
 
 ```text
 controlled image/snapshot
+→ Bedrock Converse
 → Amazon Nova 2 Lite
 → candidate PSP JSON
-→ schema validation
+→ Zod boundary validation
+→ PSP validation
 → normalization
 → deterministic Phase 1 engine
 ```
 
-## Boundary
+## Locked boundary
 
 Nova may **observe** and **describe candidate state**. Nova may not:
 
-- directly compute the canonical checkpoint diff;
+- compute the canonical checkpoint diff;
 - decide that a restore session is complete;
 - overwrite deterministic match/progress logic;
 - invent entities to satisfy expected fixtures.
 
-## Required Phase 2 work
+## Implementation
 
-- Bedrock/Nova adapter;
-- strict observation prompt;
-- image → PSP parser;
-- invalid JSON/schema handling;
-- confidence and `UNKNOWN` handling;
-- controlled image fixture evaluation harness;
-- comparison of predicted PSP against known fixture truth.
+`packages/vision` now contains:
 
-## Phase 2 gate
+- `prompt.ts` — observation-only prompt + tracked-vocabulary contract;
+- `request.ts` — multimodal Bedrock Converse request construction;
+- `bedrock.ts` — Nova runtime adapter;
+- `schema.ts` — Zod candidate-state boundary;
+- `extract-json.ts` — strict JSON-object extraction;
+- `parse.ts` — Zod + PSP validation + normalization;
+- `evaluate.ts` — entity/relation/attribute recall metrics;
+- contract tests;
+- a live controlled-fixture runner.
 
-A controlled studio image must produce a valid normalized PSP document whose entities, relations, visible attributes, and confidence behavior feed the deterministic core without manually editing the model output.
+## Confidence decision
+
+For a tracked entity whose presence/identity is uncertain, request the known key/category with confidence below `0.60` and omit unsupported relations/attributes. This preserves uncertainty so the deterministic engine can return `UNKNOWN` instead of a false `REMOVED`.
+
+## Evaluation targets
+
+Controlled MVP target:
+
+- at least 90% expected tracked-object recognition;
+- relation/attribute behavior measured explicitly;
+- later changed-scene pipeline should recover at least 5 of 6 deliberate demo changes;
+- no false `RESTORED` result.
+
+## Current blocker
+
+The code contract can be tested in CI without AWS. Phase 2 itself remains open until a real Nova 2 Lite multimodal invocation against controlled room imagery returns valid PSP repeatedly.
+
+Never mark this phase complete from mocked model output alone.

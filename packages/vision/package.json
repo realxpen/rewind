@@ -1,0 +1,11 @@
+{
+  "name": "@rewind/vision",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Amazon Nova perception adapter and PSP contract for REWIND.",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "zod": "^4.0.0"
+  }
+}

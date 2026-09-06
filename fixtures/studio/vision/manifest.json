@@ -1,0 +1,24 @@
+{
+  "spaceId": "studio",
+  "trackedKeys": [
+    "desk.main",
+    "chair.main",
+    "headphone-stand.main",
+    "headphones.main",
+    "cabinet.main",
+    "backpack.black",
+    "tripod.camera",
+    "lamp.left"
+  ],
+  "states": [
+    { "name": "demo-ready", "expectedFixture": "demoReady" },
+    { "name": "messy", "expectedFixture": "messy" },
+    { "name": "partial", "expectedFixture": "partial" },
+    { "name": "restored", "expectedFixture": "restored" }
+  ],
+  "phase2Targets": {
+    "entityRecallPercent": 90,
+    "diffChangesRecognized": "at least 5 of 6 deliberate changes",
+    "falseRestoredAllowed": false
+  }
+}
