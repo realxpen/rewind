@@ -1,0 +1,15 @@
+{
+  "name": "rewind",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run test:phase1",
+    "test:phase1": "npm run build && node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

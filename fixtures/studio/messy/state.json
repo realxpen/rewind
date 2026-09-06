@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1",
+  "spaceId": "studio",
+  "capturedAt": "2026-09-06T09:10:00.000Z",
+  "entities": [
+    {"key":"desk.main","category":"desk","confidence":0.99,"attributes":{"clear":false}},
+    {"key":"chair.main","category":"chair","confidence":0.96,"relations":[{"type":"LEFT_OF","target":"desk.main"}]},
+    {"key":"headphone-stand.main","category":"headphone-stand","confidence":0.96,"relations":[{"type":"ON","target":"desk.main"}]},
+    {"key":"headphones.main","category":"headphones","confidence":0.94,"relations":[{"type":"ON","target":"desk.main"}]},
+    {"key":"cabinet.main","category":"cabinet","confidence":0.98},
+    {"key":"backpack.black","category":"backpack","confidence":0.94,"relations":[{"type":"LEFT_OF","target":"desk.main"}]},
+    {"key":"lamp.left","category":"lamp","confidence":0.96,"attributes":{"powered":false}}
+  ]
+}

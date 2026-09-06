@@ -16,74 +16,69 @@ Built for **Build, Ship, Shape: Amazon Developer Hackathon (2026)**.
 
 **SAVE → DIFF → REWIND → VERIFY**
 
-1. Ring observes a physical space.
-2. Amazon Nova converts the observation into a structured Physical State.
-3. REWIND saves that state as a checkpoint.
-4. Deterministic code compares a later state against the checkpoint.
-5. REWIND creates a restoration plan.
-6. The user changes the physical environment.
-7. REWIND re-observes and verifies the restoration.
-
 ## Architecture principle
 
 **AI interprets state. Deterministic code compares state.**
 
-The canonical checkpoint is not an image comparison or an LLM conversation. Nova produces structured candidate state, REWIND validates it, and deterministic TypeScript computes the semantic diff.
+Nova produces structured candidate state. REWIND validates and normalizes it. Deterministic TypeScript performs semantic comparison, restoration planning, progress scoring, and completion.
 
-## MVP
+## Physical State Protocol v0.1
 
-The MVP is intentionally constrained to one user, one physical space, one fixed camera viewpoint, and 5–8 visually distinctive objects. It must reliably detect four change classes:
+Phase 1 implements the open-source PSP core:
 
-- moved
-- missing
-- added
-- state changed
+- JSON Schema;
+- TypeScript types;
+- validation and normalization;
+- deterministic semantic diff engine;
+- match/progress engine;
+- restoration planner;
+- four controlled studio fixtures;
+- deterministic gate tests.
 
-The core MVP gate passes only when a saved physical checkpoint can be changed, diffed, restored, and visually verified without manually editing application data.
+Public APIs currently include `parseState()`, `normalizeState()`, `compareStates()`, `calculateMatch()`, `buildRestorePlan()`, `updateRestoreProgress()`, and `validateCheckpoint()`.
 
-## Planned stack
+## Quick start
 
-- Next.js + React + TypeScript
-- Node.js backend
-- Ring / Amazon Vision APIs and simulator
-- Amazon Bedrock
-- Amazon Nova 2 Lite
-- Strands Agents SDK
-- Amazon Bedrock AgentCore
-- DynamoDB
-- S3 temporary media
-- CloudWatch / AgentCore Observability
-- Alexa+ MCP using Streamable HTTP
+Requires Node.js 22+.
 
-## Open-source component
+```bash
+npm install
+npm test
+```
 
-REWIND includes the **Physical State Protocol (PSP)**: a structured representation for describing, comparing, and restoring semantic physical environments.
+Expected gate output:
 
-Planned public APIs include:
+```text
+PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored
+PASS restore-engine: plan generation + partial progress + 100% verification
+```
 
-- `parseState()`
-- `normalizeState()`
-- `compareStates()`
-- `calculateMatch()`
-- `buildRestorePlan()`
-- `validateCheckpoint()`
+## Demo fixture
+
+The controlled `demo-ready → messy` comparison deterministically returns six meaningful changes:
+
+- chair moved;
+- headphones moved;
+- backpack moved;
+- tripod missing;
+- desk cluttered;
+- lamp off.
+
+## Planned production stack
+
+Ring / Amazon Vision APIs, Amazon Bedrock, Amazon Nova 2 Lite, Strands Agents SDK, Amazon Bedrock AgentCore, DynamoDB, S3 temporary media, CloudWatch, Next.js/React/TypeScript, and Alexa+ MCP after the core restore loop works.
 
 ## Privacy principle
 
 **Remember the state. Forget the footage.**
 
-Raw media is temporary. REWIND persists semantic physical state rather than building a permanent surveillance archive.
-
 ## Project status
 
-Current stage: **Phase 0 — Compliance + Accounts**.
+**Phase 1 — Physical State Protocol + deterministic diff engine: complete.**
 
-See:
+Next: **Phase 2 — Nova perception contract: image → validated PSP.**
 
-- `docs/PRD.md` — master product/build specification
-- `PROJECT_STATE.md` — current phase and gates
-- `AGENTS.md` — build rules for AI-assisted development
-- `docs/FRICTION_LOG.md` — Amazon developer friction log
+See `docs/PRD.md`, `docs/PHYSICAL_STATE_PROTOCOL.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `PROJECT_STATE.md`, and `AGENTS.md`.
 
 ## License
 

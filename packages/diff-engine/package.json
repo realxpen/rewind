@@ -1,0 +1,7 @@
+{
+  "name": "@rewind/diff-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Deterministic semantic diff engine for REWIND Physical State Protocol.",
+  "exports": "./src/index.ts"
+}

@@ -4,101 +4,87 @@ _Last updated: 2026-09-06_
 
 ## Current phase
 
-**Phase 0 — Compliance + Accounts**
+**Phase 1 — Physical State Protocol + Deterministic Diff Engine: COMPLETE**
 
-Goal: remove external blockers before implementation.
+Primary track: **Ring**  
+Additional target: **Alexa+** after the core restore loop works.  
+Mini-challenges: **AWS Builder + Open Source**.
 
 ## Locked product
 
 **REWIND — Ctrl+Z for reality.**
 
-Core MVP loop:
+Core MVP loop: **SAVE → DIFF → REWIND → VERIFY**
 
-**SAVE → DIFF → REWIND → VERIFY**
+Architecture rule: **AI interprets state. Deterministic code compares state.**
 
-Primary track: **Ring**
-
-Additional target: **Alexa+** after the core restore loop works.
-
-Mini-challenges: **AWS Builder + Open Source**.
-
-## Phase 0 status
-
-### Complete
+## Phase 0 — Compliance + Accounts
 
 - [x] Product concept and MVP scope locked.
-- [x] Master PRD/build specification created.
-- [x] Public GitHub repository created: `realxpen/rewind`.
-- [x] MIT license present.
-- [x] Node `.gitignore` present.
-- [x] AWS account connectivity verified.
-- [x] Amazon Bedrock connectivity verified.
-- [x] Amazon Nova 2 Lite availability verified in `us-east-1`.
-- [x] Real Nova 2 Lite inference successfully executed.
-- [x] Google Drive REWIND workspace created.
-- [x] Friction-log workspace created.
-- [x] Devpost rules, judging criteria, dates, resources, and submission requirements reviewed.
-- [x] User explicitly agreed to Devpost rules, terms, and eligibility statement.
+- [x] Public GitHub repository and MIT license.
+- [x] Devpost registration completed and REWIND draft created.
+- [x] Least-privilege `rewind-dev` IAM identity verified.
+- [x] Amazon Bedrock / Nova 2 Lite inference verified with `REWIND DEV READY`.
+- [x] Ring Developer Console and Developers Playground accessible.
+- [x] Playground OAuth generated and API Explorer returned synthetic device data.
 
-### Remaining blockers
+Phase 0 gate: **PASS**.
 
-- [ ] Finish Devpost registration form.
-- [ ] Replace AWS account-root development session with a least-privilege REWIND development identity/role.
-- [ ] Request available hackathon AWS promotional credits.
-- [ ] Verify Amazon Developer/Ring account access.
-- [ ] Verify Ring Developer Playground/simulator access.
+## Phase 1 — Core State Engine
 
-## Known Devpost requirements
-
-- Public GitHub repository.
-- Complete open-source license.
-- Actual Ring technology usage in code/runtime for Ring submission.
-- Ring demo may use a simulator; physical hardware is not required.
-- Public English YouTube/Vimeo demo under three minutes.
-- Product feedback for every Amazon tool/API/SDK used.
-- AWS Builder requires documented AWS integrations.
-- Open Source requires a qualifying public contribution/project during the hackathon window.
-- Friction log can earn up to a 10% judging bonus.
-
-## Judging criteria
-
-1. Tech Implementation
-2. Design
-3. Potential Impact
-4. Quality of the Idea
-
-Each criterion is scored on a 5-point scale.
-
-## Next phase
-
-**Phase 1 — Repo + Core State Engine**
-
-Implement:
-
-- PSP schema
-- TypeScript types
-- state validator
-- state normalizer
-- deterministic diff engine
-- restore planner
-- progress/match engine
-- controlled fixtures
-- unit tests
+- [x] PSP v0.1 TypeScript types and JSON Schema.
+- [x] state validator/parser and canonical normalizer.
+- [x] semantic relation vocabulary.
+- [x] deterministic `compareStates()`.
+- [x] `ADDED`, `REMOVED`, `MOVED`, `ATTRIBUTE_CHANGED`, `UNCHANGED`, `UNKNOWN`.
+- [x] deterministic `calculateMatch()`.
+- [x] restoration planner and restore progress verification.
+- [x] restore-session state vocabulary.
+- [x] demo-ready, messy, partial, restored fixtures.
+- [x] low-confidence → `UNKNOWN` behavior.
+- [x] deterministic tests and PSP documentation.
 
 ### Phase 1 gate
 
-Given two static Physical State Protocol fixtures:
+`compareStates(demoReady, messy)` returns exactly:
 
-```ts
-compareStates(checkpoint, current)
+1. `chair.main` → `MOVED`
+2. `headphones.main` → `MOVED`
+3. `backpack.black` → `MOVED`
+4. `tripod.camera` → `REMOVED`
+5. `desk.main` → `ATTRIBUTE_CHANGED`
+6. `lamp.left` → `ATTRIBUTE_CHANGED`
+
+Additional coverage proves `ADDED`, `UNKNOWN`, intermediate progress, and a final `100%` restored state.
+
+Local gate output:
+
+```text
+PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored
+PASS restore-engine: plan generation + partial progress + 100% verification
 ```
 
-must deterministically return the expected semantic changes and restoration plan.
+Phase 1 gate: **PASS**.
 
-No Ring dependency is required for this gate.
+## Next phase
+
+**Phase 2 — Nova Perception Contract**
+
+```text
+controlled image/snapshot
+→ Amazon Nova 2 Lite
+→ candidate PSP JSON
+→ PSP validation
+→ normalization
+→ deterministic comparison against fixture truth
+```
+
+Next implementation: Nova observation prompt/contract, Bedrock Converse adapter, strict structured response parser, image → PSP service, fixture-image evaluation, and confidence/error handling.
+
+### Phase 2 gate
+
+A controlled studio image must produce a valid normalized PSP document whose known entities, relations, attributes, and confidence behavior can feed the deterministic Phase 1 engine without manually editing model output.
 
 ## MVP completion gate
-
-The core MVP is complete only when this works without manually editing application data:
 
 Create space → Connect Ring → Observe → Save checkpoint → Change environment → Observe again → Diff → Start Rewind → Guide action → Verify → Continue → **100% RESTORED**.

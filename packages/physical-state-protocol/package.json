@@ -1,0 +1,7 @@
+{
+  "name": "@rewind/physical-state-protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Open semantic representation for describing physical environments.",
+  "exports": "./src/index.ts"
+}

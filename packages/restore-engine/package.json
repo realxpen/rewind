@@ -1,0 +1,7 @@
+{
+  "name": "@rewind/restore-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Deterministic restoration planner and progress engine for REWIND.",
+  "exports": "./src/index.ts"
+}
