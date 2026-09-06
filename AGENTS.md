@@ -12,6 +12,25 @@ The core experience is:
 
 Reject work that distracts from making this loop reliable and demonstrable.
 
+## Knowledge system
+
+Every AI agent must use the repository knowledge lifecycle:
+
+`Capture → Raw → Validate → Knowledge → Apply → Test → Learn → Update → Reuse`
+
+Source behavior:
+
+- `PROJECT_STATE.md` = live execution truth and current phase.
+- `Knowledge/Decisions/` = locked decisions; do not silently reopen them.
+- implemented code + passing tests = actual runtime behavior.
+- `Knowledge/` = validated reusable understanding.
+- `docs/` = baseline specification and detailed documentation.
+- `Raw/` = evidence/notes awaiting validation; do not treat as truth automatically.
+- `Archive/` = historical context only.
+- `Archive/Dead-Leaves/` = abandoned or excluded branches; never let them influence active implementation unless explicitly reactivated through a new decision.
+
+When current knowledge changes, move obsolete material to Archive rather than leaving contradictory truths active.
+
 ## Architecture rule
 
 **AI interprets state. Deterministic code compares state.**
@@ -97,19 +116,6 @@ Never fabricate certainty to improve the demo.
 
 ## Documentation
 
-Update relevant documentation when behavior changes:
-
-- `PROJECT_STATE.md`
-- `docs/PRD.md`
-- `docs/ARCHITECTURE.md`
-- `docs/PHYSICAL_STATE_PROTOCOL.md`
-- `docs/RING_INTEGRATION.md`
-- `docs/AWS_ARCHITECTURE.md`
-- `docs/ALEXA_MCP.md`
-- `docs/PRIVACY.md`
-- `docs/TESTING.md`
-- `docs/FRICTION_LOG.md`
-- `docs/PRODUCT_FEEDBACK.md`
-- `docs/SUBMISSION_CHECKLIST.md`
+Update relevant documentation and Knowledge when behavior changes.
 
 Every meaningful Amazon developer friction should be recorded when it occurs, not reconstructed at submission time.

@@ -6,6 +6,8 @@ _Last updated: 2026-09-06_
 
 **Phase 1 — Physical State Protocol + Deterministic Diff Engine: COMPLETE**
 
+Next: **Phase 2 — Nova Perception Contract**.
+
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
 Mini-challenges: **AWS Builder + Open Source**.
@@ -17,6 +19,14 @@ Mini-challenges: **AWS Builder + Open Source**.
 Core MVP loop: **SAVE → DIFF → REWIND → VERIFY**
 
 Architecture rule: **AI interprets state. Deterministic code compares state.**
+
+## Project knowledge operating system
+
+- [x] `Raw/` installed for unvalidated evidence and project-chat notes.
+- [x] `Knowledge/` installed and populated across Product, Research, UX, Technical, Business, and Decisions.
+- [x] `Archive/` installed with Superseded, Deprecated, Experiments, and Dead-Leaves.
+- [x] `AGENTS.md` updated with source precedence and archive/dead-leaf rules.
+- [x] Dead Leaves explicitly excluded from active LLM reasoning unless reactivated by a new decision.
 
 ## Phase 0 — Compliance + Accounts
 
@@ -43,6 +53,7 @@ Phase 0 gate: **PASS**.
 - [x] demo-ready, messy, partial, restored fixtures.
 - [x] low-confidence → `UNKNOWN` behavior.
 - [x] deterministic tests and PSP documentation.
+- [x] GitHub CI gate passed.
 
 ### Phase 1 gate
 
@@ -57,18 +68,9 @@ Phase 0 gate: **PASS**.
 
 Additional coverage proves `ADDED`, `UNKNOWN`, intermediate progress, and a final `100%` restored state.
 
-Local gate output:
-
-```text
-PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored
-PASS restore-engine: plan generation + partial progress + 100% verification
-```
-
 Phase 1 gate: **PASS**.
 
-## Next phase
-
-**Phase 2 — Nova Perception Contract**
+## Phase 2 — Nova Perception Contract
 
 ```text
 controlled image/snapshot
