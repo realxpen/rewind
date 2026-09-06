@@ -79,19 +79,21 @@ controlled image/snapshot
 - [x] space/capture-time drift rejection.
 - [x] entity/relation/attribute evaluation metrics.
 - [x] contract tests and GitHub Actions workflow.
+- [x] Phase 2 TypeScript CI fixed and passing.
 - [x] controlled vision fixture manifest/docs.
-- [x] live fixture runner.
+- [x] deterministic clean fixture generator with no embedded answer labels.
+- [x] live fixture runner invokes the production Bedrock adapter and automatically scores returned PSP against canonical fixture truth.
 
 ### Live gate still required
 
-- [ ] Run real Nova 2 Lite multimodal inference against controlled `demo-ready` image.
-- [ ] Repeat against changed fixtures.
+- [ ] Run real Nova 2 Lite multimodal inference against clean controlled `demo-ready` image.
+- [ ] Repeat against `messy`, `partial`, and `restored` fixtures.
 - [ ] Record entity/relation/attribute accuracy.
 - [ ] Confirm no manual JSON editing.
 - [ ] Confirm controlled target: >=90% expected tracked-object recognition.
 - [ ] Confirm changed-scene path can recover at least 5/6 deliberate changes before Phase 3/4 dependency.
 
-AWS Core became temporarily unavailable during this implementation session, so the live multimodal gate is intentionally **not** marked complete.
+The ChatGPT AWS Core connector became unavailable again during the live invocation attempt. The live gate therefore remains intentionally open; this is not being counted as a Nova failure or a pass.
 
 ### Phase 2 gate
 
