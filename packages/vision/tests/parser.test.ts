@@ -45,7 +45,9 @@ const fenced = parseNovaPhysicalState(
 assert.deepEqual(fenced, parsed);
 
 const lowConfidence = structuredClone(candidate);
-lowConfidence.entities[0].confidence = 0.42;
+const lowConfidenceEntity = lowConfidence.entities[0];
+assert.ok(lowConfidenceEntity, "Expected chair fixture entity.");
+lowConfidenceEntity.confidence = 0.42;
 const lowParsed = parseNovaPhysicalState(JSON.stringify(lowConfidence), context);
 assert.equal(lowParsed.entities[0]?.confidence, 0.42);
 
@@ -57,7 +59,9 @@ assert.throws(
 );
 
 const invalidRelation = structuredClone(candidate);
-invalidRelation.entities[0].relations = [
+const invalidRelationEntity = invalidRelation.entities[0];
+assert.ok(invalidRelationEntity, "Expected chair fixture entity.");
+invalidRelationEntity.relations = [
   { type: "TELEPORTED_TO", target: "desk.main", confidence: 0.9 },
 ];
 assert.throws(
