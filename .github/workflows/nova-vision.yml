@@ -13,5 +13,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install fixture generator dependency
+        run: python -m pip install --disable-pip-version-check pillow
+      - name: Generate controlled studio vision fixtures
+        run: python fixtures/studio/vision/generate.py
+      - name: Verify generated fixture set
+        run: |
+          test -s fixtures/studio/vision/demo-ready.png
+          test -s fixtures/studio/vision/messy.png
+          test -s fixtures/studio/vision/partial.png
+          test -s fixtures/studio/vision/restored.png
       - run: npm install
       - run: npm run test:phase2
