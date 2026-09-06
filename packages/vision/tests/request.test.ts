@@ -22,7 +22,11 @@ const firstContent = input.messages?.[0]?.content?.[0];
 assert.ok(firstContent && "image" in firstContent);
 if (firstContent && "image" in firstContent && firstContent.image) {
   assert.equal(firstContent.image.format, "png");
-  assert.deepEqual(firstContent.image.source.bytes, new Uint8Array([137, 80, 78, 71]));
+  const source = firstContent.image.source;
+  assert.ok(source && "bytes" in source, "Expected inline image bytes.");
+  if (source && "bytes" in source) {
+    assert.deepEqual(source.bytes, new Uint8Array([137, 80, 78, 71]));
+  }
 }
 
 console.log("PASS vision request: Nova Converse multimodal image input + low-temperature config");
