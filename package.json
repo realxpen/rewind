@@ -10,8 +10,9 @@
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
-    "test:phase2:compiled": "node dist/packages/vision/tests/parser.test.js && node dist/packages/vision/tests/prompt.test.js && node dist/packages/vision/tests/request.test.js && node dist/packages/vision/tests/evaluate.test.js",
-    "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js"
+    "test:phase2:compiled": "node dist/packages/vision/tests/parser.test.js && node dist/packages/vision/tests/prompt.test.js && node dist/packages/vision/tests/request.test.js && node dist/packages/vision/tests/evaluate.test.js && node dist/packages/vision/tests/matrix-gate.test.js",
+    "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
+    "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
