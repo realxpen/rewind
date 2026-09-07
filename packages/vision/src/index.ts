@@ -6,3 +6,4 @@ export * from "./parse.js";
 export * from "./request.js";
 export * from "./bedrock.js";
 export * from "./evaluate.js";
+export * from "./gate.js";
