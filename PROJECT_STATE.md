@@ -1,6 +1,6 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-06_
+_Last updated: 2026-09-07_
 
 ## Current phase
 
@@ -82,7 +82,15 @@ controlled image/snapshot
 - [x] Phase 2 TypeScript CI fixed and passing.
 - [x] controlled vision fixture manifest/docs.
 - [x] deterministic clean fixture generator with no embedded answer labels.
-- [x] live fixture runner invokes the production Bedrock adapter and automatically scores returned PSP against canonical fixture truth.
+- [x] benchmark-integrity audit aligned generated scenes to canonical PSP truth:
+  - chair is visibly occluded behind desk where PSP says `BEHIND`;
+  - untracked laptop removed;
+  - untracked messy-scene bottles removed from this gate;
+  - ADDED-object vision deferred to an explicit later fixture with matching ground truth.
+- [x] `evaluateChangedSceneGate()` locks the six required demo changes and prevents false `RESTORED`.
+- [x] deterministic matrix-gate test proves canonical fixtures score 6/6.
+- [x] `vision:matrix` runs all four real Nova observations, scores entity/relation/attribute recall, and requires >=5/6 changed-scene detections with no false `RESTORED`.
+- [x] latest Nova Vision CI on commit `64266a357783ffb1b5cab2a661d25c3b9298a03b` generated the corrected fixture set and passed all Phase 2 tests.
 
 ### Live gate still required
 
@@ -92,8 +100,11 @@ controlled image/snapshot
 - [ ] Confirm no manual JSON editing.
 - [ ] Confirm controlled target: >=90% expected tracked-object recognition.
 - [ ] Confirm changed-scene path can recover at least 5/6 deliberate changes before Phase 3/4 dependency.
+- [ ] Confirm `messy` never produces a false `RESTORED` result.
 
-The ChatGPT AWS Core connector became unavailable again during the live invocation attempt. The live gate therefore remains intentionally open; this is not being counted as a Nova failure or a pass.
+The ChatGPT AWS Core connector became unavailable during the live invocation attempt. The live gate therefore remains intentionally open; this is not being counted as a Nova failure or a pass.
+
+GitHub issue #1 tracks the live fixture matrix and required evidence.
 
 ### Phase 2 gate
 
