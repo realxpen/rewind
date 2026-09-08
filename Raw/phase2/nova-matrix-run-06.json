@@ -1,0 +1,1413 @@
+{
+  "generatedAt": "2026-09-08T11:07:57.781Z",
+  "region": "us-east-1",
+  "modelId": "global.amazon.nova-2-lite-v1:0",
+  "perceptionStrategy": "whole-scene + focused deterministic recovery",
+  "fixtures": {
+    "demo-ready": {
+      "imagePath": "/home/gamp/Documents/XPEN/rewind/fixtures/studio/vision/demo-ready.png",
+      "state": {
+        "schemaVersion": "0.1",
+        "spaceId": "studio",
+        "capturedAt": "2026-09-08T11:07:57.783Z",
+        "entities": [
+          {
+            "key": "backpack.black",
+            "category": "backpack",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "cabinet.main",
+            "category": "cabinet",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "backpack.black",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "chair.main",
+            "category": "chair",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "INSIDE",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          },
+          {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "headphones.main",
+            "category": "headphones",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "ATTACHED_TO",
+                "target": "headphone-stand.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "lamp.left",
+            "category": "lamp",
+            "confidence": 1,
+            "attributes": {
+              "powered": true
+            },
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "tripod.camera",
+            "category": "tripod",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "backpack.black",
+                "confidence": 1
+              }
+            ]
+          }
+        ]
+      },
+      "primary": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:07:57.783Z",
+          "entities": [
+            {
+              "key": "backpack.black",
+              "category": "backpack",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "cabinet.main",
+              "category": "cabinet",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "backpack.black",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "chair.main",
+              "category": "chair",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "INSIDE",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "clear": false
+              }
+            },
+            {
+              "key": "headphone-stand.main",
+              "category": "headphone-stand",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ATTACHED_TO",
+                  "target": "headphone-stand.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": false
+              },
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "tripod.camera",
+              "category": "tripod",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "backpack.black",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:07:57.783Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"clear\": false\n      },\n      \"relations\": []\n    },\n    {\n      \"key\": \"chair.main\",\n      \"category\": \"chair\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"INSIDE\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphone-stand.main\",\n      \"category\": \"headphone-stand\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"ATTACHED_TO\",\n          \"target\": \"headphone-stand.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"cabinet.main\",\n      \"category\": \"cabinet\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"backpack.black\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"backpack.black\",\n      \"category\": \"backpack\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"tripod.camera\",\n      \"category\": \"tripod\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"backpack.black\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": false\n      },\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 4346,
+        "usage": {
+          "inputTokens": 1322,
+          "outputTokens": 614,
+          "totalTokens": 1936
+        }
+      },
+      "focusedDesk": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:07:57.783Z",
+          "entities": [
+            {
+              "key": "camera.main",
+              "category": "camera",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "NEAR",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "hasLooseClutter": true
+              },
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "headphones.main",
+                  "confidence": 1
+                },
+                {
+                  "type": "ON",
+                  "target": "laptop.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "lamp.main",
+              "category": "lamp",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "NEAR",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "laptop.main",
+              "category": "laptop",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "suitcase.main",
+              "category": "suitcase",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "NEAR",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:07:57.783Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"hasLooseClutter\": true\n      },\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"headphones.main\",\n          \"confidence\": 1.0\n        },\n        {\n          \"type\": \"ON\",\n          \"target\": \"laptop.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"laptop.main\",\n      \"category\": \"laptop\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"lamp.main\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"NEAR\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"camera.main\",\n      \"category\": \"camera\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"NEAR\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"suitcase.main\",\n      \"category\": \"suitcase\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"NEAR\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 2980,
+        "usage": {
+          "inputTokens": 1215,
+          "outputTokens": 488,
+          "totalTokens": 1703
+        }
+      },
+      "focusedLamp": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:07:57.783Z",
+          "entities": [
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": true
+              }
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:07:57.783Z\",\n  \"entities\": [\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": true\n      },\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2594,
+        "usage": {
+          "inputTokens": 1205,
+          "outputTokens": 101,
+          "totalTokens": 1306
+        }
+      },
+      "evaluation": {
+        "expectedEntityCount": 8,
+        "recognizedEntityCount": 8,
+        "trustedEntityCount": 8,
+        "entityRecall": 100,
+        "trustedEntityRecall": 100,
+        "expectedRelationCount": 5,
+        "matchedRelationCount": 0,
+        "relationRecall": 0,
+        "expectedAttributeCount": 2,
+        "matchedAttributeCount": 1,
+        "attributeRecall": 50,
+        "falsePositiveKeys": []
+      },
+      "entityGatePassed": true
+    },
+    "messy": {
+      "imagePath": "/home/gamp/Documents/XPEN/rewind/fixtures/studio/vision/messy.png",
+      "state": {
+        "schemaVersion": "0.1",
+        "spaceId": "studio",
+        "capturedAt": "2026-09-08T11:08:07.725Z",
+        "entities": [
+          {
+            "key": "backpack.black",
+            "category": "backpack",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "cabinet.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "cabinet.main",
+            "category": "cabinet",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "chair.main",
+            "category": "chair",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          },
+          {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "headphones.main",
+            "category": "headphones",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "INSIDE",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "lamp.left",
+            "category": "lamp",
+            "confidence": 1,
+            "attributes": {
+              "powered": false
+            }
+          }
+        ]
+      },
+      "primary": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:07.725Z",
+          "entities": [
+            {
+              "key": "backpack.black",
+              "category": "backpack",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "cabinet.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "cabinet.main",
+              "category": "cabinet",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "chair.main",
+              "category": "chair",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "clear": false
+              }
+            },
+            {
+              "key": "headphone-stand.main",
+              "category": "headphone-stand",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "INSIDE",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:07.725Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"clear\": false\n      },\n      \"relations\": []\n    },\n    {\n      \"key\": \"chair.main\",\n      \"category\": \"chair\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphone-stand.main\",\n      \"category\": \"headphone-stand\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"INSIDE\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"cabinet.main\",\n      \"category\": \"cabinet\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"backpack.black\",\n      \"category\": \"backpack\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"cabinet.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 3162,
+        "usage": {
+          "inputTokens": 1322,
+          "outputTokens": 461,
+          "totalTokens": 1783
+        }
+      },
+      "focusedDesk": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:07.725Z",
+          "entities": [
+            {
+              "key": "backpack.main",
+              "category": "backpack",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "chair.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "chair.main",
+              "category": "chair",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "hasLooseClutter": true
+              }
+            },
+            {
+              "key": "speaker.main",
+              "category": "speaker",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:07.725Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"hasLooseClutter\": true\n      },\n      \"relations\": []\n    },\n    {\n      \"key\": \"chair.main\",\n      \"category\": \"chair\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"backpack.main\",\n      \"category\": \"backpack\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"chair.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"speaker.main\",\n      \"category\": \"speaker\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 2952,
+        "usage": {
+          "inputTokens": 1215,
+          "outputTokens": 301,
+          "totalTokens": 1516
+        }
+      },
+      "focusedLamp": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:07.725Z",
+          "entities": [
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": false
+              }
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:07.725Z\",\n  \"entities\": [\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": false\n      },\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2286,
+        "usage": {
+          "inputTokens": 1205,
+          "outputTokens": 101,
+          "totalTokens": 1306
+        }
+      },
+      "evaluation": {
+        "expectedEntityCount": 7,
+        "recognizedEntityCount": 7,
+        "trustedEntityCount": 7,
+        "entityRecall": 100,
+        "trustedEntityRecall": 100,
+        "expectedRelationCount": 4,
+        "matchedRelationCount": 1,
+        "relationRecall": 25,
+        "expectedAttributeCount": 2,
+        "matchedAttributeCount": 2,
+        "attributeRecall": 100,
+        "falsePositiveKeys": []
+      },
+      "entityGatePassed": true
+    },
+    "partial": {
+      "imagePath": "/home/gamp/Documents/XPEN/rewind/fixtures/studio/vision/partial.png",
+      "state": {
+        "schemaVersion": "0.1",
+        "spaceId": "studio",
+        "capturedAt": "2026-09-08T11:08:16.126Z",
+        "entities": [
+          {
+            "key": "backpack.black",
+            "category": "backpack",
+            "confidence": 1
+          },
+          {
+            "key": "cabinet.main",
+            "category": "cabinet",
+            "confidence": 1
+          },
+          {
+            "key": "chair.main",
+            "category": "chair",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "INSIDE",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          },
+          {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1
+          },
+          {
+            "key": "headphones.main",
+            "category": "headphones",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "ATTACHED_TO",
+                "target": "headphone-stand.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "lamp.left",
+            "category": "lamp",
+            "confidence": 1,
+            "attributes": {
+              "powered": false
+            }
+          }
+        ]
+      },
+      "primary": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:16.126Z",
+          "entities": [
+            {
+              "key": "backpack.black",
+              "category": "backpack",
+              "confidence": 1
+            },
+            {
+              "key": "cabinet.main",
+              "category": "cabinet",
+              "confidence": 1
+            },
+            {
+              "key": "chair.main",
+              "category": "chair",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "INSIDE",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "clear": false
+              }
+            },
+            {
+              "key": "headphone-stand.main",
+              "category": "headphone-stand",
+              "confidence": 1
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ATTACHED_TO",
+                  "target": "headphone-stand.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:16.126Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"clear\": false\n      },\n      \"relations\": []\n    },\n    {\n      \"key\": \"chair.main\",\n      \"category\": \"chair\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"INSIDE\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphone-stand.main\",\n      \"category\": \"headphone-stand\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": []\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": [\n        {\n          \"type\": \"ATTACHED_TO\",\n          \"target\": \"headphone-stand.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"cabinet.main\",\n      \"category\": \"cabinet\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": []\n    },\n    {\n      \"key\": \"backpack.black\",\n      \"category\": \"backpack\",\n      \"confidence\": 1.0,\n      \"attributes\": {},\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2975,
+        "usage": {
+          "inputTokens": 1322,
+          "outputTokens": 371,
+          "totalTokens": 1693
+        }
+      },
+      "focusedDesk": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:16.126Z",
+          "entities": [
+            {
+              "key": "book.main",
+              "category": "book",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "handbag.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "hasLooseClutter": true
+              },
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "headphones.main",
+                  "confidence": 1
+                },
+                {
+                  "type": "ON",
+                  "target": "laptop.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "handbag.main",
+              "category": "handbag",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "laptop.main",
+              "category": "laptop",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ON",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "microphone.main",
+              "category": "microphone",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:16.126Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"hasLooseClutter\": true\n      },\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"headphones.main\",\n          \"confidence\": 1.0\n        },\n        {\n          \"type\": \"ON\",\n          \"target\": \"laptop.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"laptop.main\",\n      \"category\": \"laptop\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"ON\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"handbag.main\",\n      \"category\": \"handbag\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"book.main\",\n      \"category\": \"book\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"handbag.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"microphone.main\",\n      \"category\": \"microphone\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 3568,
+        "usage": {
+          "inputTokens": 1215,
+          "outputTokens": 489,
+          "totalTokens": 1704
+        }
+      },
+      "focusedLamp": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:16.126Z",
+          "entities": [
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": false
+              }
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:16.126Z\",\n  \"entities\": [\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": false\n      },\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2274,
+        "usage": {
+          "inputTokens": 1205,
+          "outputTokens": 101,
+          "totalTokens": 1306
+        }
+      },
+      "evaluation": {
+        "expectedEntityCount": 7,
+        "recognizedEntityCount": 7,
+        "trustedEntityCount": 7,
+        "entityRecall": 100,
+        "trustedEntityRecall": 100,
+        "expectedRelationCount": 4,
+        "matchedRelationCount": 0,
+        "relationRecall": 0,
+        "expectedAttributeCount": 2,
+        "matchedAttributeCount": 1,
+        "attributeRecall": 50,
+        "falsePositiveKeys": []
+      },
+      "entityGatePassed": true
+    },
+    "restored": {
+      "imagePath": "/home/gamp/Documents/XPEN/rewind/fixtures/studio/vision/restored.png",
+      "state": {
+        "schemaVersion": "0.1",
+        "spaceId": "studio",
+        "capturedAt": "2026-09-08T11:08:24.945Z",
+        "entities": [
+          {
+            "key": "backpack.black",
+            "category": "backpack",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "tripod.camera",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "cabinet.main",
+            "category": "cabinet",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "backpack.black",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "chair.main",
+            "category": "chair",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "INSIDE",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          },
+          {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "headphones.main",
+            "category": "headphones",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "ATTACHED_TO",
+                "target": "headphone-stand.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "lamp.left",
+            "category": "lamp",
+            "confidence": 1,
+            "attributes": {
+              "powered": true
+            },
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          },
+          {
+            "key": "tripod.camera",
+            "category": "tripod",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          }
+        ]
+      },
+      "primary": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:24.945Z",
+          "entities": [
+            {
+              "key": "backpack.black",
+              "category": "backpack",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "tripod.camera",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "cabinet.main",
+              "category": "cabinet",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "backpack.black",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "chair.main",
+              "category": "chair",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "INSIDE",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "clear": false
+              }
+            },
+            {
+              "key": "headphone-stand.main",
+              "category": "headphone-stand",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "headphones.main",
+              "category": "headphones",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "ATTACHED_TO",
+                  "target": "headphone-stand.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": false
+              },
+              "relations": [
+                {
+                  "type": "RIGHT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            },
+            {
+              "key": "tripod.camera",
+              "category": "tripod",
+              "confidence": 1,
+              "relations": [
+                {
+                  "type": "LEFT_OF",
+                  "target": "desk.main",
+                  "confidence": 1
+                }
+              ]
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:24.945Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"clear\": false\n      },\n      \"relations\": []\n    },\n    {\n      \"key\": \"chair.main\",\n      \"category\": \"chair\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"INSIDE\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphone-stand.main\",\n      \"category\": \"headphone-stand\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"headphones.main\",\n      \"category\": \"headphones\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"ATTACHED_TO\",\n          \"target\": \"headphone-stand.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"cabinet.main\",\n      \"category\": \"cabinet\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"backpack.black\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"backpack.black\",\n      \"category\": \"backpack\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"tripod.camera\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"tripod.camera\",\n      \"category\": \"tripod\",\n      \"confidence\": 1.0,\n      \"relations\": [\n        {\n          \"type\": \"LEFT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    },\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": false\n      },\n      \"relations\": [\n        {\n          \"type\": \"RIGHT_OF\",\n          \"target\": \"desk.main\",\n          \"confidence\": 1.0\n        }\n      ]\n    }\n  ]\n}\n```",
+        "latencyMs": 3781,
+        "usage": {
+          "inputTokens": 1322,
+          "outputTokens": 584,
+          "totalTokens": 1906
+        }
+      },
+      "focusedDesk": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:24.945Z",
+          "entities": [
+            {
+              "key": "desk.main",
+              "category": "desk",
+              "confidence": 1,
+              "attributes": {
+                "hasLooseClutter": true
+              }
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:24.945Z\",\n  \"entities\": [\n    {\n      \"key\": \"desk.main\",\n      \"category\": \"desk\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"hasLooseClutter\": true\n      },\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2259,
+        "usage": {
+          "inputTokens": 1215,
+          "outputTokens": 107,
+          "totalTokens": 1322
+        }
+      },
+      "focusedLamp": {
+        "state": {
+          "schemaVersion": "0.1",
+          "spaceId": "studio",
+          "capturedAt": "2026-09-08T11:08:24.945Z",
+          "entities": [
+            {
+              "key": "lamp.left",
+              "category": "lamp",
+              "confidence": 1,
+              "attributes": {
+                "powered": true
+              }
+            }
+          ]
+        },
+        "rawText": "```json\n{\n  \"schemaVersion\": \"0.1\",\n  \"spaceId\": \"studio\",\n  \"capturedAt\": \"2026-09-08T11:08:24.945Z\",\n  \"entities\": [\n    {\n      \"key\": \"lamp.left\",\n      \"category\": \"lamp\",\n      \"confidence\": 1.0,\n      \"attributes\": {\n        \"powered\": true\n      },\n      \"relations\": []\n    }\n  ]\n}\n```",
+        "latencyMs": 2040,
+        "usage": {
+          "inputTokens": 1205,
+          "outputTokens": 101,
+          "totalTokens": 1306
+        }
+      },
+      "evaluation": {
+        "expectedEntityCount": 8,
+        "recognizedEntityCount": 8,
+        "trustedEntityCount": 8,
+        "entityRecall": 100,
+        "trustedEntityRecall": 100,
+        "expectedRelationCount": 5,
+        "matchedRelationCount": 0,
+        "relationRecall": 0,
+        "expectedAttributeCount": 2,
+        "matchedAttributeCount": 1,
+        "attributeRecall": 50,
+        "falsePositiveKeys": []
+      },
+      "entityGatePassed": true
+    }
+  },
+  "changedSceneGate": {
+    "diffs": [
+      {
+        "type": "MOVED",
+        "entity": "backpack.black",
+        "category": "backpack",
+        "expected": {
+          "relations": [
+            {
+              "type": "LEFT_OF",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "actual": {
+          "relations": [
+            {
+              "type": "LEFT_OF",
+              "target": "cabinet.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "confidence": 1,
+        "reason": "Semantic spatial relations differ from checkpoint."
+      },
+      {
+        "type": "MOVED",
+        "entity": "cabinet.main",
+        "category": "cabinet",
+        "expected": {
+          "relations": [
+            {
+              "type": "LEFT_OF",
+              "target": "backpack.black",
+              "confidence": 1
+            }
+          ]
+        },
+        "actual": {
+          "relations": [
+            {
+              "type": "LEFT_OF",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "confidence": 1,
+        "reason": "Semantic spatial relations differ from checkpoint."
+      },
+      {
+        "type": "MOVED",
+        "entity": "chair.main",
+        "category": "chair",
+        "expected": {
+          "relations": [
+            {
+              "type": "INSIDE",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "actual": {
+          "relations": [
+            {
+              "type": "LEFT_OF",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "confidence": 1,
+        "reason": "Semantic spatial relations differ from checkpoint."
+      },
+      {
+        "type": "UNCHANGED",
+        "entity": "desk.main",
+        "category": "desk",
+        "expected": {
+          "entity": {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          }
+        },
+        "actual": {
+          "entity": {
+            "key": "desk.main",
+            "category": "desk",
+            "confidence": 1,
+            "attributes": {
+              "clear": false
+            }
+          }
+        },
+        "confidence": 1,
+        "reason": "Entity matches checkpoint."
+      },
+      {
+        "type": "UNCHANGED",
+        "entity": "headphone-stand.main",
+        "category": "headphone-stand",
+        "expected": {
+          "entity": {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          }
+        },
+        "actual": {
+          "entity": {
+            "key": "headphone-stand.main",
+            "category": "headphone-stand",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "RIGHT_OF",
+                "target": "desk.main",
+                "confidence": 1
+              }
+            ]
+          }
+        },
+        "confidence": 1,
+        "reason": "Entity matches checkpoint."
+      },
+      {
+        "type": "MOVED",
+        "entity": "headphones.main",
+        "category": "headphones",
+        "expected": {
+          "relations": [
+            {
+              "type": "ATTACHED_TO",
+              "target": "headphone-stand.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "actual": {
+          "relations": [
+            {
+              "type": "INSIDE",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "confidence": 1,
+        "reason": "Semantic spatial relations differ from checkpoint."
+      },
+      {
+        "type": "MOVED",
+        "entity": "lamp.left",
+        "category": "lamp",
+        "expected": {
+          "relations": [
+            {
+              "type": "RIGHT_OF",
+              "target": "desk.main",
+              "confidence": 1
+            }
+          ]
+        },
+        "actual": {
+          "relations": []
+        },
+        "confidence": 1,
+        "reason": "Semantic spatial relations differ from checkpoint."
+      },
+      {
+        "type": "ATTRIBUTE_CHANGED",
+        "entity": "lamp.left",
+        "category": "lamp",
+        "expected": {
+          "attributes": {
+            "powered": true
+          },
+          "relations": []
+        },
+        "actual": {
+          "attributes": {
+            "powered": false
+          },
+          "relations": []
+        },
+        "confidence": 1,
+        "reason": "Entity attributes or non-spatial state relations differ from checkpoint."
+      },
+      {
+        "type": "REMOVED",
+        "entity": "tripod.camera",
+        "category": "tripod",
+        "expected": {
+          "entity": {
+            "key": "tripod.camera",
+            "category": "tripod",
+            "confidence": 1,
+            "relations": [
+              {
+                "type": "LEFT_OF",
+                "target": "backpack.black",
+                "confidence": 1
+              }
+            ]
+          }
+        },
+        "confidence": 1,
+        "reason": "Checkpoint entity is missing from current state."
+      }
+    ],
+    "match": {
+      "percentage": 22,
+      "matched": 2,
+      "unresolved": 7,
+      "unknown": 0,
+      "total": 9,
+      "restored": false
+    },
+    "recognizedRequiredChanges": 5,
+    "requiredChangeCount": 6,
+    "missedRequiredChanges": [
+      {
+        "entity": "desk.main",
+        "type": "ATTRIBUTE_CHANGED"
+      }
+    ],
+    "falseRestored": false,
+    "passed": true
+  }
+}

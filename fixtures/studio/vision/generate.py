@@ -59,9 +59,13 @@ def draw_scene(state: str) -> Image.Image:
     draw.rectangle([455, 530, 485, 690], fill=(95, 58, 38))
     draw.rectangle([870, 530, 900, 690], fill=(95, 58, 38))
 
-    # headphone-stand.main — this stable tracked object remains on the desk.
-    draw.line([820, 415, 820, 490], fill=(45, 45, 45), width=8)
-    draw.line([790, 490, 850, 490], fill=(45, 45, 45), width=8)
+    # headphone-stand.main — tall, visually distinct T-shaped stand.
+    # Keep it at the far-right edge of the desk so the central work surface
+    # remains visibly clear in demo-ready/restored/partial.
+    stand_x = 885
+    draw.line([stand_x, 385, stand_x, 490], fill=(45, 45, 45), width=10)
+    draw.line([stand_x - 50, 385, stand_x + 50, 385], fill=(45, 45, 45), width=10)
+    draw.line([stand_x - 35, 490, stand_x + 35, 490], fill=(45, 45, 45), width=10)
 
     # In messy the chair is LEFT_OF desk.main, so render it independently.
     if not chair_is_behind:
@@ -118,11 +122,14 @@ def draw_scene(state: str) -> Image.Image:
             width=7,
         )
 
-    # headphones.main: on the stand when restored; directly on desk when messy.
+    # headphones.main:
+    # - demo-ready/partial/restored: visibly hanging from the raised top
+    #   of headphone-stand.main, above the desk surface.
+    # - messy: visibly lying directly on the desk, far from the stand.
     headphones_x, headphones_y = (
-        (820, 420)
+        (885, 350)
         if state in {"demo-ready", "partial", "restored"}
-        else (690, 470)
+        else (610, 465)
     )
     draw.arc(
         [headphones_x - 45, headphones_y - 30, headphones_x + 45, headphones_y + 50],
@@ -142,26 +149,68 @@ def draw_scene(state: str) -> Image.Image:
         fill=(25, 25, 25),
     )
 
+    # Explicit loose clutter cue for messy only.
+    # These neutral papers represent loose desk clutter rather than a new
+    # tracked entity. They exist only to make the visual meaning of
+    # desk.main.clear unambiguous.
+    if state == "messy":
+        # Several loose papers occupy the central work surface.
+        draw.rectangle(
+            [700, 420, 790, 475],
+            fill=(245, 245, 235),
+            outline=(130, 130, 120),
+            width=3,
+        )
+        draw.rectangle(
+            [750, 445, 835, 500],
+            fill=(230, 230, 220),
+            outline=(130, 130, 120),
+            width=3,
+        )
+        draw.rectangle(
+            [650, 455, 720, 505],
+            fill=(238, 238, 228),
+            outline=(130, 130, 120),
+            width=3,
+        )
+
     # lamp.left
     lamp_x = 1020
-    draw.line([lamp_x, 320, lamp_x, 565], fill=(45, 45, 45), width=8)
-    draw.line([lamp_x - 50, 565, lamp_x + 50, 565], fill=(45, 45, 45), width=8)
+    draw.line([lamp_x, 320, lamp_x, 565], fill=(45, 45, 45), width=10)
+    draw.line([lamp_x - 65, 565, lamp_x + 65, 565], fill=(45, 45, 45), width=10)
+    draw.ellipse(
+        [lamp_x - 72, 552, lamp_x + 72, 578],
+        fill=(55, 55, 52),
+        outline=(30, 30, 28),
+        width=3,
+    )
     lamp_on = state in {"demo-ready", "restored"}
-    shade = (248, 199, 72) if lamp_on else (125, 120, 110)
+    # Keep lamp identity visually identical in ON and OFF states.
+    # Only the bulb/glow changes.
+    shade = (218, 178, 85)
     draw.polygon(
         [
-            (lamp_x - 75, 320),
-            (lamp_x + 75, 320),
-            (lamp_x + 50, 390),
-            (lamp_x - 50, 390),
+            (lamp_x - 90, 300),
+            (lamp_x + 90, 300),
+            (lamp_x + 60, 395),
+            (lamp_x - 60, 395),
         ],
         fill=shade,
-        outline=(95, 75, 30) if lamp_on else (70, 70, 70),
+        outline=(95, 75, 30),
     )
     if lamp_on:
         draw.ellipse(
-            [lamp_x - 25, 345, lamp_x + 25, 395],
+            [lamp_x - 32, 335, lamp_x + 32, 399],
             fill=(255, 235, 145),
+        )
+    else:
+        # Visible but unlit bulb makes OFF state explicit while keeping
+        # the same physical lamp recognizable.
+        draw.ellipse(
+            [lamp_x - 32, 335, lamp_x + 32, 399],
+            fill=(115, 110, 98),
+            outline=(45, 45, 42),
+            width=5,
         )
 
     # Deliberately do not draw untracked laptop/bottle objects here. The Phase 2

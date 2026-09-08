@@ -6,6 +6,7 @@ export interface TrackedEntityHint {
   key: string;
   category: string;
   description?: string;
+  observableAttributes?: Record<string, string>;
 }
 
 export interface ObservationContext {
