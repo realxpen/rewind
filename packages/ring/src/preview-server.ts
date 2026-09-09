@@ -1,3 +1,4 @@
+import { observationErrorMessage } from "./observation-error.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
@@ -107,7 +108,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
       // Never return upstream URLs, response bodies, SDK details, or SDP in errors.
       const status = error instanceof InputError ? 400 : 502;
       const message = error instanceof InputError ? error.message : req.url === "/api/observe"
-        ? "Nova observation failed. Check AWS credentials, model access, and region in the server terminal environment."
+        ? observationErrorMessage(error)
         : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
     }

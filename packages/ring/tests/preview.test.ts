@@ -1,3 +1,4 @@
+import { observationErrorMessage } from "../src/observation-error.js";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { once } from "node:events";
@@ -69,3 +70,14 @@ try {
 } finally {
   preview.server.close(); preview.server.closeAllConnections();
 }
+
+for (const name of ["CredentialsProviderError", "ExpiredTokenException", "AccessDeniedException", "ValidationException", "ResourceNotFoundException", "TimeoutError"]) {
+  const message = observationErrorMessage({ name, message: "secret-token-and-image" });
+  assert.doesNotMatch(message, /unclassified|secret-token/);
+}
+assert.match(observationErrorMessage({ name: "CredentialsProviderError" }), /credentials were not found/);
+assert.match(observationErrorMessage({ name: "VisionContractError", code: "SCHEMA_REJECTED", message: "private model response" }), /Nova responded.*SCHEMA_REJECTED/);
+assert.doesNotMatch(observationErrorMessage({ name: "VisionContractError", code: "private-unknown-code" }), /private-unknown/);
+assert.match(observationErrorMessage({ name: "toString" }), /unclassified/);
+assert.match(observationErrorMessage(null), /unclassified/);
+console.log("PASS Nova diagnostics: credentials + access + request configuration + response validation + secret redaction");

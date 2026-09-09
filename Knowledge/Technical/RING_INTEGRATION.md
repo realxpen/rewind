@@ -84,3 +84,12 @@ sample: proceed after completion or a 3-second gathering window, using the curre
 local description; include both sample STUN servers. This permits the WHEP request
 when gathering stays pending. It does not guarantee video connectivity. Regression
 tests cover early completion, event completion, and the no-completion fallback.
+
+## Live REWIND capture and Nova diagnostic evidence
+
+User screenshots confirm REWIND rendered video and captured a frame. The subsequent
+Nova observation failed with a generic message; the screenshot does not identify
+whether AWS credentials, permissions, request settings, or PSP validation caused
+it. Preview diagnostics now map allowlisted error types to actionable messages,
+including VisionContractError codes. Arbitrary exception messages and raw model
+output remain hidden. Nova live success and checkpoint persistence remain pending.
