@@ -1,7 +1,7 @@
 const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
-let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, pending = false, observing = false, saving = false;
+let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, pending = false, observing = false, saving = false, comparing = false;
 
 async function api(path, data) {
   const response = await fetch(`/api/${path}`, data === undefined ? {} : {
@@ -18,6 +18,61 @@ function controls() {
   byId('reload').disabled = pending || Boolean(peer || sessionId);
   byId('capture').disabled = pending || observing || !peer || video.readyState < 2 || !video.videoWidth;
   byId('saveCheckpoint').disabled = saving || observing || !latestObservationId;
+  document.querySelectorAll('[data-compare-checkpoint]').forEach(button => {
+    button.disabled = comparing || observing || !latestObservationId;
+  });
+}
+function hideDiff() {
+  byId('diffPanel').hidden = true;
+  byId('diffList').replaceChildren();
+}
+function describeSnapshot(snapshot) {
+  if (!snapshot) return '';
+  const parts = [];
+  if (snapshot.relations?.length) parts.push(snapshot.relations.map(r => `${r.type}${r.target ? ` ${r.target}` : ''}`).join(', '));
+  if (snapshot.attributes && Object.keys(snapshot.attributes).length) parts.push(Object.entries(snapshot.attributes).map(([key, value]) => `${key}=${String(value)}`).join(', '));
+  return parts.join(' · ');
+}
+function renderDiff(result) {
+  byId('diffTitle').textContent = `Compared with ${result.checkpoint.name}`;
+  byId('matchScore').textContent = `${result.match.percentage}%`;
+  byId('diffSummary').textContent = result.changeCount === 0
+    ? 'No meaningful differences remain. This scene matches the checkpoint.'
+    : `${result.changeCount} meaningful ${result.changeCount === 1 ? 'change' : 'changes'} detected. ${result.match.unknown ? `${result.match.unknown} uncertain.` : ''}`;
+  const items = result.changes.map(change => {
+    const item = document.createElement('li');
+    if (change.type === 'UNKNOWN') item.className = 'unknown';
+    const type = document.createElement('span'); type.className = 'diff-type'; type.textContent = change.type;
+    const title = document.createElement('strong'); title.textContent = `${change.entity} · ${change.category}`;
+    const reason = document.createElement('p'); reason.textContent = change.reason;
+    const expected = describeSnapshot(change.expected);
+    const actual = describeSnapshot(change.actual);
+    const detail = document.createElement('span'); detail.className = 'muted';
+    detail.textContent = [expected ? `Expected: ${expected}` : '', actual ? `Current: ${actual}` : '', `Confidence: ${Math.round(change.confidence * 100)}%`].filter(Boolean).join(' · ');
+    item.append(type, title, reason, detail);
+    return item;
+  });
+  if (!items.length) {
+    const item = document.createElement('li'); item.className = 'muted'; item.textContent = 'MATCH — no unresolved semantic differences.'; items.push(item);
+  }
+  byId('diffList').replaceChildren(...items);
+  byId('diffPanel').hidden = false;
+  byId('diffPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+async function compareCheckpoint(checkpointId) {
+  if (!latestObservationId || comparing || !byId('space').reportValidity()) return;
+  comparing = true; controls(); status('Comparing the current physical state with the saved checkpoint…');
+  try {
+    const result = await api('diff', {
+      spaceId: byId('space').value,
+      observationId: latestObservationId,
+      checkpointId,
+    });
+    renderDiff(result);
+    status(result.match.restored ? `${result.checkpoint.name} matches the current scene.` : `${result.changeCount} meaningful changes found.`);
+  } catch (error) {
+    hideDiff(); status(error.message || 'Could not compare the current state.');
+  } finally { comparing = false; controls(); }
 }
 function checkpointItem(checkpoint) {
   const item = document.createElement('li');
@@ -26,7 +81,12 @@ function checkpointItem(checkpoint) {
   const meta = document.createElement('span');
   meta.className = 'muted';
   meta.textContent = `${checkpoint.entityCount} entities · ${new Date(checkpoint.createdAt).toLocaleString()} · ${checkpoint.stateHash.slice(0, 10)}`;
-  item.append(title, meta);
+  const actions = document.createElement('div'); actions.className = 'checkpoint-actions';
+  const compare = document.createElement('button');
+  compare.textContent = 'Compare current state'; compare.dataset.compareCheckpoint = checkpoint.id;
+  compare.disabled = !latestObservationId;
+  compare.onclick = () => compareCheckpoint(checkpoint.id);
+  actions.append(compare); item.append(title, meta, actions);
   return item;
 }
 async function refreshCheckpoints() {
@@ -40,7 +100,7 @@ async function refreshCheckpoints() {
       : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'No saved checkpoints for this space.' })]));
   } catch (error) {
     byId('checkpoints').replaceChildren(Object.assign(document.createElement('li'), { className: 'muted', textContent: error.message }));
-  } finally { byId('refreshCheckpoints').disabled = false; }
+  } finally { byId('refreshCheckpoints').disabled = false; controls(); }
 }
 async function discover() {
   pending = true; controls(); status('Discovering devices…');
@@ -64,8 +124,6 @@ async function stop() {
   }
 }
 function gatherIce(pc) {
-  // Match the working Amazon sample: use gathered candidates after a bounded wait.
-  // Some networks never signal complete; that must not prevent the WHEP POST.
   return new Promise(resolve => {
     const timer = setTimeout(() => { cleanup(); resolve(); }, 3_000);
     const check = () => { if (pc.iceGatheringState === 'complete') { cleanup(); resolve(); } };
@@ -117,7 +175,7 @@ function discard() {
   frameUrl = frameBlob = capturedAt = latestObservationId = undefined;
   byId('frame').removeAttribute('src'); byId('download').removeAttribute('href');
   byId('snapshot').hidden = true; byId('result').hidden = true; byId('result').textContent = '';
-  byId('savePanel').hidden = true; controls();
+  byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints();
 }
 byId('capture').onclick = async () => {
   if (video.readyState < 2 || !video.videoWidth) return;
@@ -137,7 +195,7 @@ byId('observe').onclick = async () => {
   if (!frameBlob) return;
   if (!byId('space').reportValidity()) return;
   observing = true; controls(); byId('observe').disabled = true; byId('discard').disabled = true;
-  byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = undefined; status('Nova is observing the captured frame…');
+  byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = undefined; hideDiff(); status('Nova is observing the captured frame…');
   try {
     const image = await new Promise((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(frameBlob);
@@ -145,7 +203,8 @@ byId('observe').onclick = async () => {
     const result = await api('observe', { image, capturedAt, spaceId: byId('space').value });
     latestObservationId = result.observationId;
     byId('result').textContent = JSON.stringify(result, null, 2); byId('result').hidden = false; byId('savePanel').hidden = false;
-    status('Observation validated. Name it and save the checkpoint.');
+    await refreshCheckpoints();
+    status('Observation validated. Save it or compare the current state with a checkpoint.');
   } catch (error) { status(error.message || 'Could not read the frame.'); }
   finally { observing = false; controls(); byId('observe').disabled = false; byId('discard').disabled = false; }
 };
@@ -158,7 +217,7 @@ byId('saveCheckpoint').onclick = async () => {
       spaceId: byId('space').value,
       name: byId('checkpointName').value,
     });
-    status(`${checkpoint.name} saved. Reload the page to verify persistence.`);
+    status(`${checkpoint.name} saved. You can now compare future observations against it.`);
     await refreshCheckpoints();
   } catch (error) { status(error.message || 'Checkpoint could not be saved.'); }
   finally { saving = false; controls(); }
@@ -167,7 +226,7 @@ byId('discard').onclick = discard;
 byId('reload').onclick = discover;
 byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
-byId('space').onchange = () => { latestObservationId = undefined; byId('savePanel').hidden = true; controls(); void refreshCheckpoints(); };
+byId('space').onchange = () => { latestObservationId = undefined; byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints(); };
 video.onloadeddata = controls;
 window.addEventListener('pagehide', () => {
   if (sessionId) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ id: sessionId })], { type: 'application/json' }));
