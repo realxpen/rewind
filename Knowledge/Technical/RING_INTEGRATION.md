@@ -41,3 +41,36 @@ status only. Offline fixtures contain no real Playground session data.
 
 The optional local-offer smoke and commands are in `docs/TESTING.md`.
 No live WHEP or media-reception pass is claimed by the unit tests.
+
+## Live lifecycle evidence — 2026-09-09
+
+The user ran the implemented smoke on commit `2ca86c8` and reported:
+
+```text
+Discovered devices: 1
+WHEP create: 201, SDP answer and session location received
+WHEP delete: success
+Ring Playground smoke complete. No credentials were printed.
+```
+
+This proves live authenticated discovery and WHEP create/delete from REWIND.
+It does not prove decoded video, frame capture, or Nova perception.
+
+Next verification: use a live WebRTC peer that creates its own offer, applies
+the returned answer, and receives video. Capture a decoded frame for the
+observation adapter. Avoid further manual copying of ephemeral SDP as a product
+workflow. Amazon's reference implementation is
+https://github.com/AmazonAppDev/ring-api-helloworld (browser streaming example).
+
+## Preview bridge
+
+The user subsequently supplied a screenshot showing decoded Playground video in
+Amazon's sample. REWIND's `ring:preview` now implements the corresponding peer
+negotiation and frame capture flow, with an optional handoff to the existing Nova
+adapter. An HTTP integration test verifies the server contract using injected
+services; REWIND's live browser/AWS path remains unverified until exercised.
+
+Stable Playground settings confirmed by prior successful user runs:
+`RING_API_BASE_URL=https://api.amazonvision.com`, `RING_DEVICES_PATH=/v1/devices`.
+OAuth access tokens remain short-lived runtime input. No SDP should be copied
+manually for the preview. See `docs/TESTING.md` for setup and cleanup limits.

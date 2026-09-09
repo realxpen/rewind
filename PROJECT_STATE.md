@@ -126,5 +126,17 @@ Create space → Connect Ring → Observe → Save checkpoint → Change environ
 - Typed WHEP create/delete lifecycle implemented from the user-reported Playground contract.
 - Offline WHEP tests included in full `npm test`.
 - Optional local SDP offer smoke added; see `docs/TESTING.md`.
-- Live WHEP smoke and video delivery evidence remain pending. This update does not
+- Live WHEP session smoke: PASS (user-provided terminal output, 2026-09-09).
+  Discovery found one device; create returned 201 with SDP answer and Location;
+  DELETE succeeded. Full offline test suite also passed on the user machine.
+- Video reception/frame capture evidence remains pending. This update does not
   close the Phase 2 live gate or advance to Phase 4.
+
+## Ring preview bridge — 2026-09-09
+
+- User screenshot confirms decoded Playground video in the official Amazon sample.
+- REWIND now includes `ring:preview`: browser-generated SDP, live video, single-frame
+  capture, optional JPEG download, and an explicit Nova observation action.
+- Nova output uses the existing validated PSP adapter. No SAVE persistence added.
+- REWIND browser video/capture and live Nova handoff still require user verification.
+- The sample video proof does not close the controlled Phase 2 perception gate.
