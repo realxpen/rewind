@@ -1,7 +1,7 @@
 const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
-let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, pending = false, observing = false, saving = false, comparing = false;
+let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false;
 
 async function api(path, data) {
   const response = await fetch(`/api/${path}`, data === undefined ? {} : {
@@ -19,12 +19,20 @@ function controls() {
   byId('capture').disabled = pending || observing || !peer || video.readyState < 2 || !video.videoWidth;
   byId('saveCheckpoint').disabled = saving || observing || !latestObservationId;
   document.querySelectorAll('[data-compare-checkpoint]').forEach(button => {
-    button.disabled = comparing || observing || !latestObservationId;
+    button.disabled = comparing || observing || rewinding || !latestObservationId;
   });
+  byId('startRewind').disabled = rewinding || comparing || observing || !latestObservationId || !latestDiffCheckpointId;
+}
+function hideRewind() {
+  byId('rewindPanel').hidden = true;
+  byId('rewindList').replaceChildren();
 }
 function hideDiff() {
+  latestDiffCheckpointId = undefined;
   byId('diffPanel').hidden = true;
   byId('diffList').replaceChildren();
+  byId('startRewind').hidden = true;
+  hideRewind();
 }
 function describeSnapshot(snapshot) {
   if (!snapshot) return '';
@@ -34,6 +42,7 @@ function describeSnapshot(snapshot) {
   return parts.join(' · ');
 }
 function renderDiff(result) {
+  latestDiffCheckpointId = result.checkpoint.id;
   byId('diffTitle').textContent = `Compared with ${result.checkpoint.name}`;
   byId('matchScore').textContent = `${result.match.percentage}%`;
   byId('diffSummary').textContent = result.changeCount === 0
@@ -56,8 +65,42 @@ function renderDiff(result) {
     const item = document.createElement('li'); item.className = 'muted'; item.textContent = 'MATCH — no unresolved semantic differences.'; items.push(item);
   }
   byId('diffList').replaceChildren(...items);
+  byId('startRewind').hidden = result.match.restored;
+  hideRewind();
   byId('diffPanel').hidden = false;
+  controls();
   byId('diffPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderRewind(result) {
+  byId('rewindTitle').textContent = `Rewind to ${result.checkpoint.name}`;
+  byId('rewindState').textContent = result.state;
+  byId('rewindSummary').textContent = result.state === 'RESTORED'
+    ? 'The current scene already matches this checkpoint.'
+    : result.plan.actions.length
+      ? `${result.plan.actions.length} deterministic restoration ${result.plan.actions.length === 1 ? 'step' : 'steps'} ready.${result.plan.blockedUnknowns.length ? ` ${result.plan.blockedUnknowns.length} uncertain item(s) need re-observation.` : ''}`
+      : 'No safe deterministic action can be generated until uncertain items are observed again.';
+  const items = result.plan.actions.map((action, index) => {
+    const item = document.createElement('li');
+    const step = document.createElement('span'); step.className = 'restore-step'; step.textContent = `STEP ${index + 1} · ${action.sourceTypes.join(', ')}`;
+    const instruction = document.createElement('strong'); instruction.textContent = action.instruction;
+    const verification = document.createElement('p'); verification.textContent = action.verificationHint;
+    const meta = document.createElement('span'); meta.className = 'muted'; meta.textContent = `Confidence: ${Math.round(action.confidence * 100)}% · Status: ${action.status}`;
+    item.append(step, instruction, verification, meta);
+    return item;
+  });
+  for (const entity of result.plan.blockedUnknowns) {
+    const item = document.createElement('li'); item.className = 'unknown';
+    const step = document.createElement('span'); step.className = 'restore-step'; step.textContent = 'UNCERTAIN';
+    const instruction = document.createElement('strong'); instruction.textContent = `Re-observe ${entity} before acting.`;
+    const meta = document.createElement('span'); meta.className = 'muted'; meta.textContent = 'REWIND will not invent a restoration action for low-confidence state.';
+    item.append(step, instruction, meta); items.push(item);
+  }
+  if (!items.length) {
+    const item = document.createElement('li'); item.className = 'muted'; item.textContent = 'No restoration actions required.'; items.push(item);
+  }
+  byId('rewindList').replaceChildren(...items);
+  byId('rewindPanel').hidden = false;
+  byId('rewindPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function compareCheckpoint(checkpointId) {
   if (!latestObservationId || comparing || !byId('space').reportValidity()) return;
@@ -69,10 +112,25 @@ async function compareCheckpoint(checkpointId) {
       checkpointId,
     });
     renderDiff(result);
-    status(result.match.restored ? `${result.checkpoint.name} matches the current scene.` : `${result.changeCount} meaningful changes found.`);
+    status(result.match.restored ? `${result.checkpoint.name} matches the current scene.` : `${result.changeCount} meaningful changes found. Start Rewind when ready.`);
   } catch (error) {
     hideDiff(); status(error.message || 'Could not compare the current state.');
   } finally { comparing = false; controls(); }
+}
+async function startRewind() {
+  if (!latestObservationId || !latestDiffCheckpointId || rewinding || !byId('space').reportValidity()) return;
+  rewinding = true; controls(); status('Building a deterministic restoration plan…');
+  try {
+    const result = await api('rewind', {
+      spaceId: byId('space').value,
+      observationId: latestObservationId,
+      checkpointId: latestDiffCheckpointId,
+    });
+    renderRewind(result);
+    status(result.state === 'RESTORED' ? `${result.checkpoint.name} is already restored.` : `REWIND guidance ready: ${result.plan.actions.length} action(s).`);
+  } catch (error) {
+    hideRewind(); status(error.message || 'Could not start Rewind.');
+  } finally { rewinding = false; controls(); }
 }
 function checkpointItem(checkpoint) {
   const item = document.createElement('li');
@@ -172,7 +230,7 @@ byId('stop').onclick = async () => {
 };
 function discard() {
   if (frameUrl) URL.revokeObjectURL(frameUrl);
-  frameUrl = frameBlob = capturedAt = latestObservationId = undefined;
+  frameUrl = frameBlob = capturedAt = latestObservationId = latestDiffCheckpointId = undefined;
   byId('frame').removeAttribute('src'); byId('download').removeAttribute('href');
   byId('snapshot').hidden = true; byId('result').hidden = true; byId('result').textContent = '';
   byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints();
@@ -195,7 +253,7 @@ byId('observe').onclick = async () => {
   if (!frameBlob) return;
   if (!byId('space').reportValidity()) return;
   observing = true; controls(); byId('observe').disabled = true; byId('discard').disabled = true;
-  byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = undefined; hideDiff(); status('Nova is observing the captured frame…');
+  byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = latestDiffCheckpointId = undefined; hideDiff(); status('Nova is observing the captured frame…');
   try {
     const image = await new Promise((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(frameBlob);
@@ -222,11 +280,12 @@ byId('saveCheckpoint').onclick = async () => {
   } catch (error) { status(error.message || 'Checkpoint could not be saved.'); }
   finally { saving = false; controls(); }
 };
+byId('startRewind').onclick = startRewind;
 byId('discard').onclick = discard;
 byId('reload').onclick = discover;
 byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
-byId('space').onchange = () => { latestObservationId = undefined; byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints(); };
+byId('space').onchange = () => { latestObservationId = latestDiffCheckpointId = undefined; byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints(); };
 video.onloadeddata = controls;
 window.addEventListener('pagehide', () => {
   if (sessionId) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ id: sessionId })], { type: 'application/json' }));
