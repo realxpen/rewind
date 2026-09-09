@@ -4,7 +4,7 @@ _Last updated: 2026-09-09_
 
 ## Current phase
 
-**Phase 5 — DIFF: IN PROGRESS**
+**Phase 6 — REWIND: IN PROGRESS**
 
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
@@ -145,7 +145,7 @@ Phase 4 gate: **PASS**.
 
 ## Phase 5 — DIFF
 
-Goal:
+Verified path:
 
 ```text
 current Ring observation
@@ -156,7 +156,7 @@ current Ring observation
 → visual semantic diff
 ```
 
-Implemented on `main`:
+Implemented and verified:
 
 - [x] `POST /api/diff` compares a server-held current observation against a persisted checkpoint.
 - [x] checkpoint lookup remains server-side through `CheckpointService.get()`.
@@ -166,23 +166,51 @@ Implemented on `main`:
 - [x] visual diff cards show `MOVED`, `REMOVED`, `ADDED`, `ATTRIBUTE_CHANGED`, and `UNKNOWN` when present.
 - [x] Phase 5 integration test proves canonical Demo Ready → Messy returns six semantic changes and `restored=false`.
 - [x] full `npm test` passes in GitHub Actions with the Phase 5 gate included.
+- [x] live Ring → Nova comparison verified in the preview.
+- [x] live comparison showed 5 meaningful changes and **0%** match, with no false `RESTORED` result.
 
-### Phase 5 live gate still required
+Phase 5 gate: **PASS**.
 
-- [ ] Pull latest `main`.
-- [ ] Start `ring:preview` with existing Ring + AWS + DynamoDB environment.
-- [ ] Keep the saved **Demo Ready** checkpoint.
-- [ ] Capture/observe a visibly changed current scene.
-- [ ] Click **Compare current state** on **Demo Ready**.
-- [ ] Confirm the UI shows meaningful semantic differences and does not falsely show 100% restored.
+## Phase 6 — REWIND
 
-Phase 5 gate: **OPEN** until the live changed-scene comparison is verified.
+Goal:
 
-## Next after Phase 5 passes
+```text
+saved checkpoint + current observation
+→ deterministic semantic diff
+→ deterministic restore planner
+→ ordered human restoration actions
+→ user follows guidance
+```
 
-**Phase 6 — REWIND**
+Implemented on `main`:
 
-Persist/start a Restore Session → generate ordered human actions → verify after new observations → recompute progress → reach **100% RESTORED** without manual application-data edits.
+- [x] `POST /api/rewind` loads the persisted checkpoint and current server-held observation.
+- [x] deterministic `compareStates()` remains the comparison source of truth.
+- [x] deterministic `buildRestorePlan()` generates human restoration actions.
+- [x] `UNKNOWN` entities are blocked from invented actions and surfaced for re-observation.
+- [x] state reports `GUIDING`, `LOW_CONFIDENCE`, or `RESTORED` from deterministic results.
+- [x] Phase 6 UI exposes **Start Rewind** after a non-restored comparison.
+- [x] ordered guidance cards show instruction, verification hint, confidence, source diff type, and action status.
+- [x] Phase 6 deterministic integration test proves Demo Ready → Messy generates six pending restoration actions.
+- [x] full GitHub Actions test suite passes with the Phase 6 gate included.
+
+### Phase 6 live gate still required
+
+- [ ] Pull latest `main` and run `npm test`.
+- [ ] Start `ring:preview` with the existing Ring + AWS + DynamoDB environment.
+- [ ] Observe a changed scene and compare it with **Demo Ready**.
+- [ ] Click **Start Rewind**.
+- [ ] Confirm the UI shows deterministic human restoration instructions for the detected changes.
+- [ ] Confirm uncertain items are not turned into invented actions.
+
+Phase 6 gate: **OPEN** until live guidance is verified.
+
+## Next after Phase 6 passes
+
+**Phase 7 — VERIFY**
+
+Capture a new Ring observation after each human action → Nova → deterministic diff → update restore progress → continue until **100% RESTORED**.
 
 ## MVP completion gate
 
