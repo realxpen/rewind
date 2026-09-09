@@ -21,6 +21,7 @@ async function main() {
     observe: request => nova.observe(request),
     saveCheckpoint: input => checkpoints.save(input),
     listCheckpoints: spaceId => checkpoints.list(spaceId),
+    getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: await readFile(resolve(assets, "preview.js"), "utf8"),
