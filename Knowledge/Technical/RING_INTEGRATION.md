@@ -74,3 +74,13 @@ Stable Playground settings confirmed by prior successful user runs:
 `RING_API_BASE_URL=https://api.amazonvision.com`, `RING_DEVICES_PATH=/v1/devices`.
 OAuth access tokens remain short-lived runtime input. No SDP should be copied
 manually for the preview. See `docs/TESTING.md` for setup and cleanup limits.
+
+## ICE preparation timeout correction
+
+User screenshot: discovery succeeded in REWIND but offer preparation timed out,
+while the Amazon sample had rendered video on the same setup. REWIND incorrectly
+required ICE gathering to reach complete within 15 seconds. Align with the working
+sample: proceed after completion or a 3-second gathering window, using the current
+local description; include both sample STUN servers. This permits the WHEP request
+when gathering stays pending. It does not guarantee video connectivity. Regression
+tests cover early completion, event completion, and the no-completion fallback.

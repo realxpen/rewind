@@ -12,7 +12,7 @@
     "test:phase2": "npm run build && npm run test:phase2:compiled",
     "test:phase2:compiled": "node dist/packages/vision/tests/parser.test.js && node dist/packages/vision/tests/prompt.test.js && node dist/packages/vision/tests/request.test.js && node dist/packages/vision/tests/evaluate.test.js && node dist/packages/vision/tests/matrix-gate.test.js",
     "test:ring": "npm run build && npm run test:ring:compiled",
-    "test:ring:compiled": "node dist/packages/ring/tests/config.test.js && node dist/packages/ring/tests/events.test.js && node dist/packages/ring/tests/client.test.js && node dist/packages/ring/tests/whep.test.js && node dist/packages/ring/tests/preview.test.js",
+    "test:ring:compiled": "node dist/packages/ring/tests/config.test.js && node dist/packages/ring/tests/events.test.js && node dist/packages/ring/tests/client.test.js && node dist/packages/ring/tests/whep.test.js && node dist/packages/ring/tests/preview.test.js && node dist/packages/ring/tests/ice.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",

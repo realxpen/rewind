@@ -38,8 +38,10 @@ async function stop() {
   }
 }
 function gatherIce(pc) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Camera connection timed out while preparing the offer. Try again.')); }, 15_000);
+  // Match the working Amazon sample: use gathered candidates after a bounded wait.
+  // Some networks never signal complete; that must not prevent the WHEP POST.
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { cleanup(); resolve(); }, 3_000);
     const check = () => { if (pc.iceGatheringState === 'complete') { cleanup(); resolve(); } };
     const cleanup = () => { clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', check); };
     pc.addEventListener('icegatheringstatechange', check); check();
@@ -55,7 +57,7 @@ async function waitForVideo() {
 byId('start').onclick = async () => {
   pending = true; controls(); status('Connecting to Ring…');
   try {
-    peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
     const stream = new MediaStream(); video.srcObject = stream;
     peer.ontrack = event => { stream.addTrack(event.track); video.play().catch(() => {}); };
     peer.addTransceiver('audio', { direction: 'sendrecv' });
