@@ -5,6 +5,7 @@ import type { RingDevice, RingWhepSession } from "./contracts.js";
 import type { VisionObservationRequest, VisionObservation } from "../../vision/src/contracts.js";
 import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
 import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
+import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
 
 export interface PreviewServices {
   devices(): Promise<RingDevice[]>;
@@ -13,6 +14,7 @@ export interface PreviewServices {
   observe(request: VisionObservationRequest): Promise<VisionObservation>;
   saveCheckpoint?(input: SaveCheckpointInput): Promise<Checkpoint>;
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
+  getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
 }
 
 class InputError extends Error {}
@@ -36,6 +38,9 @@ function send(res: ServerResponse, status: number, value: unknown) {
 }
 function validSpaceId(value: unknown): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9._-]{1,80}$/.test(value);
+}
+function validOpaqueId(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= 120;
 }
 
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
@@ -89,7 +94,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         const checkpoints = await services.listCheckpoints(spaceId);
         send(res, 200, checkpoints.map(summarizeCheckpoint)); return;
       }
-      if (req.method !== "POST" || !["/api/start", "/api/stop", "/api/heartbeat", "/api/observe", "/api/checkpoints"].includes(path)) {
+      if (req.method !== "POST" || !["/api/start", "/api/stop", "/api/heartbeat", "/api/observe", "/api/checkpoints", "/api/diff"].includes(path)) {
         send(res, 404, { error: "Not found." }); return;
       }
       if (req.headers.origin !== `http://${req.headers.host}` || req.headers["content-type"] !== "application/json") {
@@ -116,7 +121,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
       }
       if (path === "/api/checkpoints") {
         if (!services.saveCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
-        if (!validSpaceId(data.spaceId) || typeof data.name !== "string" || data.name.trim().length < 1 || data.name.trim().length > 120 || typeof data.observationId !== "string") {
+        if (!validSpaceId(data.spaceId) || typeof data.name !== "string" || data.name.trim().length < 1 || data.name.trim().length > 120 || !validOpaqueId(data.observationId)) {
           throw new InputError("Space, checkpoint name, and observation are required.");
         }
         const observation = observations.get(data.observationId);
@@ -128,6 +133,26 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
           state: observation.state,
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
+      }
+      if (path === "/api/diff") {
+        if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
+        if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.checkpointId)) {
+          throw new InputError("Space, checkpoint, and current observation are required.");
+        }
+        const observation = observations.get(data.observationId);
+        if (!observation || observation.spaceId !== data.spaceId) throw new InputError("Observe this space again before comparing it.");
+        const checkpoint = await services.getCheckpoint(data.spaceId, data.checkpointId);
+        if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
+        const diffs = compareStates(checkpoint.state, observation.state);
+        const match = calculateMatch(diffs);
+        const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
+        send(res, 200, {
+          checkpoint: summarizeCheckpoint(checkpoint),
+          match,
+          changeCount: changes.length,
+          changes,
+        });
+        return;
       }
       if (busy) { send(res, 409, { error: "Session operation in progress. Retry shortly." }); return; }
       busy = true;
@@ -153,8 +178,8 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
       const status = error instanceof InputError ? 400 : 502;
       const message = error instanceof InputError ? error.message : path === "/api/observe"
         ? observationErrorMessage(error)
-        : path === "/api/checkpoints"
-          ? "Checkpoint persistence failed. Check AWS credentials and the DynamoDB table, then retry."
+        : path === "/api/checkpoints" || path === "/api/diff"
+          ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
           : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
     }
