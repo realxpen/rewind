@@ -4,7 +4,7 @@ _Last updated: 2026-09-09_
 
 ## Current phase
 
-**Phase 4 — SAVE: IN PROGRESS**
+**Phase 5 — DIFF: IN PROGRESS**
 
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
@@ -114,7 +114,7 @@ Phase 3 gate: **PASS**.
 
 ## Phase 4 — SAVE
 
-Goal:
+Verified path:
 
 ```text
 Ring observation
@@ -126,7 +126,7 @@ Ring observation
 → checkpoint still exists
 ```
 
-Implemented on `main`:
+Implemented and verified:
 
 - [x] `packages/checkpoints` workspace.
 - [x] checkpoint contracts and deterministic state hash.
@@ -137,25 +137,52 @@ Implemented on `main`:
 - [x] `POST /api/checkpoints` saves only a server-held validated observation.
 - [x] `GET /api/checkpoints?spaceId=...` lists persisted checkpoint summaries.
 - [x] preview SAVE controls and saved-checkpoint list.
-- [x] `.env.example` includes `DYNAMODB_CHECKPOINTS_TABLE`.
+- [x] `rewind-checkpoints-dev` created and usable in `us-east-1`.
+- [x] **Demo Ready** saved from a live Ring → Nova observation.
+- [x] browser reload confirmed **Demo Ready** remains persisted from DynamoDB.
 
-### Phase 4 live gate still required
+Phase 4 gate: **PASS**.
 
-- [ ] Install the new DynamoDB SDK dependencies and lock them.
-- [ ] Create/verify `rewind-checkpoints-dev` in `us-east-1`.
-- [ ] Start `ring:preview` with Ring + AWS + DynamoDB environment loaded.
-- [ ] Capture a Ring frame and observe it with Nova.
-- [ ] Save checkpoint **Demo Ready**.
-- [ ] Reload the browser.
-- [ ] Confirm **Demo Ready** is still listed from DynamoDB.
+## Phase 5 — DIFF
 
-Phase 4 gate: **OPEN** until the reload persistence proof passes.
+Goal:
 
-## Next after Phase 4 passes
+```text
+current Ring observation
+→ Nova
+→ current PSP
+→ load saved checkpoint PSP
+→ deterministic compareStates()
+→ visual semantic diff
+```
 
-**Phase 5 — DIFF**
+Implemented on `main`:
 
-Current observation → Nova → PSP → deterministic compare against a stored checkpoint → visual `MOVED`, `REMOVED`, `ADDED`, `ATTRIBUTE_CHANGED` result.
+- [x] `POST /api/diff` compares a server-held current observation against a persisted checkpoint.
+- [x] checkpoint lookup remains server-side through `CheckpointService.get()`.
+- [x] deterministic `compareStates()` remains the source of truth for changes.
+- [x] `calculateMatch()` produces match percentage and prevents model-decided restoration.
+- [x] UI exposes **Compare current state** per saved checkpoint after a fresh Nova observation.
+- [x] visual diff cards show `MOVED`, `REMOVED`, `ADDED`, `ATTRIBUTE_CHANGED`, and `UNKNOWN` when present.
+- [x] Phase 5 integration test proves canonical Demo Ready → Messy returns six semantic changes and `restored=false`.
+- [x] full `npm test` passes in GitHub Actions with the Phase 5 gate included.
+
+### Phase 5 live gate still required
+
+- [ ] Pull latest `main`.
+- [ ] Start `ring:preview` with existing Ring + AWS + DynamoDB environment.
+- [ ] Keep the saved **Demo Ready** checkpoint.
+- [ ] Capture/observe a visibly changed current scene.
+- [ ] Click **Compare current state** on **Demo Ready**.
+- [ ] Confirm the UI shows meaningful semantic differences and does not falsely show 100% restored.
+
+Phase 5 gate: **OPEN** until the live changed-scene comparison is verified.
+
+## Next after Phase 5 passes
+
+**Phase 6 — REWIND**
+
+Persist/start a Restore Session → generate ordered human actions → verify after new observations → recompute progress → reach **100% RESTORED** without manual application-data edits.
 
 ## MVP completion gate
 
