@@ -6,17 +6,20 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled",
+    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled",
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
     "test:phase2:compiled": "node dist/packages/vision/tests/parser.test.js && node dist/packages/vision/tests/prompt.test.js && node dist/packages/vision/tests/request.test.js && node dist/packages/vision/tests/evaluate.test.js && node dist/packages/vision/tests/matrix-gate.test.js",
     "test:ring": "npm run build && npm run test:ring:compiled",
     "test:ring:compiled": "node dist/packages/ring/tests/config.test.js && node dist/packages/ring/tests/events.test.js && node dist/packages/ring/tests/client.test.js && node dist/packages/ring/tests/whep.test.js && node dist/packages/ring/tests/preview.test.js && node dist/packages/ring/tests/ice.test.js",
+    "test:phase4": "npm run build && npm run test:phase4:compiled",
+    "test:phase4:compiled": "node dist/packages/checkpoints/tests/checkpoint.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
-    "ring:smoke": "npm run build && node dist/packages/ring/scripts/playground-smoke.js"
+    "ring:smoke": "npm run build && node dist/packages/ring/scripts/playground-smoke.js",
+    "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
