@@ -96,7 +96,7 @@ From the repository root, with the Ring environment already exported:
 npm run ring:preview
 ```
 
-Open http://127.0.0.1:3001. Select a discovered device, click **Start live view**,
+Open http://127.0.0.1:3002. Select a discovered device, click **Start live view**,
 then **Capture frame** after video appears. No SDP file is needed: the browser
 creates an offer, gathers ICE, applies the Ring answer, and renders video.
 Click **Stop** to close the browser peer and delete the Ring session.

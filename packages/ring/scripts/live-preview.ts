@@ -15,7 +15,7 @@ async function main() {
     stop: url => endWhepSession(client, url),
     observe: request => nova.observe(request),
   }, { html: await readFile(resolve(assets, "index.html"), "utf8"), js: await readFile(resolve(assets, "preview.js"), "utf8") });
-  const port = Number(process.env.RING_PREVIEW_PORT ?? 3001);
+  const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error();
   preview.server.on("error", () => { console.error("Preview could not start. Check whether the port is in use."); process.exitCode = 1; });
   preview.server.listen(port, "127.0.0.1", () => console.log(`REWIND preview: http://127.0.0.1:${port}`));
