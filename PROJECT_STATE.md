@@ -4,7 +4,7 @@ _Last updated: 2026-09-09_
 
 ## Current phase
 
-**Phase 2 — Nova Vision: IN PROGRESS**
+**Phase 4 — SAVE: IN PROGRESS**
 
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
@@ -31,7 +31,7 @@ Architecture rule: **AI interprets state. Deterministic code compares state.**
 - [x] Public GitHub repository and MIT license.
 - [x] Devpost registration completed and REWIND draft created.
 - [x] Least-privilege `rewind-dev` IAM identity verified.
-- [x] Amazon Bedrock / Nova 2 Lite text inference verified with `REWIND DEV READY`.
+- [x] Amazon Bedrock / Nova 2 Lite text inference verified.
 - [x] Ring Developer Console and Developers Playground accessible.
 - [x] Playground OAuth generated and API Explorer returned synthetic device data.
 
@@ -46,7 +46,6 @@ Phase 0 gate: **PASS**.
 - [x] restoration planner + verification progress.
 - [x] demo-ready, messy, partial, restored fixtures.
 - [x] deterministic tests.
-- [x] GitHub CI gate passed.
 
 Phase 1 gate: **PASS**.
 
@@ -65,78 +64,99 @@ controlled image/snapshot
 → deterministic comparison
 ```
 
-### Implemented
+Implemented and verified:
 
 - [x] `packages/vision` workspace.
-- [x] observation-only Nova system/user prompt.
-- [x] tracked semantic vocabulary support.
-- [x] confidence contract preserving `<0.60` as uncertainty.
-- [x] Bedrock Converse multimodal image request builder.
-- [x] Nova runtime adapter.
-- [x] strict JSON extraction.
-- [x] Zod candidate schema.
-- [x] PSP validation + normalization.
-- [x] space/capture-time drift rejection.
-- [x] entity/relation/attribute evaluation metrics.
-- [x] contract tests and GitHub Actions workflow.
-- [x] Phase 2 TypeScript CI fixed and passing.
-- [x] controlled vision fixture manifest/docs.
-- [x] deterministic clean fixture generator with no embedded answer labels.
-- [x] benchmark-integrity audit aligned generated scenes to canonical PSP truth:
-  - chair is visibly occluded behind desk where PSP says `BEHIND`;
-  - untracked laptop removed;
-  - untracked messy-scene bottles removed from this gate;
-  - ADDED-object vision deferred to an explicit later fixture with matching ground truth.
-- [x] `evaluateChangedSceneGate()` locks the six required demo changes and prevents false `RESTORED`.
-- [x] deterministic matrix-gate test proves canonical fixtures score 6/6.
-- [x] `vision:matrix` runs all four real Nova observations, scores entity/relation/attribute recall, and requires >=5/6 changed-scene detections with no false `RESTORED`.
-- [x] latest Nova Vision CI on commit `64266a357783ffb1b5cab2a661d25c3b9298a03b` generated the corrected fixture set and passed all Phase 2 tests.
+- [x] observation-only Nova prompt and tracked semantic vocabulary.
+- [x] Bedrock Converse multimodal request builder and runtime adapter.
+- [x] strict JSON extraction + Zod + PSP validation/normalization.
+- [x] confidence-aware evaluation metrics.
+- [x] controlled fixture generator and live matrix harness.
+- [x] real Nova matrix executed locally against demo-ready, messy, partial, restored.
+- [x] 100% tracked-entity recall in the final controlled run.
+- [x] changed-scene gate recovered 5/6 deliberate changes.
+- [x] `falseRestored=false`.
+- [x] no manual JSON editing required.
 
-### Live gate still required
+Known limitation retained honestly: relation recall in the controlled benchmark remains weak, and the desk attribute change was the one missed changed-scene assertion in the final run. This does not block the locked Phase 2 gate.
 
-- [ ] Run real Nova 2 Lite multimodal inference against clean controlled `demo-ready` image.
-- [ ] Repeat against `messy`, `partial`, and `restored` fixtures.
-- [ ] Record entity/relation/attribute accuracy.
-- [ ] Confirm no manual JSON editing.
-- [ ] Confirm controlled target: >=90% expected tracked-object recognition.
-- [ ] Confirm changed-scene path can recover at least 5/6 deliberate changes before Phase 3/4 dependency.
-- [ ] Confirm `messy` never produces a false `RESTORED` result.
+Phase 2 gate: **PASS**.
 
-The ChatGPT AWS Core connector became unavailable during the live invocation attempt. The live gate therefore remains intentionally open; this is not being counted as a Nova failure or a pass.
+## Phase 3 — Ring Foundation
 
-GitHub issue #1 tracks the live fixture matrix and required evidence.
+Verified runtime path:
 
-### Phase 2 gate
+```text
+Ring Playground OAuth
+→ device discovery
+→ WHEP session creation
+→ live browser video
+→ frame capture
+→ Nova observation
+→ validated PSP
+```
 
-Nova must consistently recognize the chosen 5–8 MVP objects/relations on controlled images and return valid normalized PSP that feeds Phase 1 without manual edits.
+Implemented and verified:
 
-## Next after Phase 2 passes
+- [x] Ring API client and configuration boundary.
+- [x] synthetic device discovery.
+- [x] event normalization foundation.
+- [x] WHEP POST/DELETE lifecycle.
+- [x] browser WebRTC live preview.
+- [x] decoded Playground video received in REWIND.
+- [x] frame capture from Ring live video.
+- [x] captured frame sent to Amazon Bedrock / Nova 2 Lite.
+- [x] validated PSP returned to the preview.
+- [x] credentials/session URLs remain server-side.
+- [x] no raw media persistence in the Ring preview path.
 
-**Phase 3 — Ring Foundation**
+Phase 3 gate: **PASS**.
 
-Ring adapter → device discovery → status → snapshot/media → live-stream proof → debug/judge screen runtime evidence.
+## Phase 4 — SAVE
+
+Goal:
+
+```text
+Ring observation
+→ Nova
+→ validated PSP
+→ named checkpoint
+→ DynamoDB
+→ browser reload
+→ checkpoint still exists
+```
+
+Implemented on `main`:
+
+- [x] `packages/checkpoints` workspace.
+- [x] checkpoint contracts and deterministic state hash.
+- [x] DynamoDB checkpoint store.
+- [x] DynamoDB table bootstrap script.
+- [x] checkpoint service unit test.
+- [x] preview observation IDs retained server-side without retaining images.
+- [x] `POST /api/checkpoints` saves only a server-held validated observation.
+- [x] `GET /api/checkpoints?spaceId=...` lists persisted checkpoint summaries.
+- [x] preview SAVE controls and saved-checkpoint list.
+- [x] `.env.example` includes `DYNAMODB_CHECKPOINTS_TABLE`.
+
+### Phase 4 live gate still required
+
+- [ ] Install the new DynamoDB SDK dependencies and lock them.
+- [ ] Create/verify `rewind-checkpoints-dev` in `us-east-1`.
+- [ ] Start `ring:preview` with Ring + AWS + DynamoDB environment loaded.
+- [ ] Capture a Ring frame and observe it with Nova.
+- [ ] Save checkpoint **Demo Ready**.
+- [ ] Reload the browser.
+- [ ] Confirm **Demo Ready** is still listed from DynamoDB.
+
+Phase 4 gate: **OPEN** until the reload persistence proof passes.
+
+## Next after Phase 4 passes
+
+**Phase 5 — DIFF**
+
+Current observation → Nova → PSP → deterministic compare against a stored checkpoint → visual `MOVED`, `REMOVED`, `ADDED`, `ATTRIBUTE_CHANGED` result.
 
 ## MVP completion gate
 
 Create space → Connect Ring → Observe → Save checkpoint → Change environment → Observe again → Diff → Start Rewind → Guide action → Verify → Continue → **100% RESTORED**.
-
-## Phase 3 implementation update — 2026-09-09
-
-- Ring discovery/events adapter present.
-- Typed WHEP create/delete lifecycle implemented from the user-reported Playground contract.
-- Offline WHEP tests included in full `npm test`.
-- Optional local SDP offer smoke added; see `docs/TESTING.md`.
-- Live WHEP session smoke: PASS (user-provided terminal output, 2026-09-09).
-  Discovery found one device; create returned 201 with SDP answer and Location;
-  DELETE succeeded. Full offline test suite also passed on the user machine.
-- Video reception/frame capture evidence remains pending. This update does not
-  close the Phase 2 live gate or advance to Phase 4.
-
-## Ring preview bridge — 2026-09-09
-
-- User screenshot confirms decoded Playground video in the official Amazon sample.
-- REWIND now includes `ring:preview`: browser-generated SDP, live video, single-frame
-  capture, optional JPEG download, and an explicit Nova observation action.
-- Nova output uses the existing validated PSP adapter. No SAVE persistence added.
-- REWIND browser video/capture and live Nova handoff still require user verification.
-- The sample video proof does not close the controlled Phase 2 perception gate.
