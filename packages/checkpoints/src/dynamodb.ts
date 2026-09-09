@@ -3,7 +3,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@a
 import type { Checkpoint, CheckpointStore } from "./contracts.js";
 
 export interface DocumentClientLike {
-  send(command: unknown): Promise<unknown>;
+  send(command: any): Promise<any>;
 }
 
 export class DynamoCheckpointStore implements CheckpointStore {
@@ -27,9 +27,8 @@ export class DynamoCheckpointStore implements CheckpointStore {
       TableName: this.tableName,
       KeyConditionExpression: "spaceId = :spaceId",
       ExpressionAttributeValues: { ":spaceId": spaceId },
-      ScanIndexForward: false,
     })) as { Items?: Checkpoint[] };
-    return result.Items ?? [];
+    return (result.Items ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async get(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined> {
