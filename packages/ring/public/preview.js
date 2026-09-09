@@ -1,7 +1,8 @@
 const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
-let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, pending = false, observing = false;
+let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, pending = false, observing = false, saving = false;
+
 async function api(path, data) {
   const response = await fetch(`/api/${path}`, data === undefined ? {} : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
@@ -16,6 +17,30 @@ function controls() {
   byId('devices').disabled = pending || Boolean(peer || sessionId);
   byId('reload').disabled = pending || Boolean(peer || sessionId);
   byId('capture').disabled = pending || observing || !peer || video.readyState < 2 || !video.videoWidth;
+  byId('saveCheckpoint').disabled = saving || observing || !latestObservationId;
+}
+function checkpointItem(checkpoint) {
+  const item = document.createElement('li');
+  const title = document.createElement('strong');
+  title.textContent = checkpoint.name;
+  const meta = document.createElement('span');
+  meta.className = 'muted';
+  meta.textContent = `${checkpoint.entityCount} entities · ${new Date(checkpoint.createdAt).toLocaleString()} · ${checkpoint.stateHash.slice(0, 10)}`;
+  item.append(title, meta);
+  return item;
+}
+async function refreshCheckpoints() {
+  const space = byId('space').value;
+  if (!/^[a-zA-Z0-9._-]{1,80}$/.test(space)) return;
+  byId('refreshCheckpoints').disabled = true;
+  try {
+    const checkpoints = await api(`checkpoints?spaceId=${encodeURIComponent(space)}`);
+    byId('checkpoints').replaceChildren(...(checkpoints.length
+      ? checkpoints.map(checkpointItem)
+      : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'No saved checkpoints for this space.' })]));
+  } catch (error) {
+    byId('checkpoints').replaceChildren(Object.assign(document.createElement('li'), { className: 'muted', textContent: error.message }));
+  } finally { byId('refreshCheckpoints').disabled = false; }
 }
 async function discover() {
   pending = true; controls(); status('Discovering devices…');
@@ -25,6 +50,7 @@ async function discover() {
       const option = document.createElement('option'); option.value = device.id; option.textContent = device.name; return option;
     }));
     status(devices.length ? 'Camera ready. Start live view.' : 'No Ring devices found.');
+    await refreshCheckpoints();
   } catch (error) { status(error.message); }
   finally { pending = false; controls(); }
 }
@@ -88,9 +114,10 @@ byId('stop').onclick = async () => {
 };
 function discard() {
   if (frameUrl) URL.revokeObjectURL(frameUrl);
-  frameUrl = frameBlob = capturedAt = undefined;
+  frameUrl = frameBlob = capturedAt = latestObservationId = undefined;
   byId('frame').removeAttribute('src'); byId('download').removeAttribute('href');
   byId('snapshot').hidden = true; byId('result').hidden = true; byId('result').textContent = '';
+  byId('savePanel').hidden = true; controls();
 }
 byId('capture').onclick = async () => {
   if (video.readyState < 2 || !video.videoWidth) return;
@@ -110,20 +137,37 @@ byId('observe').onclick = async () => {
   if (!frameBlob) return;
   if (!byId('space').reportValidity()) return;
   observing = true; controls(); byId('observe').disabled = true; byId('discard').disabled = true;
-  byId('result').hidden = true; status('Nova is observing the captured frame…');
+  byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = undefined; status('Nova is observing the captured frame…');
   try {
     const image = await new Promise((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(frameBlob);
     });
     const result = await api('observe', { image, capturedAt, spaceId: byId('space').value });
-    byId('result').textContent = JSON.stringify(result, null, 2); byId('result').hidden = false;
-    status('Observation validated. No checkpoint saved yet.');
+    latestObservationId = result.observationId;
+    byId('result').textContent = JSON.stringify(result, null, 2); byId('result').hidden = false; byId('savePanel').hidden = false;
+    status('Observation validated. Name it and save the checkpoint.');
   } catch (error) { status(error.message || 'Could not read the frame.'); }
   finally { observing = false; controls(); byId('observe').disabled = false; byId('discard').disabled = false; }
 };
+byId('saveCheckpoint').onclick = async () => {
+  if (!latestObservationId || !byId('space').reportValidity() || !byId('checkpointName').reportValidity()) return;
+  saving = true; controls(); status('Saving semantic checkpoint to DynamoDB…');
+  try {
+    const checkpoint = await api('checkpoints', {
+      observationId: latestObservationId,
+      spaceId: byId('space').value,
+      name: byId('checkpointName').value,
+    });
+    status(`${checkpoint.name} saved. Reload the page to verify persistence.`);
+    await refreshCheckpoints();
+  } catch (error) { status(error.message || 'Checkpoint could not be saved.'); }
+  finally { saving = false; controls(); }
+};
 byId('discard').onclick = discard;
 byId('reload').onclick = discover;
+byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
+byId('space').onchange = () => { latestObservationId = undefined; byId('savePanel').hidden = true; controls(); void refreshCheckpoints(); };
 video.onloadeddata = controls;
 window.addEventListener('pagehide', () => {
   if (sessionId) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ id: sessionId })], { type: 'application/json' }));
