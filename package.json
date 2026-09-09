@@ -6,7 +6,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled",
+    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled",
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
@@ -17,6 +17,8 @@
     "test:phase4:compiled": "node dist/packages/checkpoints/tests/checkpoint.test.js",
     "test:phase5": "npm run build && npm run test:phase5:compiled",
     "test:phase5:compiled": "node dist/packages/ring/tests/diff-preview.test.js",
+    "test:phase6": "npm run build && npm run test:phase6:compiled",
+    "test:phase6:compiled": "node dist/packages/ring/tests/rewind-preview.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
