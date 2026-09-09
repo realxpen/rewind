@@ -47,17 +47,6 @@ It also verifies:
 - the restored fixture reaches `100%`;
 - all planned actions become `VERIFIED` only at restoration.
 
-## Future layers
-
-Later phases add:
-
-1. Nova structured-output contract tests;
-2. image fixture → PSP evaluation;
-3. Ring Playground integration tests;
-4. checkpoint persistence tests;
-5. restore-session state-machine tests;
-6. end-to-end SAVE → DIFF → REWIND → VERIFY tests.
-
 ## Ring WHEP session smoke
 
 `npm test` includes offline WHEP contract tests; no credentials or live service are required.
@@ -115,15 +104,60 @@ finished. **Observe with Nova** sends only the selected frame and its capture ti
 and space name to the existing Bedrock adapter. AWS credentials must be available
 in the server environment through the SDK default credential chain; configure
 `AWS_REGION` and `BEDROCK_MODEL_ID` as needed. Nova calls incur normal AWS usage.
-The response exposes validated PSP state, model ID, and latency; it does not save
-a checkpoint or expose the raw model response. Server code does not persist media.
+The response exposes validated PSP state, model ID, latency, and a short-lived
+server observation ID. Server code does not persist media.
 
-Validation: `npm test` includes local HTTP integration tests with injected Ring
-and Nova services. These need permission to listen on loopback. They verify
-origin restrictions, discovery, session ownership, cleanup/retry, frame boundary
-checks, and the observation adapter contract. They do not prove actual browser
-WebRTC reception, image recognition accuracy, or live AWS availability.
+## Phase 4 — SAVE persistence gate
 
-Reference for the WebRTC flow: AmazonAppDev/ring-api-helloworld,
-`app/hooks/useWebRTCStream.ts`. The implementation here is a small local REWIND
-surface, not a copy of the sample dashboard.
+Phase 4 stores the validated semantic state, not the image. The checkpoint table
+uses `spaceId` as its partition key and `id` as its sort key.
+
+First load AWS credentials and create/verify the development table:
+
+```bash
+export AWS_PROFILE=rewind-dev
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_SDK_LOAD_CONFIG=1
+export DYNAMODB_CHECKPOINTS_TABLE=rewind-checkpoints-dev
+
+npm run checkpoints:ensure-table
+```
+
+Then export a fresh Ring Playground token and start the preview:
+
+```bash
+export RING_API_BASE_URL=https://api.amazonvision.com
+export RING_DEVICES_PATH=/v1/devices
+export RING_ACCESS_TOKEN='YOUR_FRESH_PLAYGROUND_TOKEN'
+npm run ring:preview
+```
+
+In the browser:
+
+1. Start live view.
+2. Capture a frame.
+3. Set the space name (for example `studio`).
+4. Click **Observe with Nova**.
+5. Leave the checkpoint name as **Demo Ready** or choose another valid name.
+6. Click **Save checkpoint**.
+7. Confirm the checkpoint appears in **Saved checkpoints**.
+8. Reload the page.
+9. Confirm **Demo Ready** still appears.
+
+That reload is the Phase 4 gate. If it survives reload, the checkpoint came back
+from DynamoDB rather than browser memory. The server accepts a checkpoint save only
+for a validated observation that it produced during the current process. The raw
+captured image is not written to DynamoDB.
+
+`npm test` also includes the offline Phase 4 checkpoint service test. It verifies
+save/list/get behavior and a deterministic SHA-256 hash over the normalized PSP.
+
+## Future layers
+
+Later phases add:
+
+1. current observation → stored checkpoint diff;
+2. restore-session state-machine tests;
+3. Ring motion-triggered verification;
+4. end-to-end SAVE → DIFF → REWIND → VERIFY tests.
