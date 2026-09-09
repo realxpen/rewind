@@ -6,6 +6,7 @@ import type { VisionObservationRequest, VisionObservation } from "../../vision/s
 import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
 import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
+import { buildRestorePlan } from "../../restore-engine/src/index.js";
 
 export interface PreviewServices {
   devices(): Promise<RingDevice[]>;
@@ -94,7 +95,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         const checkpoints = await services.listCheckpoints(spaceId);
         send(res, 200, checkpoints.map(summarizeCheckpoint)); return;
       }
-      if (req.method !== "POST" || !["/api/start", "/api/stop", "/api/heartbeat", "/api/observe", "/api/checkpoints", "/api/diff"].includes(path)) {
+      if (req.method !== "POST" || !["/api/start", "/api/stop", "/api/heartbeat", "/api/observe", "/api/checkpoints", "/api/diff", "/api/rewind"].includes(path)) {
         send(res, 404, { error: "Not found." }); return;
       }
       if (req.headers.origin !== `http://${req.headers.host}` || req.headers["content-type"] !== "application/json") {
@@ -134,7 +135,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
       }
-      if (path === "/api/diff") {
+      if (path === "/api/diff" || path === "/api/rewind") {
         if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
         if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.checkpointId)) {
           throw new InputError("Space, checkpoint, and current observation are required.");
@@ -146,11 +147,26 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         const diffs = compareStates(checkpoint.state, observation.state);
         const match = calculateMatch(diffs);
         const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
+        if (path === "/api/diff") {
+          send(res, 200, {
+            checkpoint: summarizeCheckpoint(checkpoint),
+            match,
+            changeCount: changes.length,
+            changes,
+          });
+          return;
+        }
+        const plan = buildRestorePlan(diffs);
+        const state = match.restored
+          ? "RESTORED"
+          : plan.actions.length === 0 && plan.blockedUnknowns.length > 0
+            ? "LOW_CONFIDENCE"
+            : "GUIDING";
         send(res, 200, {
           checkpoint: summarizeCheckpoint(checkpoint),
+          state,
           match,
-          changeCount: changes.length,
-          changes,
+          plan,
         });
         return;
       }
@@ -178,7 +194,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
       const status = error instanceof InputError ? 400 : 502;
       const message = error instanceof InputError ? error.message : path === "/api/observe"
         ? observationErrorMessage(error)
-        : path === "/api/checkpoints" || path === "/api/diff"
+        : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind"
           ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
           : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
