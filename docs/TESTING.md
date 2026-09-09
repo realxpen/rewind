@@ -57,3 +57,33 @@ Later phases add:
 4. checkpoint persistence tests;
 5. restore-session state-machine tests;
 6. end-to-end SAVE → DIFF → REWIND → VERIFY tests.
+
+## Ring WHEP session smoke
+
+`npm test` includes offline WHEP contract tests; no credentials or live service are required.
+`npm run ring:smoke` keeps discovery/events behavior and optionally creates and deletes a WHEP session.
+
+Load the existing Ring environment (`RING_API_BASE_URL`, `RING_ACCESS_TOKEN`,
+`RING_DEVICES_PATH`, optionally `RING_EVENTS_PATH`) securely in your shell.
+The base URL should be the Ring API origin. Then run:
+
+```bash
+cd ~/Documents/XPEN/rewind
+git pull --ff-only origin main
+npm install
+npm test
+RING_WHEP_OFFER_FILE="$HOME/Downloads/ring-offer.sdp" npm run ring:smoke
+```
+
+Save a fresh SDP offer from the live WebRTC peer to that local file first. Do not
+commit the offer, ICE credentials, fingerprints, tokens, answers, or session URLs.
+If discovery returns multiple devices, set `RING_WHEP_DEVICE_ID` to the selected
+discovered ID in your local environment. A single device is selected automatically.
+
+Expected WHEP output: `WHEP create: 201, SDP answer and session location received`,
+then `WHEP delete: success`. Session URLs and SDP are never printed. The smoke
+uses `finally` to delete a created session; failed deletion causes a nonzero exit.
+A missing Location prevents cleanup because no session URL is available.
+
+This checks signaling/session lifecycle only; it does not connect the SDP answer
+to a WebRTC peer or prove video delivery. Live execution remains a separate gate.

@@ -31,3 +31,8 @@ export interface RingConfig {
   devicesPath: string;
   eventsPath?: string;
 }
+
+export interface RingWhepSession {
+  sdpAnswer: string;
+  sessionUrl: string;
+}

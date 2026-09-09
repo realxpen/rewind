@@ -1,6 +1,6 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-07_
+_Last updated: 2026-09-09_
 
 ## Current phase
 
@@ -119,3 +119,12 @@ Ring adapter → device discovery → status → snapshot/media → live-stream 
 ## MVP completion gate
 
 Create space → Connect Ring → Observe → Save checkpoint → Change environment → Observe again → Diff → Start Rewind → Guide action → Verify → Continue → **100% RESTORED**.
+
+## Phase 3 implementation update — 2026-09-09
+
+- Ring discovery/events adapter present.
+- Typed WHEP create/delete lifecycle implemented from the user-reported Playground contract.
+- Offline WHEP tests included in full `npm test`.
+- Optional local SDP offer smoke added; see `docs/TESTING.md`.
+- Live WHEP smoke and video delivery evidence remain pending. This update does not
+  close the Phase 2 live gate or advance to Phase 4.
