@@ -284,14 +284,26 @@ cancel_rewind
 
 Phase 8 implementation order:
 
-- [ ] define typed agent-tool contracts around the existing services instead of duplicating business logic.
+- [x] define typed agent-tool contracts around the existing services instead of duplicating business logic.
 - [ ] add a Strands agent/orchestrator that calls only those contracts.
-- [ ] give the agent Nova/physical-state summaries, never raw authority over deterministic truth.
+- [x] give the agent Nova/physical-state summaries, never raw authority over deterministic truth.
 - [ ] add AgentCore session continuity for the active space/checkpoint/Rewind session context.
 - [ ] preserve DynamoDB as canonical checkpoint truth; AgentCore memory is conversational/session context only.
-- [ ] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
+- [x] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
 - [ ] run a local conversational flow: inspect → save/list → compare → start Rewind → verify → status.
 - [ ] run the live Ring-backed flow through the agent boundary.
+
+Phase 8 foundation implemented on `main`:
+
+- [x] `packages/agent-tools/src/contracts.ts` defines the SDK-neutral typed tool boundary.
+- [x] `packages/agent-tools/src/specs.ts` locks all tool schemas with `additionalProperties: false`.
+- [x] no agent tool accepts raw physical state, desired state, match percentage, restore plan, or a `RESTORED` flag.
+- [x] `save_checkpoint` persists only the latest trusted server-held semantic observation.
+- [x] `verify_rewind` always requests a fresh trusted observation itself; the model cannot submit verification state.
+- [x] compare, Rewind planning, progress, and restoration truth remain delegated to `compareStates()`, `calculateMatch()`, `buildRestorePlan()`, and `updateRestoreProgress()`.
+- [x] returned plans/results are defensive copies so caller mutation cannot rewrite server session truth.
+- [x] Phase 8 trust-boundary tests cover state smuggling, false-RESTORED injection, returned-plan mutation, deterministic partial progress, and deterministic 100% restoration.
+- [x] full GitHub Actions `npm test` passed for commit `2178f03310ab9395574429ac4321d4e9a47995c8` with the Phase 8 test included.
 
 Phase 8 gate: **OPEN** until an agent-driven flow reaches the existing deterministic restore loop without bypassing its state engine.
 
