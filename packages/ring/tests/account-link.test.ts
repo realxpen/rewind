@@ -34,11 +34,12 @@ const fetchImpl: typeof fetch = async (input, init) => {
   const method = init?.method ?? "GET";
   const headers = new Headers(init?.headers);
   const body = typeof init?.body === "string" ? init.body : undefined;
+  const authorization = headers.get("authorization");
   calls.push({
     url,
     method,
     ...(body !== undefined ? { body } : {}),
-    ...(headers.get("authorization") ? { authorization: headers.get("authorization") ?? undefined } : {}),
+    ...(authorization ? { authorization } : {}),
   });
 
   if (url === "https://oauth.ring.com/oauth/token") {
