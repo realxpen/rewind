@@ -18,7 +18,7 @@
     "test:phase5": "npm run build && npm run test:phase5:compiled",
     "test:phase5:compiled": "node dist/packages/ring/tests/diff-preview.test.js",
     "test:phase6": "npm run build && npm run test:phase6:compiled",
-    "test:phase6:compiled": "node dist/packages/ring/tests/rewind-preview.test.js",
+    "test:phase6:compiled": "node dist/packages/ring/tests/rewind-preview.test.js && node dist/packages/ring/tests/rewind-verify.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
