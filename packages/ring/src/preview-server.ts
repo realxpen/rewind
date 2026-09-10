@@ -6,7 +6,7 @@ import type { VisionObservationRequest, VisionObservation } from "../../vision/s
 import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
 import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
-import { buildRestorePlan } from "../../restore-engine/src/index.js";
+import { buildRestorePlan, updateRestoreProgress, type RestorePlan } from "../../restore-engine/src/index.js";
 
 export interface PreviewServices {
   devices(): Promise<RingDevice[]>;
@@ -16,6 +16,14 @@ export interface PreviewServices {
   saveCheckpoint?(input: SaveCheckpointInput): Promise<Checkpoint>;
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
+}
+
+interface RewindSession {
+  id: string;
+  spaceId: string;
+  checkpointId: string;
+  plan: RestorePlan;
+  touched: number;
 }
 
 class InputError extends Error {}
@@ -45,11 +53,15 @@ function validOpaqueId(value: unknown): value is string {
 }
 
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
-export function createPreviewServer(services: PreviewServices, assets: { html: string; js: string }) {
+export function createPreviewServer(
+  services: PreviewServices,
+  assets: { html: string; js: string; verifyJs?: string },
+) {
   let active: { id: string; url: string; touched: number } | undefined;
   let busy = false;
   let observing = false;
   const observations = new Map<string, { spaceId: string; state: VisionObservation["state"] }>();
+  const rewindSessions = new Map<string, RewindSession>();
 
   async function cleanup() {
     if (!active) return;
@@ -66,6 +78,22 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
     }
     return id;
   }
+  function rememberRewindSession(spaceId: string, checkpointId: string, plan: RestorePlan) {
+    const session: RewindSession = {
+      id: randomUUID(),
+      spaceId,
+      checkpointId,
+      plan,
+      touched: Date.now(),
+    };
+    rewindSessions.set(session.id, session);
+    while (rewindSessions.size > 20) {
+      const oldest = rewindSessions.keys().next().value as string | undefined;
+      if (!oldest) break;
+      rewindSessions.delete(oldest);
+    }
+    return session;
+  }
 
   const server = createServer(async (req, res) => {
     const address = server.address();
@@ -81,9 +109,10 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'");
     try {
-      if (req.method === "GET" && ["/", "/preview.js"].includes(path)) {
+      if (req.method === "GET" && ["/", "/preview.js", "/verify.js"].includes(path)) {
+        if (path === "/verify.js" && assets.verifyJs === undefined) { send(res, 404, { error: "Not found." }); return; }
         res.setHeader("Content-Type", path === "/" ? "text/html; charset=utf-8" : "text/javascript; charset=utf-8");
-        res.end(path === "/" ? assets.html : assets.js); return;
+        res.end(path === "/" ? assets.html : path === "/preview.js" ? assets.js : assets.verifyJs); return;
       }
       if (req.method === "GET" && path === "/api/devices") {
         send(res, 200, await services.devices()); return;
@@ -95,7 +124,16 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         const checkpoints = await services.listCheckpoints(spaceId);
         send(res, 200, checkpoints.map(summarizeCheckpoint)); return;
       }
-      if (req.method !== "POST" || !["/api/start", "/api/stop", "/api/heartbeat", "/api/observe", "/api/checkpoints", "/api/diff", "/api/rewind"].includes(path)) {
+      if (req.method !== "POST" || ![
+        "/api/start",
+        "/api/stop",
+        "/api/heartbeat",
+        "/api/observe",
+        "/api/checkpoints",
+        "/api/diff",
+        "/api/rewind",
+        "/api/rewind/verify",
+      ].includes(path)) {
         send(res, 404, { error: "Not found." }); return;
       }
       if (req.headers.origin !== `http://${req.headers.host}` || req.headers["content-type"] !== "application/json") {
@@ -135,6 +173,44 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
       }
+      if (path === "/api/rewind/verify") {
+        if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
+        if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.rewindSessionId)) {
+          throw new InputError("Space, Rewind session, and fresh observation are required.");
+        }
+        const observation = observations.get(data.observationId);
+        if (!observation || observation.spaceId !== data.spaceId) throw new InputError("Capture and observe this space again before checking progress.");
+        const session = rewindSessions.get(data.rewindSessionId);
+        if (!session || session.spaceId !== data.spaceId) {
+          send(res, 404, { error: "Rewind session not found. Compare and start Rewind again." }); return;
+        }
+        const checkpoint = await services.getCheckpoint(session.spaceId, session.checkpointId);
+        if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
+        const diffs = compareStates(checkpoint.state, observation.state);
+        const match = calculateMatch(diffs);
+        const progress = updateRestoreProgress(session.plan, diffs);
+        const blockedUnknowns = diffs.filter(diff => diff.type === "UNKNOWN").map(diff => diff.entity);
+        session.plan = { actions: progress.actions, blockedUnknowns };
+        session.touched = Date.now();
+        const pendingActions = session.plan.actions.filter(action => action.status === "PENDING").length;
+        const state = progress.restored
+          ? "RESTORED"
+          : pendingActions === 0 && blockedUnknowns.length > 0
+            ? "LOW_CONFIDENCE"
+            : "GUIDING";
+        const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
+        send(res, 200, {
+          rewindSessionId: session.id,
+          checkpoint: summarizeCheckpoint(checkpoint),
+          state,
+          match,
+          plan: session.plan,
+          progress,
+          changeCount: changes.length,
+          changes,
+        });
+        return;
+      }
       if (path === "/api/diff" || path === "/api/rewind") {
         if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
         if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.checkpointId)) {
@@ -162,7 +238,9 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
           : plan.actions.length === 0 && plan.blockedUnknowns.length > 0
             ? "LOW_CONFIDENCE"
             : "GUIDING";
+        const rewindSession = rememberRewindSession(data.spaceId, data.checkpointId, plan);
         send(res, 200, {
+          rewindSessionId: rewindSession.id,
           checkpoint: summarizeCheckpoint(checkpoint),
           state,
           match,
@@ -194,7 +272,7 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
       const status = error instanceof InputError ? 400 : 502;
       const message = error instanceof InputError ? error.message : path === "/api/observe"
         ? observationErrorMessage(error)
-        : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind"
+        : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
           ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
           : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
@@ -204,6 +282,10 @@ export function createPreviewServer(services: PreviewServices, assets: { html: s
     if (!busy && active && Date.now() - active.touched > 60_000) {
       busy = true;
       void cleanup().catch(() => {}).finally(() => { busy = false; });
+    }
+    const expiry = Date.now() - 30 * 60_000;
+    for (const [id, session] of rewindSessions) {
+      if (session.touched < expiry) rewindSessions.delete(id);
     }
   }, 10_000);
   timer.unref();
