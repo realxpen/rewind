@@ -233,24 +233,41 @@ Security boundary implemented on `main`:
 - [x] valid signed non-motion events receive a quick 2xx acknowledgement without entering the motion queue.
 - [x] motion events are sanitized into the local Phase 7 inbox.
 - [x] heavy Nova/restore work is kept out of the Ring webhook request path so the endpoint can acknowledge well inside Ring's five-second requirement.
-- [x] local webhook listener binds to `127.0.0.1:3003`; production/public exposure must terminate HTTPS TLS 1.2+ in front of it.
+- [x] local webhook listener binds to `127.0.0.1:3003`; public exposure terminates HTTPS in the current staging tunnel.
+- [x] unsigned traffic through the public HTTPS tunnel was live-tested and correctly rejected with HTTP 401.
 - [x] preview polls only sanitized motion events and can automatically capture a fresh Ring frame, observe with Nova, and call the existing deterministic `rewind/verify` operation.
 - [x] **Check Again remains available** if webhook delivery, motion timing, live video, or automatic verification fails.
 - [x] Phase 7 tests cover exact-byte HMAC verification, tamper rejection, spoof rejection, signed motion acceptance, and duplicate suppression.
 
+Ring one-way account-linking foundation implemented:
+
+- [x] `/ring/oauth/token-exchange` accepts Ring's authorization code and immediately exchanges it at `https://oauth.ring.com/oauth/token` using `grant_type=authorization_code`.
+- [x] the resulting access token is used server-to-server with `/v1/users/me` to obtain the trusted Ring Account ID; the browser never supplies the Account ID.
+- [x] unclaimed Ring access/refresh credentials are held only in bounded, short-lived server memory for the current staging process and are never rendered or logged.
+- [x] `/ring/link` supports Ring's signed `nonce` + `time` redirect and enforces the 10-minute freshness window.
+- [x] nonce matching uses HMAC-SHA256 over `<time>:<account_id>`, URL-safe Base64 without padding, and constant-time comparison.
+- [x] Ring credentials cannot be claimed until the user passes the configured REWIND staging sign-in (`REWIND_LINK_USER_EMAIL` + separate `REWIND_LINK_AUTH_SECRET`).
+- [x] the account-link form is protected with a nonce-bound CSRF token plus no-store, CSP, frame-deny, referrer, and content-type hardening headers.
+- [x] successful linking calls Ring App Integrations `POST` with the nonce and masked account identifier, then mandatory `PATCH {"status":"completed"}`.
+- [x] `/ring` provides the required staging App Homepage URL without exposing credentials or Ring Account IDs.
+- [x] a bare GET `/ring/link` returns a safe readiness page so the registered Account Link URL can be probed without allowing a credential claim.
+- [x] `.env.example` documents `RING_CLIENT_ID`, `RING_CLIENT_SECRET`, `RING_HMAC_SECRET`, `REWIND_LINK_USER_EMAIL`, `REWIND_LINK_AUTH_SECRET`, and `RING_WEBHOOK_PORT` without real values.
+- [x] automated Phase 7 account-link tests prove authorization-code exchange → trusted Account ID → authenticated nonce match → App Integrations POST/PATCH completion.
+- [x] automated HTTP tests prove the required homepage, account-link, and token-exchange routes are reachable and enforce authentication.
+- [x] full `npm test` is green in GitHub Actions with the account-link tests included.
+
 ### Phase 7 live gate still required
 
-- [ ] Pull latest `main` and run `npm test`.
-- [ ] Set `RING_HMAC_SECRET` locally from the Ring app credentials; never paste or commit it.
-- [ ] Start `ring:preview`; confirm the local webhook ingress starts on port 3003.
-- [ ] Put an HTTPS TLS 1.2+ tunnel/reverse proxy in front of `http://127.0.0.1:3003` and register `<public-url>/webhooks/ring` in the Ring Developer Portal.
+- [ ] Pull latest `main`, configure the Ring client credentials plus staging REWIND sign-in variables locally, and restart `ring:preview`.
+- [ ] Restart the HTTPS tunnel if needed and register all four public staging URLs in the Ring Developer Portal.
+- [ ] Complete the real Ring one-way account-link flow so Ring reaches the REWIND sign-in page and the integration reaches `completed`.
 - [ ] Start a Rewind session from a changed scene.
 - [ ] Trigger a real/simulated Ring `motion_detected` event.
 - [ ] Confirm REWIND receives the signed event and automatically re-observes/verifies the current physical state.
 - [ ] Confirm duplicate delivery does not trigger a second verification.
 - [ ] Confirm manual **Check Again** still works independently.
 
-Phase 7 gate: **OPEN** until signed Ring motion delivery triggers a live verification attempt.
+Phase 7 gate: **OPEN** until the live Ring account link succeeds and a signed Ring motion delivery triggers a verification attempt.
 
 ## Next after Phase 7 passes
 
