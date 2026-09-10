@@ -37,4 +37,20 @@ const uncertain: PhysicalState = {
 };
 assert(compareStates(demoReady, uncertain).some((diff) => diff.entity === "chair.main" && diff.type === "UNKNOWN"), "Low-confidence chair should be UNKNOWN.");
 
-console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored");
+const appearanceCheckpoint: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "appearance-test",
+  capturedAt: "2026-09-10T08:00:00.000Z",
+  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red", material: "feather" } }],
+};
+const appearanceCurrent: PhysicalState = {
+  ...appearanceCheckpoint,
+  capturedAt: "2026-09-10T08:01:00.000Z",
+  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red_and_black", material: "feathers" } }],
+};
+const appearanceDiffs = compareStates(appearanceCheckpoint, appearanceCurrent);
+const appearanceMatch = calculateMatch(appearanceDiffs);
+assert(appearanceDiffs.every((diff) => diff.type === "UNCHANGED"), "Appearance descriptors must not become restoration actions.");
+assert(appearanceMatch.restored && appearanceMatch.percentage === 100, "Appearance-only wording drift must not block restoration.");
+
+console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + appearance noise ignored");
