@@ -4,7 +4,7 @@ _Last updated: 2026-09-10_
 
 ## Current phase
 
-**Phase 7 — Ring Event Verification: IN PROGRESS**
+**Phase 8 — Strands + AgentCore: IN PROGRESS**
 
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
@@ -208,7 +208,7 @@ Phase 6 gate: **PASS**.
 
 ## Phase 7 — Ring Event Verification
 
-Master-spec goal:
+Master-spec flow:
 
 ```text
 Ring motion_detected webhook
@@ -220,60 +220,86 @@ Ring motion_detected webhook
 → keep Check Again as fallback
 ```
 
-Security boundary implemented on `main`:
+Implemented security and event boundary:
 
-- [x] `packages/ring/src/webhook-security.ts` verifies HMAC-SHA256 using the exact raw request bytes before JSON parsing.
-- [x] signature format is restricted to `sha256=<64 hex chars>` and compared with `timingSafeEqual()`.
-- [x] invalid/missing signatures are rejected before payload processing.
-- [x] webhook v1.1 fields are validated and only sanitized event metadata is retained.
-- [x] `RING_HMAC_SECRET` is environment-only and documented in `.env.example`; no real secret is committed.
-- [x] `packages/ring/src/webhook-server.ts` accepts only POST `/webhooks/ring` with `application/json`.
-- [x] webhook bodies are size-limited and raw request bodies are not persisted or logged.
-- [x] `meta.request_id` provides bounded in-memory idempotency for retries/duplicates.
-- [x] valid signed non-motion events receive a quick 2xx acknowledgement without entering the motion queue.
-- [x] motion events are sanitized into the local Phase 7 inbox.
-- [x] heavy Nova/restore work is kept out of the Ring webhook request path so the endpoint can acknowledge well inside Ring's five-second requirement.
-- [x] local webhook listener binds to `127.0.0.1:3003`; public exposure terminates HTTPS in the current staging tunnel.
-- [x] unsigned traffic through the public HTTPS tunnel was live-tested and correctly rejected with HTTP 401.
-- [x] preview polls only sanitized motion events and can automatically capture a fresh Ring frame, observe with Nova, and call the existing deterministic `rewind/verify` operation.
-- [x] **Check Again remains available** if webhook delivery, motion timing, live video, or automatic verification fails.
-- [x] Phase 7 tests cover exact-byte HMAC verification, tamper rejection, spoof rejection, signed motion acceptance, and duplicate suppression.
+- [x] exact-byte HMAC-SHA256 verification before JSON parsing.
+- [x] constant-time signature comparison and strict `sha256=<64 hex chars>` format.
+- [x] invalid/missing signatures rejected before payload processing.
+- [x] Ring v1.1 envelope validation and sanitized event retention only.
+- [x] bounded request-id idempotency for duplicate/retried delivery.
+- [x] heavy Nova/restore work kept outside the webhook acknowledgement path.
+- [x] local listener bound to `127.0.0.1:3003` behind staging HTTPS tunnel.
+- [x] unsigned public-tunnel traffic live-tested and rejected with HTTP 401.
+- [x] preview polls sanitized motion events and automatically captures a fresh Ring frame, observes with Nova, and calls deterministic `rewind/verify`.
+- [x] **Check Again** remains available as an independent fallback.
+- [x] automated tests cover signed motion acceptance, exact-byte verification, tamper/spoof rejection, and duplicate suppression.
 
-Ring one-way account-linking foundation implemented:
+Ring one-way account linking:
 
-- [x] `/ring/oauth/token-exchange` accepts Ring's authorization code and immediately exchanges it at `https://oauth.ring.com/oauth/token` using `grant_type=authorization_code`.
-- [x] the resulting access token is used server-to-server with `/v1/users/me` to obtain the trusted Ring Account ID; the browser never supplies the Account ID.
-- [x] unclaimed Ring access/refresh credentials are held only in bounded, short-lived server memory for the current staging process and are never rendered or logged.
-- [x] `/ring/link` supports Ring's signed `nonce` + `time` redirect and enforces the 10-minute freshness window.
-- [x] nonce matching uses HMAC-SHA256 over `<time>:<account_id>`, URL-safe Base64 without padding, and constant-time comparison.
-- [x] Ring credentials cannot be claimed until the user passes the configured REWIND staging sign-in (`REWIND_LINK_USER_EMAIL` + separate `REWIND_LINK_AUTH_SECRET`).
-- [x] the account-link form is protected with a nonce-bound CSRF token plus no-store, CSP, frame-deny, referrer, and content-type hardening headers.
-- [x] successful linking calls Ring App Integrations `POST` with the nonce and masked account identifier, then mandatory `PATCH {"status":"completed"}`.
-- [x] `/ring` provides the required staging App Homepage URL without exposing credentials or Ring Account IDs.
-- [x] a bare GET `/ring/link` returns a safe readiness page so the registered Account Link URL can be probed without allowing a credential claim.
-- [x] `.env.example` documents `RING_CLIENT_ID`, `RING_CLIENT_SECRET`, `RING_HMAC_SECRET`, `REWIND_LINK_USER_EMAIL`, `REWIND_LINK_AUTH_SECRET`, and `RING_WEBHOOK_PORT` without real values.
-- [x] automated Phase 7 account-link tests prove authorization-code exchange → trusted Account ID → authenticated nonce match → App Integrations POST/PATCH completion.
-- [x] automated HTTP tests prove the required homepage, account-link, and token-exchange routes are reachable and enforce authentication.
-- [x] full `npm test` is green in GitHub Actions with the account-link tests included.
+- [x] `/ring/oauth/token-exchange` exchanges Ring authorization codes server-side.
+- [x] `/v1/users/me` obtains the trusted Ring Account ID server-side.
+- [x] unclaimed credentials remain bounded, short-lived, server-only staging state.
+- [x] `/ring/link` validates Ring `nonce` + `time` with a 10-minute freshness window.
+- [x] HMAC nonce matching uses `<time>:<account_id>` and constant-time comparison.
+- [x] REWIND staging sign-in gates credential claim.
+- [x] nonce-bound CSRF and hardened response headers protect the account-link page.
+- [x] successful claim completes the Ring App Integrations POST/PATCH sequence.
+- [x] `/ring` serves the required App Homepage URL.
+- [x] `.env.example` documents required Ring and staging variables without real secrets.
+- [x] automated account-link and HTTP tests pass in the full test suite.
 
-### Phase 7 live gate still required
+Live gate verification on 2026-09-10:
 
-- [ ] Pull latest `main`, configure the Ring client credentials plus staging REWIND sign-in variables locally, and restart `ring:preview`.
-- [ ] Restart the HTTPS tunnel if needed and register all four public staging URLs in the Ring Developer Portal.
-- [ ] Complete the real Ring one-way account-link flow so Ring reaches the REWIND sign-in page and the integration reaches `completed`.
-- [ ] Start a Rewind session from a changed scene.
-- [ ] Trigger a real/simulated Ring `motion_detected` event.
-- [ ] Confirm REWIND receives the signed event and automatically re-observes/verifies the current physical state.
-- [ ] Confirm duplicate delivery does not trigger a second verification.
-- [ ] Confirm manual **Check Again** still works independently.
+- [x] latest Ring/account-link implementation configured locally and `ring:preview` restarted.
+- [x] public staging Account Link, App Homepage, Token Exchange, and Webhook URLs registered successfully in the Ring Developer Console.
+- [x] real Ring-driven one-way account-link flow completed successfully.
+- [x] changed-scene Rewind session active for event verification.
+- [x] Ring motion event triggered through the connected Ring staging flow.
+- [x] signed Ring event reached REWIND and automatically triggered fresh observation + deterministic Rewind verification without using **Check Again** for that verification.
+- [x] duplicate suppression remains covered by the signed webhook/idempotency automated gate.
+- [x] manual **Check Again** remains independently verified as the fallback path.
 
-Phase 7 gate: **OPEN** until the live Ring account link succeeds and a signed Ring motion delivery triggers a verification attempt.
+Phase 7 gate: **PASS**.
 
-## Next after Phase 7 passes
+## Phase 8 — Strands + AgentCore
 
-**Phase 8 — Strands + AgentCore**
+Goal: expose the already-working deterministic physical-state operations as agent tools while preserving the trust boundary.
 
-Turn deterministic `inspect`, `save`, `compare`, `rewind`, `verify`, and `status` functions into agent tools without allowing the agent to bypass the deterministic state engine. AgentCore then provides session continuity.
+Locked rule:
+
+> The agent may choose **which approved tool to call and when**. It may not invent physical state, decide restoration truth, rewrite checkpoint state, bypass `compareStates()`, or declare `RESTORED` independently.
+
+Target tool surface:
+
+```text
+inspect_space
+save_checkpoint
+list_checkpoints
+compare_checkpoint
+start_rewind
+verify_rewind
+get_rewind_status
+cancel_rewind
+```
+
+Phase 8 implementation order:
+
+- [ ] define typed agent-tool contracts around the existing services instead of duplicating business logic.
+- [ ] add a Strands agent/orchestrator that calls only those contracts.
+- [ ] give the agent Nova/physical-state summaries, never raw authority over deterministic truth.
+- [ ] add AgentCore session continuity for the active space/checkpoint/Rewind session context.
+- [ ] preserve DynamoDB as canonical checkpoint truth; AgentCore memory is conversational/session context only.
+- [ ] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
+- [ ] run a local conversational flow: inspect → save/list → compare → start Rewind → verify → status.
+- [ ] run the live Ring-backed flow through the agent boundary.
+
+Phase 8 gate: **OPEN** until an agent-driven flow reaches the existing deterministic restore loop without bypassing its state engine.
+
+## Next after Phase 8 passes
+
+**Phase 9 — Alexa+ MCP**
+
+Expose the approved REWIND tool surface through the Alexa+ compatible MCP boundary after the Strands/AgentCore trust boundary is proven.
 
 ## MVP completion gate
 
