@@ -97,7 +97,8 @@ export function createRingWebhookServer(options: RingWebhookServerOptions) {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
 
-    if (await handleRingAccountLinkRequest(req, res, url, { service: options.accountLink })) {
+    const accountLinkOptions = options.accountLink ? { service: options.accountLink } : {};
+    if (await handleRingAccountLinkRequest(req, res, url, accountLinkOptions)) {
       return;
     }
 
