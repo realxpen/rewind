@@ -12,6 +12,25 @@ const SPATIAL_RELATIONS = new Set<RelationType>([
   "ON", "UNDER", "INSIDE", "LEFT_OF", "RIGHT_OF", "BEHIND", "IN_FRONT_OF", "NEAR", "ATTACHED_TO",
 ]);
 
+/**
+ * Appearance/identity descriptors help perception identify an entity, but they are not
+ * restoration state for the MVP. Nova can vary wording for these between observations
+ * (for example `red` vs `red_and_black`). Treating that as a restore action would tell
+ * the user to physically recolor an object, which is unsafe/nonsensical guidance.
+ *
+ * Mutable state attributes such as `powered` and `clear` remain comparable.
+ */
+const DESCRIPTIVE_ATTRIBUTES = new Set([
+  "color",
+  "colour",
+  "material",
+  "pattern",
+  "brand",
+  "model",
+  "shape",
+  "size",
+]);
+
 const UNKNOWN_CONFIDENCE = 0.6;
 
 function minConfidence(...values: Array<number | undefined>): number {
@@ -41,6 +60,7 @@ function changedAttributes(expected: PhysicalEntity, actual: PhysicalEntity): { 
   const expectedChanged: Record<string, AttributeValue> = {};
   const actualChanged: Record<string, AttributeValue> = {};
   for (const key of [...keys].sort()) {
+    if (DESCRIPTIVE_ATTRIBUTES.has(key.toLowerCase())) continue;
     const expectedValue = expected.attributes?.[key] ?? null;
     const actualValue = actual.attributes?.[key] ?? null;
     if (expectedValue !== actualValue) {
