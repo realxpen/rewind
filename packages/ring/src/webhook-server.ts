@@ -76,7 +76,8 @@ function json(res: ServerResponse, status: number, value: unknown) {
 }
 
 function isJsonContentType(value: string | undefined): boolean {
-  return typeof value === "string" && value.toLowerCase().split(";", 1)[0].trim() === "application/json";
+  const mediaType = value?.toLowerCase().split(";", 1)[0]?.trim() ?? "";
+  return mediaType === "application/json";
 }
 
 /**
@@ -111,7 +112,7 @@ export function createRingWebhookServer(options: RingWebhookServerOptions) {
       return;
     }
 
-    if (!isJsonContentType(req.headers["content-type"])) {
+    if (!isJsonContentType(typeof req.headers["content-type"] === "string" ? req.headers["content-type"] : undefined)) {
       json(res, 415, { error: "application/json required." });
       return;
     }
