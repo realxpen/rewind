@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  RingAccountLinkService,
   RingClient,
   createRingWebhookServer,
   endWhepSession,
@@ -43,23 +44,48 @@ async function main() {
   });
   preview.server.listen(port, "127.0.0.1", () => console.log(`REWIND preview: http://127.0.0.1:${port}`));
 
-  const signingKey = process.env.RING_HMAC_SECRET;
-  const webhookPort = 3003;
+  const signingKey = process.env.RING_HMAC_SECRET?.trim();
+  const ringClientId = process.env.RING_CLIENT_ID?.trim();
+  const ringClientSecret = process.env.RING_CLIENT_SECRET?.trim();
+  const partnerEmail = process.env.REWIND_LINK_USER_EMAIL?.trim();
+  const partnerAuthSecret = process.env.REWIND_LINK_AUTH_SECRET?.trim();
+
+  const accountLink = signingKey && ringClientId && ringClientSecret && partnerEmail && partnerAuthSecret
+    ? new RingAccountLinkService({
+        clientId: ringClientId,
+        clientSecret: ringClientSecret,
+        hmacSecret: signingKey,
+        partnerEmail,
+        partnerAuthSecret,
+        apiBaseUrl: config.baseUrl,
+      })
+    : undefined;
+
+  const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
+  if (!Number.isInteger(webhookPort) || webhookPort < 1024 || webhookPort > 65535 || webhookPort === port) throw new Error();
   const webhook = signingKey
     ? createRingWebhookServer({
         signingKey,
         allowedOrigins: [`http://127.0.0.1:${port}`, `http://localhost:${port}`],
+        ...(accountLink ? { accountLink } : {}),
       })
     : undefined;
 
   if (webhook) {
     webhook.server.on("error", () => {
-      console.error("Ring webhook listener could not start. Check whether port 3003 is in use.");
+      console.error(`Ring integration listener could not start. Check whether port ${webhookPort} is in use.`);
       process.exitCode = 1;
     });
     webhook.server.listen(webhookPort, "127.0.0.1", () => {
       console.log(`Ring webhook ingress (local): http://127.0.0.1:${webhookPort}/webhooks/ring`);
-      console.log("Expose port 3003 through an HTTPS TLS 1.2+ tunnel/reverse proxy before registering the URL with Ring.");
+      if (accountLink) {
+        console.log(`Ring account link (local): http://127.0.0.1:${webhookPort}/ring/link`);
+        console.log(`Ring app homepage (local): http://127.0.0.1:${webhookPort}/ring`);
+        console.log(`Ring token exchange (local): http://127.0.0.1:${webhookPort}/ring/oauth/token-exchange`);
+      } else {
+        console.log("Ring account linking disabled: set RING_CLIENT_ID, RING_CLIENT_SECRET, REWIND_LINK_USER_EMAIL, and REWIND_LINK_AUTH_SECRET.");
+      }
+      console.log(`Expose port ${webhookPort} through an HTTPS TLS 1.2+ tunnel/reverse proxy before registering Ring URLs.`);
     });
   } else {
     console.log("Ring motion webhook disabled: set RING_HMAC_SECRET to enable Phase 7. Manual Check Again remains available.");
