@@ -1,4 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { handleRingAccountLinkRequest } from "./account-link-http.js";
+import type { RingAccountLinkService } from "./account-link.js";
 import {
   parseRingWebhookEnvelope,
   sanitizeRingWebhookEvent,
@@ -50,6 +52,7 @@ export interface RingWebhookServerOptions {
   signingKey: string;
   allowedOrigins?: string[];
   inbox?: RingWebhookInbox;
+  accountLink?: RingAccountLinkService;
 }
 
 class BodyTooLargeError extends Error {}
@@ -81,10 +84,10 @@ function isJsonContentType(value: string | undefined): boolean {
 }
 
 /**
- * Minimal Ring webhook ingress for local Phase 7 testing.
+ * Ring ingress for Phase 7 staging.
  * Put TLS 1.2+ in front of this loopback listener with an HTTPS tunnel/reverse proxy.
- * The handler only verifies, validates, de-duplicates and enqueues sanitized events;
- * heavy Nova/verification work stays out of Ring's <5s delivery path.
+ * Webhooks are verified and acknowledged quickly; account-link routes share the same
+ * public origin so Ring can use one stable staging hostname for all required endpoints.
  */
 export function createRingWebhookServer(options: RingWebhookServerOptions) {
   if (!options.signingKey) throw new Error("RING_HMAC_SECRET is required for Ring webhooks.");
@@ -93,6 +96,10 @@ export function createRingWebhookServer(options: RingWebhookServerOptions) {
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
+
+    if (await handleRingAccountLinkRequest(req, res, url, { service: options.accountLink })) {
+      return;
+    }
 
     if (req.method === "GET" && url.pathname === "/events") {
       const origin = req.headers.origin;
