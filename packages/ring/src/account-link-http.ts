@@ -142,8 +142,14 @@ export async function handleRingAccountLinkRequest(
   }
 
   if (req.method === "GET" && url.pathname === "/ring/link") {
-    const nonce = url.searchParams.get("nonce") ?? "";
-    const timeParam = url.searchParams.get("time") ?? "";
+    const nonceValue = url.searchParams.get("nonce");
+    const timeValue = url.searchParams.get("time");
+    if (nonceValue === null && timeValue === null) {
+      page(res, 200, "Link Ring account", `<span class="badge">RING ACCOUNT LINK</span><h1>REWIND account linking is ready</h1><p class="muted">Open this page from the Ring account-linking flow. Ring will add a signed <code>nonce</code> and <code>time</code> to the redirect before REWIND presents the sign-in form.</p><p class="small">No Ring credentials can be claimed from this page without a fresh Ring nonce and REWIND authentication.</p>`);
+      return true;
+    }
+    const nonce = nonceValue ?? "";
+    const timeParam = timeValue ?? "";
     try {
       service.validateLinkRequest(nonce, timeParam);
       const binding = `${nonce}:${timeParam}`;
