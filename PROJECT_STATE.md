@@ -1,6 +1,6 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-09_
+_Last updated: 2026-09-10_
 
 ## Current phase
 
@@ -173,14 +173,17 @@ Phase 5 gate: **PASS**.
 
 ## Phase 6 — REWIND
 
-Goal:
+Master-spec flow:
 
 ```text
-saved checkpoint + current observation
-→ deterministic semantic diff
-→ deterministic restore planner
-→ ordered human restoration actions
-→ user follows guidance
+start
+→ plan
+→ instruction
+→ user action
+→ verify
+→ recompute
+→ next action
+→ 100% RESTORED
 ```
 
 Implemented on `main`:
@@ -192,25 +195,32 @@ Implemented on `main`:
 - [x] state reports `GUIDING`, `LOW_CONFIDENCE`, or `RESTORED` from deterministic results.
 - [x] Phase 6 UI exposes **Start Rewind** after a non-restored comparison.
 - [x] ordered guidance cards show instruction, verification hint, confidence, source diff type, and action status.
-- [x] Phase 6 deterministic integration test proves Demo Ready → Messy generates six pending restoration actions.
-- [x] full GitHub Actions test suite passes with the Phase 6 gate included.
+- [x] live guidance verified in the Ring preview; the user received four deterministic restoration steps from a real Ring → Nova observation.
+- [x] server-held Rewind session ID now preserves the active restoration plan across fresh observations.
+- [x] `POST /api/rewind/verify` recomputes the latest semantic diff against the same persisted checkpoint.
+- [x] `updateRestoreProgress()` marks actions `VERIFIED` or `PENDING` from the new observation.
+- [x] **Check Again** is available as a deterministic manual verification path after a fresh observation.
+- [x] Phase 6 integration test runs `messy → partial → restored` and requires deterministic **100% RESTORED** with all actions verified.
+- [x] full GitHub Actions `npm test` passes with the verification gate included.
 
 ### Phase 6 live gate still required
 
-- [ ] Pull latest `main` and run `npm test`.
-- [ ] Start `ring:preview` with the existing Ring + AWS + DynamoDB environment.
-- [ ] Observe a changed scene and compare it with **Demo Ready**.
-- [ ] Click **Start Rewind**.
-- [ ] Confirm the UI shows deterministic human restoration instructions for the detected changes.
-- [ ] Confirm uncertain items are not turned into invented actions.
+- [ ] Pull latest `main` and restart `ring:preview`.
+- [ ] Start Rewind from a changed live observation.
+- [ ] Follow one or more displayed human restoration instructions.
+- [ ] Capture a fresh Ring frame and **Observe with Nova**.
+- [ ] Click **Check Again**.
+- [ ] Confirm progress increases and completed actions become `VERIFIED`.
+- [ ] Repeat the physical restore/observe/check loop until the UI reports **100% RESTORED**.
+- [ ] Reach 100% without manually editing application data or saved PSP.
 
-Phase 6 gate: **OPEN** until live guidance is verified.
+Phase 6 gate: **OPEN** until the live restoration reaches **100% RESTORED**.
 
 ## Next after Phase 6 passes
 
-**Phase 7 — VERIFY**
+**Phase 7 — Ring Event Verification**
 
-Capture a new Ring observation after each human action → Nova → deterministic diff → update restore progress → continue until **100% RESTORED**.
+Connect signed Ring motion-event delivery to the same deterministic verification operation. Motion may trigger a verification attempt, but **Check Again must always remain available** so the demo never depends solely on asynchronous motion timing.
 
 ## MVP completion gate
 
