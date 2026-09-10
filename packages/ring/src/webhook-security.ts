@@ -46,10 +46,11 @@ export function verifyRingWebhookSignature(
 ): boolean {
   if (!signingKey || !signatureHeader) return false;
   const match = WEBHOOK_SIGNATURE.exec(signatureHeader.trim());
-  if (!match) return false;
+  const digestHex = match?.[1];
+  if (!digestHex) return false;
 
   const expected = createHmac("sha256", signingKey).update(rawBody).digest();
-  const received = Buffer.from(match[1], "hex");
+  const received = Buffer.from(digestHex, "hex");
   return received.length === expected.length && timingSafeEqual(received, expected);
 }
 
