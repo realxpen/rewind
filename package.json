@@ -20,7 +20,7 @@
     "test:phase6": "npm run build && npm run test:phase6:compiled",
     "test:phase6:compiled": "node dist/packages/ring/tests/rewind-preview.test.js && node dist/packages/ring/tests/rewind-verify.test.js",
     "test:phase7": "npm run build && npm run test:phase7:compiled",
-    "test:phase7:compiled": "node dist/packages/ring/tests/webhook-security.test.js && node dist/packages/ring/tests/webhook-server.test.js && node dist/packages/ring/tests/account-link.test.js",
+    "test:phase7:compiled": "node dist/packages/ring/tests/webhook-security.test.js && node dist/packages/ring/tests/webhook-server.test.js && node dist/packages/ring/tests/account-link.test.js && node dist/packages/ring/tests/account-link-http.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
