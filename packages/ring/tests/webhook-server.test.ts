@@ -13,7 +13,7 @@ assert(address && typeof address === "object");
 const base = `http://127.0.0.1:${address.port}`;
 
 function body(requestId = "req-1", type = "motion_detected") {
-  return Buffer.from(JSON.stringify({
+  return JSON.stringify({
     meta: {
       version: "1.1",
       time: "2026-09-10T09:00:00Z",
@@ -30,14 +30,14 @@ function body(requestId = "req-1", type = "motion_detected") {
         sub_type: "motion",
       },
     },
-  }));
+  });
 }
 
-function signature(raw: Buffer) {
-  return `sha256=${createHmac("sha256", key).update(raw).digest("hex")}`;
+function signature(raw: string) {
+  return `sha256=${createHmac("sha256", key).update(Buffer.from(raw)).digest("hex")}`;
 }
 
-async function post(raw: Buffer, sig = signature(raw)) {
+async function post(raw: string, sig = signature(raw)) {
   return fetch(`${base}/webhooks/ring`, {
     method: "POST",
     headers: {
@@ -77,9 +77,11 @@ try {
   };
   assert.equal(events.cursor, 1);
   assert.equal(events.events.length, 1);
-  assert.equal(events.events[0].requestId, "req-1");
-  assert.equal(events.events[0].type, "motion_detected");
-  assert.equal(events.events[0].deviceId, "ava1.ring.device.test");
+  const event = events.events[0];
+  assert(event);
+  assert.equal(event.requestId, "req-1");
+  assert.equal(event.type, "motion_detected");
+  assert.equal(event.deviceId, "ava1.ring.device.test");
 
   console.log("PASS Phase 7 webhook ingress: signed motion accepted once, spoof rejected, duplicates suppressed");
 } finally {
