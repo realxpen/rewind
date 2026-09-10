@@ -4,7 +4,7 @@ _Last updated: 2026-09-10_
 
 ## Current phase
 
-**Phase 6 — REWIND: IN PROGRESS**
+**Phase 7 — Ring Event Verification: IN PROGRESS**
 
 Primary track: **Ring**  
 Additional target: **Alexa+** after the core restore loop works.  
@@ -186,7 +186,7 @@ start
 → 100% RESTORED
 ```
 
-Implemented on `main`:
+Implemented and verified:
 
 - [x] `POST /api/rewind` loads the persisted checkpoint and current server-held observation.
 - [x] deterministic `compareStates()` remains the comparison source of truth.
@@ -195,32 +195,68 @@ Implemented on `main`:
 - [x] state reports `GUIDING`, `LOW_CONFIDENCE`, or `RESTORED` from deterministic results.
 - [x] Phase 6 UI exposes **Start Rewind** after a non-restored comparison.
 - [x] ordered guidance cards show instruction, verification hint, confidence, source diff type, and action status.
-- [x] live guidance verified in the Ring preview; the user received four deterministic restoration steps from a real Ring → Nova observation.
-- [x] server-held Rewind session ID now preserves the active restoration plan across fresh observations.
+- [x] live guidance verified in the Ring preview.
+- [x] server-held Rewind session ID preserves the active restoration plan across fresh observations.
 - [x] `POST /api/rewind/verify` recomputes the latest semantic diff against the same persisted checkpoint.
 - [x] `updateRestoreProgress()` marks actions `VERIFIED` or `PENDING` from the new observation.
-- [x] **Check Again** is available as a deterministic manual verification path after a fresh observation.
-- [x] Phase 6 integration test runs `messy → partial → restored` and requires deterministic **100% RESTORED** with all actions verified.
-- [x] full GitHub Actions `npm test` passes with the verification gate included.
+- [x] **Check Again** remains available as the deterministic manual verification path.
+- [x] appearance-only descriptors such as color/material are excluded from actionable restoration state.
+- [x] automated Phase 6 test runs `messy → partial → restored` and requires deterministic **100% RESTORED**.
+- [x] live controlled restoration reached **Verify Rewind → RESTORED / 100%** without manually editing application data.
 
-### Phase 6 live gate still required
+Phase 6 gate: **PASS**.
 
-- [ ] Pull latest `main` and restart `ring:preview`.
-- [ ] Start Rewind from a changed live observation.
-- [ ] Follow one or more displayed human restoration instructions.
-- [ ] Capture a fresh Ring frame and **Observe with Nova**.
-- [ ] Click **Check Again**.
-- [ ] Confirm progress increases and completed actions become `VERIFIED`.
-- [ ] Repeat the physical restore/observe/check loop until the UI reports **100% RESTORED**.
-- [ ] Reach 100% without manually editing application data or saved PSP.
+## Phase 7 — Ring Event Verification
 
-Phase 6 gate: **OPEN** until the live restoration reaches **100% RESTORED**.
+Master-spec goal:
 
-## Next after Phase 6 passes
+```text
+Ring motion_detected webhook
+→ verify X-Signature over exact raw bytes
+→ validate v1.1 event envelope
+→ de-duplicate request_id
+→ acknowledge quickly
+→ trigger Rewind verification
+→ keep Check Again as fallback
+```
 
-**Phase 7 — Ring Event Verification**
+Security boundary implemented on `main`:
 
-Connect signed Ring motion-event delivery to the same deterministic verification operation. Motion may trigger a verification attempt, but **Check Again must always remain available** so the demo never depends solely on asynchronous motion timing.
+- [x] `packages/ring/src/webhook-security.ts` verifies HMAC-SHA256 using the exact raw request bytes before JSON parsing.
+- [x] signature format is restricted to `sha256=<64 hex chars>` and compared with `timingSafeEqual()`.
+- [x] invalid/missing signatures are rejected before payload processing.
+- [x] webhook v1.1 fields are validated and only sanitized event metadata is retained.
+- [x] `RING_HMAC_SECRET` is environment-only and documented in `.env.example`; no real secret is committed.
+- [x] `packages/ring/src/webhook-server.ts` accepts only POST `/webhooks/ring` with `application/json`.
+- [x] webhook bodies are size-limited and raw request bodies are not persisted or logged.
+- [x] `meta.request_id` provides bounded in-memory idempotency for retries/duplicates.
+- [x] valid signed non-motion events receive a quick 2xx acknowledgement without entering the motion queue.
+- [x] motion events are sanitized into the local Phase 7 inbox.
+- [x] heavy Nova/restore work is kept out of the Ring webhook request path so the endpoint can acknowledge well inside Ring's five-second requirement.
+- [x] local webhook listener binds to `127.0.0.1:3003`; production/public exposure must terminate HTTPS TLS 1.2+ in front of it.
+- [x] preview polls only sanitized motion events and can automatically capture a fresh Ring frame, observe with Nova, and call the existing deterministic `rewind/verify` operation.
+- [x] **Check Again remains available** if webhook delivery, motion timing, live video, or automatic verification fails.
+- [x] Phase 7 tests cover exact-byte HMAC verification, tamper rejection, spoof rejection, signed motion acceptance, and duplicate suppression.
+
+### Phase 7 live gate still required
+
+- [ ] Pull latest `main` and run `npm test`.
+- [ ] Set `RING_HMAC_SECRET` locally from the Ring app credentials; never paste or commit it.
+- [ ] Start `ring:preview`; confirm the local webhook ingress starts on port 3003.
+- [ ] Put an HTTPS TLS 1.2+ tunnel/reverse proxy in front of `http://127.0.0.1:3003` and register `<public-url>/webhooks/ring` in the Ring Developer Portal.
+- [ ] Start a Rewind session from a changed scene.
+- [ ] Trigger a real/simulated Ring `motion_detected` event.
+- [ ] Confirm REWIND receives the signed event and automatically re-observes/verifies the current physical state.
+- [ ] Confirm duplicate delivery does not trigger a second verification.
+- [ ] Confirm manual **Check Again** still works independently.
+
+Phase 7 gate: **OPEN** until signed Ring motion delivery triggers a live verification attempt.
+
+## Next after Phase 7 passes
+
+**Phase 8 — Strands + AgentCore**
+
+Turn deterministic `inspect`, `save`, `compare`, `rewind`, `verify`, and `status` functions into agent tools without allowing the agent to bypass the deterministic state engine. AgentCore then provides session continuity.
 
 ## MVP completion gate
 
