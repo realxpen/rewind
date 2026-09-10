@@ -25,6 +25,7 @@ async function main() {
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: await readFile(resolve(assets, "preview.js"), "utf8"),
+    verifyJs: await readFile(resolve(assets, "verify.js"), "utf8"),
   });
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error();
