@@ -33,7 +33,11 @@ const fetchImpl: typeof fetch = async (input, init) => {
       : input.url;
   const method = init?.method ?? "GET";
   const headers = new Headers(init?.headers);
-  const body = typeof init?.body === "string" ? init.body : undefined;
+  const body = typeof init?.body === "string"
+    ? init.body
+    : init?.body instanceof URLSearchParams
+      ? init.body.toString()
+      : undefined;
   const authorization = headers.get("authorization");
   calls.push({
     url,
