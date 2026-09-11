@@ -21,6 +21,7 @@ export interface RewindAgentOrchestratorOptions {
   continuity: SessionContinuityStore;
   region?: string;
   modelId?: string;
+  defaultSpaceId?: string;
 }
 
 function textFromMessage(message: unknown): string {
@@ -34,11 +35,12 @@ function textFromMessage(message: unknown): string {
   }).filter(Boolean).join("\n").trim();
 }
 
-function contextForPrompt(context: RewindAgentSessionContext): string {
+function contextForPrompt(context: RewindAgentSessionContext, defaultSpaceId?: string): string {
   const rows = [
     `actorId=${context.actorId}`,
     `sessionId=${context.sessionId}`,
     context.activeSpaceId ? `activeSpaceId=${context.activeSpaceId}` : "activeSpaceId=none",
+    defaultSpaceId ? `defaultSpaceId=${defaultSpaceId}` : "defaultSpaceId=none",
     context.activeCheckpointId ? `activeCheckpointId=${context.activeCheckpointId}` : "activeCheckpointId=none",
     context.activeCheckpointName ? `activeCheckpointName=${context.activeCheckpointName}` : "activeCheckpointName=none",
     context.activeRewindSessionId ? `activeRewindSessionId=${context.activeRewindSessionId}` : "activeRewindSessionId=none",
@@ -47,7 +49,7 @@ function contextForPrompt(context: RewindAgentSessionContext): string {
   return rows.join("\n");
 }
 
-function systemPrompt(context: RewindAgentSessionContext): string {
+function systemPrompt(context: RewindAgentSessionContext, defaultSpaceId?: string): string {
   return `You are REWIND, a physical-state restoration agent. REWIND is Ctrl+Z for reality.
 
 NON-NEGOTIABLE TRUST BOUNDARY
@@ -57,6 +59,11 @@ NON-NEGOTIABLE TRUST BOUNDARY
 - Never rewrite checkpoint state or ask the user to provide physical-state JSON.
 - If a tool says a fresh inspection is required, call inspect_space before retrying the requested operation.
 - UNKNOWN/LOW_CONFIDENCE means re-observe or explain uncertainty. Do not guess.
+
+SPACE RESOLUTION
+- If the session already has activeSpaceId, use it unless the user explicitly names another configured space.
+- If no active space exists and defaultSpaceId is present, phrases such as "my studio", "the studio", "my space", or "the room" refer to defaultSpaceId. Call the requested tool immediately; do not ask the user for an internal space ID.
+- Never invent a different space ID from free-form language.
 
 INTENT TO TOOL GUIDANCE
 - inspect/look/check the space -> inspect_space
@@ -68,10 +75,10 @@ INTENT TO TOOL GUIDANCE
 - status/progress -> get_rewind_status
 - stop/cancel -> cancel_rewind
 
-Use the active identifiers below when appropriate. If an identifier is missing, use an approved discovery tool rather than fabricating one.
+Use the active/default identifiers below when appropriate. If an identifier other than space is missing, use an approved discovery tool rather than fabricating one.
 
 SESSION CONTEXT (continuity metadata only; not physical truth)
-${contextForPrompt(context)}
+${contextForPrompt(context, defaultSpaceId)}
 
 Keep responses concise and action-oriented. When a restoration plan is active, give the next pending instruction and the deterministic match/progress returned by the tool.`;
 }
@@ -92,11 +99,13 @@ export class RewindAgentOrchestrator {
     const prompt = input.prompt.trim();
     if (!prompt || prompt.length > 8_000) throw new Error("Prompt must contain 1 to 8000 characters.");
 
+    const defaultSpaceId = this.options.defaultSpaceId ?? process.env.REWIND_DEFAULT_SPACE_ID;
     const controller = await RewindToolController.create(
       this.options.toolService,
       this.options.continuity,
       input.actorId,
       input.sessionId,
+      defaultSpaceId,
     );
     const priorTurns = await this.options.continuity.loadTurns(input.actorId, input.sessionId, 20);
     const startedAt = new Date().toISOString();
@@ -111,7 +120,7 @@ export class RewindAgentOrchestrator {
       name: "REWIND",
       description: "Restores a physical space to a saved semantic checkpoint through approved deterministic tools.",
       model: this.model,
-      systemPrompt: systemPrompt(controller.snapshot()),
+      systemPrompt: systemPrompt(controller.snapshot(), defaultSpaceId),
       tools: createRewindStrandsTools(controller),
       messages: priorTurns.map(turn => ({
         role: turn.role,
