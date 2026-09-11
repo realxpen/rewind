@@ -8,6 +8,21 @@ import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress, type RestorePlan } from "../../restore-engine/src/index.js";
 
+export interface PreviewAgentInput {
+  prompt: string;
+  spaceId: string;
+  observationId: string;
+  state: VisionObservation["state"];
+  modelId?: string;
+  latencyMs?: number;
+}
+
+export interface PreviewAgentResult {
+  text: string;
+  stopReason: string;
+  session: unknown;
+}
+
 export interface PreviewServices {
   devices(): Promise<RingDevice[]>;
   start(deviceId: string, offer: string): Promise<RingWhepSession>;
@@ -16,6 +31,7 @@ export interface PreviewServices {
   saveCheckpoint?(input: SaveCheckpointInput): Promise<Checkpoint>;
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
+  invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
 }
 
 interface RewindSession {
@@ -24,6 +40,14 @@ interface RewindSession {
   checkpointId: string;
   plan: RestorePlan;
   touched: number;
+}
+
+interface StoredObservation {
+  spaceId: string;
+  state: VisionObservation["state"];
+  modelId?: string;
+  latencyMs?: number;
+  receivedAt: number;
 }
 
 class InputError extends Error {}
@@ -51,6 +75,12 @@ function validSpaceId(value: unknown): value is string {
 function validOpaqueId(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 120;
 }
+function safeAgentError(error: unknown): string {
+  if (error instanceof Error && /^(No active |No fresh trusted |Checkpoint not found|Rewind session not found|Prompt must)/.test(error.message)) {
+    return error.message;
+  }
+  return "REWIND agent request failed. Check AWS credentials, AgentCore Memory, and Bedrock access, then retry.";
+}
 
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
 export function createPreviewServer(
@@ -60,7 +90,8 @@ export function createPreviewServer(
   let active: { id: string; url: string; touched: number } | undefined;
   let busy = false;
   let observing = false;
-  const observations = new Map<string, { spaceId: string; state: VisionObservation["state"] }>();
+  let agentRunning = false;
+  const observations = new Map<string, StoredObservation>();
   const rewindSessions = new Map<string, RewindSession>();
 
   async function cleanup() {
@@ -68,9 +99,16 @@ export function createPreviewServer(
     await services.stop(active.url);
     active = undefined;
   }
-  function rememberObservation(spaceId: string, state: VisionObservation["state"]) {
+  function rememberObservation(spaceId: string, result: VisionObservation) {
     const id = randomUUID();
-    observations.set(id, { spaceId, state });
+    const row: StoredObservation = {
+      spaceId,
+      state: result.state,
+      receivedAt: Date.now(),
+    };
+    if (result.modelId !== undefined) row.modelId = result.modelId;
+    if (result.latencyMs !== undefined) row.latencyMs = result.latencyMs;
+    observations.set(id, row);
     while (observations.size > 20) {
       const oldest = observations.keys().next().value as string | undefined;
       if (!oldest) break;
@@ -129,6 +167,7 @@ export function createPreviewServer(
         "/api/stop",
         "/api/heartbeat",
         "/api/observe",
+        "/api/agent",
         "/api/checkpoints",
         "/api/diff",
         "/api/rewind",
@@ -153,9 +192,36 @@ export function createPreviewServer(
         observing = true;
         try {
           const result = await services.observe({ imageBytes: bytes, format: "jpeg", context: { spaceId: data.spaceId, capturedAt: data.capturedAt } });
-          const observationId = rememberObservation(data.spaceId, result.state);
+          const observationId = rememberObservation(data.spaceId, result);
           send(res, 200, { observationId, state: result.state, modelId: result.modelId, latencyMs: result.latencyMs });
         } finally { observing = false; }
+        return;
+      }
+      if (path === "/api/agent") {
+        if (!services.invokeAgent) { send(res, 503, { error: "Live REWIND agent is not configured." }); return; }
+        if (agentRunning) { send(res, 409, { error: "REWIND agent is already processing a request." }); return; }
+        if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || typeof data.prompt !== "string" || data.prompt.trim().length < 1 || data.prompt.trim().length > 8_000) {
+          throw new InputError("Prompt, space, and a fresh trusted observation are required.");
+        }
+        const observation = observations.get(data.observationId);
+        if (!observation || observation.spaceId !== data.spaceId) {
+          throw new InputError("Capture and observe this space again before asking REWIND.");
+        }
+        if (Date.now() - observation.receivedAt > 30_000) {
+          throw new InputError("The Ring observation is stale. Capture a fresh frame before asking REWIND.");
+        }
+        agentRunning = true;
+        try {
+          const input: PreviewAgentInput = {
+            prompt: data.prompt.trim(),
+            spaceId: data.spaceId,
+            observationId: data.observationId,
+            state: observation.state,
+          };
+          if (observation.modelId !== undefined) input.modelId = observation.modelId;
+          if (observation.latencyMs !== undefined) input.latencyMs = observation.latencyMs;
+          send(res, 200, await services.invokeAgent(input));
+        } finally { agentRunning = false; }
         return;
       }
       if (path === "/api/checkpoints") {
@@ -268,13 +334,15 @@ export function createPreviewServer(
         }
       } finally { busy = false; }
     } catch (error) {
-      // Never return upstream URLs, response bodies, SDK details, or SDP in errors.
+      // Never return upstream URLs, response bodies, SDK details, SDP, credentials, or model payloads in errors.
       const status = error instanceof InputError ? 400 : 502;
       const message = error instanceof InputError ? error.message : path === "/api/observe"
         ? observationErrorMessage(error)
-        : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
-          ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
-          : "Ring request failed. Check your token; refresh it and restart the server if expired.";
+        : path === "/api/agent"
+          ? safeAgentError(error)
+          : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
+            ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
+            : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
     }
   });
@@ -286,6 +354,10 @@ export function createPreviewServer(
     const expiry = Date.now() - 30 * 60_000;
     for (const [id, session] of rewindSessions) {
       if (session.touched < expiry) rewindSessions.delete(id);
+    }
+    const observationExpiry = Date.now() - 5 * 60_000;
+    for (const [id, observation] of observations) {
+      if (observation.receivedAt < observationExpiry) observations.delete(id);
     }
   }, 10_000);
   timer.unref();
