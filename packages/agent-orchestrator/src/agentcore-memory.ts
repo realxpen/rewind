@@ -65,6 +65,19 @@ function conversationalPayload(payload: unknown): { role: string; text: string }
   return typeof role === "string" && typeof text === "string" ? { role, text } : undefined;
 }
 
+function contextDocument(context: RewindAgentSessionContext): Record<string, string> {
+  return {
+    actorId: context.actorId,
+    sessionId: context.sessionId,
+    updatedAt: context.updatedAt,
+    ...(context.activeSpaceId ? { activeSpaceId: context.activeSpaceId } : {}),
+    ...(context.activeCheckpointId ? { activeCheckpointId: context.activeCheckpointId } : {}),
+    ...(context.activeCheckpointName ? { activeCheckpointName: context.activeCheckpointName } : {}),
+    ...(context.activeRewindSessionId ? { activeRewindSessionId: context.activeRewindSessionId } : {}),
+    ...(context.lastDeterministicState ? { lastDeterministicState: context.lastDeterministicState } : {}),
+  };
+}
+
 /**
  * AgentCore is continuity only. Physical/checkpoint truth remains in REWIND's
  * deterministic services and DynamoDB. All events use extractionMode=SKIP so
@@ -122,6 +135,7 @@ export class AgentCoreSessionContinuityStore implements SessionContinuityStore {
   async saveContext(context: RewindAgentSessionContext): Promise<void> {
     assertSessionToken(context.actorId, "Actor ID");
     assertSessionToken(context.sessionId, "Session ID");
+    const safeContext = contextDocument(context);
     await this.client.send(new CreateEventCommand({
       memoryId: this.memoryId,
       actorId: context.actorId,
@@ -132,7 +146,7 @@ export class AgentCoreSessionContinuityStore implements SessionContinuityStore {
         json: {
           content: {
             kind: "rewind_session_context",
-            context,
+            context: safeContext,
           },
         },
       }],
