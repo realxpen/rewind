@@ -23,7 +23,7 @@ const compareText = renderCompareResult({
     entityCount: 8,
     stateHash: "hash",
   },
-  match: { percentage: 25, restored: false, matched: 2, changed: 6, unknown: 0, total: 8 },
+  match: { percentage: 25, restored: false, matched: 2, unresolved: 6, unknown: 0, total: 8 },
   changeCount: 1,
   changes: [{
     type: "MOVED",
@@ -47,11 +47,11 @@ const guidingText = renderRewindResult({
     stateHash: "hash",
   },
   state: "GUIDING",
-  match: { percentage: 63, restored: false, matched: 5, changed: 3, unknown: 0, total: 8 },
+  match: { percentage: 63, restored: false, matched: 5, unresolved: 3, unknown: 0, total: 8 },
   plan: {
     actions: [{
       id: "action-1",
-      entity: "lamp.left",
+      entityKeys: ["lamp.left"],
       instruction: "Turn on lamp left",
       verificationHint: "Confirm lamp left is powered on.",
       confidence: 0.96,
@@ -77,7 +77,7 @@ const restoredText = renderRewindResult({
     stateHash: "hash",
   },
   state: "RESTORED",
-  match: { percentage: 100, restored: true, matched: 8, changed: 0, unknown: 0, total: 8 },
+  match: { percentage: 100, restored: true, matched: 8, unresolved: 0, unknown: 0, total: 8 },
   plan: { actions: [], blockedUnknowns: [] },
   changeCount: 0,
   changes: [],
