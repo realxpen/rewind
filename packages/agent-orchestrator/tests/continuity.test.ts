@@ -39,8 +39,11 @@ const service = new RewindAgentToolService(observer, checkpoints);
 const actorId = "demo-user";
 const sessionId = "phase8-continuity";
 
-const first = await RewindToolController.create(service, continuity, actorId, sessionId);
-const inspected = await first.inspectSpace({ spaceId: "studio" });
+// A configured default space lets natural-language agents call inspect_space
+// without exposing internal space identifiers to the user.
+const first = await RewindToolController.create(service, continuity, actorId, sessionId, "studio");
+const inspected = await first.inspectSpace({});
+assert.equal(inspected.spaceId, "studio");
 assert.equal(inspected.entityCount, demoReady.entities.length);
 const saved = await first.saveCheckpoint({ name: "Demo Ready" });
 assert.equal(saved.name, "Demo Ready");
