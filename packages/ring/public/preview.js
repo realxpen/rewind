@@ -1,7 +1,7 @@
 const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
-let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false;
+let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
 
 async function api(path, data) {
   const response = await fetch(`/api/${path}`, data === undefined ? {} : {
@@ -16,12 +16,13 @@ function controls() {
   byId('stop').disabled = pending || !Boolean(peer || sessionId);
   byId('devices').disabled = pending || Boolean(peer || sessionId);
   byId('reload').disabled = pending || Boolean(peer || sessionId);
-  byId('capture').disabled = pending || observing || !peer || video.readyState < 2 || !video.videoWidth;
-  byId('saveCheckpoint').disabled = saving || observing || !latestObservationId;
+  byId('capture').disabled = pending || observing || agentRunning || !peer || video.readyState < 2 || !video.videoWidth;
+  byId('saveCheckpoint').disabled = saving || observing || agentRunning || !latestObservationId;
+  byId('agentSend').disabled = pending || observing || agentRunning || !peer || video.readyState < 2 || !video.videoWidth;
   document.querySelectorAll('[data-compare-checkpoint]').forEach(button => {
-    button.disabled = comparing || observing || rewinding || !latestObservationId;
+    button.disabled = comparing || observing || rewinding || agentRunning || !latestObservationId;
   });
-  byId('startRewind').disabled = rewinding || comparing || observing || !latestObservationId || !latestDiffCheckpointId;
+  byId('startRewind').disabled = rewinding || comparing || observing || agentRunning || !latestObservationId || !latestDiffCheckpointId;
 }
 function hideRewind() {
   byId('rewindPanel').hidden = true;
@@ -196,6 +197,31 @@ async function waitForVideo() {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
+function videoBlob() {
+  if (video.readyState < 2 || !video.videoWidth) throw new Error('Start the Ring live view and wait for video before asking REWIND.');
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 1280 / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not capture the Ring frame.')), 'image/jpeg', .88));
+}
+function base64Blob(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+async function captureFreshAgentObservation() {
+  if (!byId('space').reportValidity()) throw new Error('Choose a valid space first.');
+  const blob = await videoBlob();
+  const time = new Date().toISOString();
+  const image = await base64Blob(blob);
+  const result = await api('observe', { image, capturedAt: time, spaceId: byId('space').value });
+  latestObservationId = result.observationId;
+  return result;
+}
 byId('start').onclick = async () => {
   pending = true; controls(); status('Connecting to Ring…');
   try {
@@ -216,7 +242,7 @@ byId('start').onclick = async () => {
         void stop().then(() => status('Connection lost. Start again.')).catch(() => status('Connection lost; click Stop to retry cleanup.')).finally(controls);
       }
     };
-    status('Live video connected. You can capture a frame.');
+    status('Live video connected. You can ask REWIND or capture a frame manually.');
   } catch (error) {
     try { await stop(); status(error.message); }
     catch { status(`${error.message} Session cleanup failed; click Stop to retry.`); }
@@ -255,9 +281,7 @@ byId('observe').onclick = async () => {
   observing = true; controls(); byId('observe').disabled = true; byId('discard').disabled = true;
   byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = latestDiffCheckpointId = undefined; hideDiff(); status('Nova is observing the captured frame…');
   try {
-    const image = await new Promise((resolve, reject) => {
-      const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(frameBlob);
-    });
+    const image = await base64Blob(frameBlob);
     const result = await api('observe', { image, capturedAt, spaceId: byId('space').value });
     latestObservationId = result.observationId;
     byId('result').textContent = JSON.stringify(result, null, 2); byId('result').hidden = false; byId('savePanel').hidden = false;
@@ -265,6 +289,31 @@ byId('observe').onclick = async () => {
     status('Observation validated. Save it or compare the current state with a checkpoint.');
   } catch (error) { status(error.message || 'Could not read the frame.'); }
   finally { observing = false; controls(); byId('observe').disabled = false; byId('discard').disabled = false; }
+};
+byId('agentSend').onclick = async () => {
+  const prompt = byId('agentPrompt').value.trim();
+  if (!prompt || agentRunning || !peer || !byId('space').reportValidity()) return;
+  agentRunning = true; controls(); byId('agentResponse').hidden = true; byId('agentSession').textContent = '';
+  try {
+    status('Capturing a fresh Ring frame for REWIND…');
+    const observation = await captureFreshAgentObservation();
+    status('Nova validated the Ring frame. Strands is choosing the approved REWIND tool…');
+    const result = await api('agent', {
+      prompt,
+      spaceId: byId('space').value,
+      observationId: observation.observationId,
+    });
+    byId('agentResponse').textContent = result.text;
+    byId('agentResponse').hidden = false;
+    const session = result.session || {};
+    byId('agentSession').textContent = `Session: ${session.activeSpaceId || 'no-space'} · ${session.activeCheckpointName || 'no-checkpoint'} · ${session.lastDeterministicState || 'no-state'}`;
+    await refreshCheckpoints();
+    status('REWIND agent completed using a fresh Ring → Nova observation.');
+  } catch (error) {
+    byId('agentResponse').textContent = error.message || 'REWIND agent request failed.';
+    byId('agentResponse').hidden = false;
+    status(error.message || 'REWIND agent request failed.');
+  } finally { agentRunning = false; controls(); }
 };
 byId('saveCheckpoint').onclick = async () => {
   if (!latestObservationId || !byId('space').reportValidity() || !byId('checkpointName').reportValidity()) return;
@@ -285,7 +334,7 @@ byId('discard').onclick = discard;
 byId('reload').onclick = discover;
 byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
-byId('space').onchange = () => { latestObservationId = latestDiffCheckpointId = undefined; byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints(); };
+byId('space').onchange = () => { latestObservationId = latestDiffCheckpointId = undefined; byId('savePanel').hidden = true; byId('agentSession').textContent = ''; hideDiff(); controls(); void refreshCheckpoints(); };
 video.onloadeddata = controls;
 window.addEventListener('pagehide', () => {
   if (sessionId) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ id: sessionId })], { type: 'application/json' }));
