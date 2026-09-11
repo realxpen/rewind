@@ -28,6 +28,7 @@
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
     "ring:smoke": "npm run build && node dist/packages/ring/scripts/playground-smoke.js",
     "agent:fixture": "npm run build && node dist/packages/agent-orchestrator/scripts/fixture-agent.js",
+    "agentcore:smoke": "npm run build && node dist/packages/agent-orchestrator/scripts/agentcore-smoke.js",
     "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js"
   },
   "devDependencies": {
