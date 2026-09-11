@@ -15,7 +15,21 @@ export interface ContextualSaveCheckpointInput extends ContextualSpaceInput { na
 export interface ContextualCheckpointInput extends ContextualSpaceInput { checkpointId?: string | undefined }
 export interface ContextualRewindInput extends ContextualSpaceInput { rewindSessionId?: string | undefined }
 
+export type RewindToolOperation =
+  | "inspect_space"
+  | "save_checkpoint"
+  | "list_checkpoints"
+  | "compare_checkpoint"
+  | "start_rewind"
+  | "verify_rewind"
+  | "get_rewind_status"
+  | "cancel_rewind";
+
 export class RewindToolController {
+  private readonly operations: RewindToolOperation[] = [];
+  private lastCompareResult: CompareCheckpointResult | undefined;
+  private lastRewindResult: RewindToolResult | undefined;
+
   private constructor(
     private readonly service: RewindAgentToolService,
     private readonly continuity: SessionContinuityStore,
@@ -36,6 +50,26 @@ export class RewindToolController {
 
   snapshot(): RewindAgentSessionContext {
     return structuredClone(this.context);
+  }
+
+  operationMark(): number {
+    return this.operations.length;
+  }
+
+  operationsSince(mark: number): RewindToolOperation[] {
+    return this.operations.slice(Math.max(0, mark));
+  }
+
+  latestCompareResult(): CompareCheckpointResult | undefined {
+    return this.lastCompareResult ? structuredClone(this.lastCompareResult) : undefined;
+  }
+
+  latestRewindResult(): RewindToolResult | undefined {
+    return this.lastRewindResult ? structuredClone(this.lastRewindResult) : undefined;
+  }
+
+  private record(operation: RewindToolOperation): void {
+    this.operations.push(operation);
   }
 
   private spaceId(candidate?: string): string {
@@ -71,6 +105,7 @@ export class RewindToolController {
     const spaceId = this.spaceId(input.spaceId);
     const result = await this.service.inspectSpace({ spaceId });
     await this.persist({ activeSpaceId: result.spaceId });
+    this.record("inspect_space");
     return result;
   }
 
@@ -82,6 +117,7 @@ export class RewindToolController {
       activeCheckpointId: result.id,
       activeCheckpointName: result.name,
     });
+    this.record("save_checkpoint");
     return result;
   }
 
@@ -89,6 +125,7 @@ export class RewindToolController {
     const spaceId = this.spaceId(input.spaceId);
     const results = await this.service.listCheckpoints({ spaceId });
     await this.persist({ activeSpaceId: spaceId });
+    this.record("list_checkpoints");
     return results;
   }
 
@@ -106,6 +143,8 @@ export class RewindToolController {
       activeCheckpointName: result.checkpoint.name,
       lastDeterministicState: result.match.restored ? "RESTORED" : "DIFF_READY",
     });
+    this.lastCompareResult = structuredClone(result);
+    this.record("compare_checkpoint");
     return result;
   }
 
@@ -124,6 +163,8 @@ export class RewindToolController {
       activeRewindSessionId: result.rewindSessionId,
       lastDeterministicState: result.state,
     });
+    this.lastRewindResult = structuredClone(result);
+    this.record("start_rewind");
     return result;
   }
 
@@ -138,6 +179,8 @@ export class RewindToolController {
       activeRewindSessionId: rewindSessionId,
       lastDeterministicState: result.state,
     });
+    this.lastRewindResult = structuredClone(result);
+    this.record("verify_rewind");
     return result;
   }
 
@@ -152,6 +195,8 @@ export class RewindToolController {
       activeRewindSessionId: rewindSessionId,
       lastDeterministicState: result.state,
     });
+    this.lastRewindResult = structuredClone(result);
+    this.record("get_rewind_status");
     return result;
   }
 
@@ -167,6 +212,8 @@ export class RewindToolController {
       updatedAt: new Date().toISOString(),
     };
     await this.continuity.saveContext(this.context);
+    this.lastRewindResult = structuredClone(result);
+    this.record("cancel_rewind");
     return result;
   }
 }
