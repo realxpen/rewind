@@ -21,13 +21,16 @@ async function main() {
   const visionModelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0";
   const nova = new BedrockNovaVisionClient({ region, modelId: visionModelId });
   const checkpoints = new CheckpointService(createDynamoCheckpointStoreFromEnv());
+  const memoryId = process.env.REWIND_AGENTCORE_MEMORY_ID?.trim();
+  const actorId = process.env.REWIND_AGENT_ACTOR_ID?.trim();
+  const agentSessionId = process.env.REWIND_AGENT_SESSION_ID?.trim();
   const liveAgent = createLiveRingAgentRuntime({
     checkpoints,
     region,
     modelId: process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
-    memoryId: process.env.REWIND_AGENTCORE_MEMORY_ID,
-    actorId: process.env.REWIND_AGENT_ACTOR_ID,
-    sessionId: process.env.REWIND_AGENT_SESSION_ID,
+    ...(memoryId ? { memoryId } : {}),
+    ...(actorId ? { actorId } : {}),
+    ...(agentSessionId ? { sessionId: agentSessionId } : {}),
   });
 
   const assets = resolve("packages/ring/public");
