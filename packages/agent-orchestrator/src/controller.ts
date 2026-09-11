@@ -20,6 +20,7 @@ export class RewindToolController {
     private readonly service: RewindAgentToolService,
     private readonly continuity: SessionContinuityStore,
     private context: RewindAgentSessionContext,
+    private readonly defaultSpaceId: string | undefined,
   ) {}
 
   static async create(
@@ -27,9 +28,10 @@ export class RewindToolController {
     continuity: SessionContinuityStore,
     actorId: string,
     sessionId: string,
+    defaultSpaceId?: string,
   ): Promise<RewindToolController> {
     const context = await continuity.loadContext(actorId, sessionId);
-    return new RewindToolController(service, continuity, context);
+    return new RewindToolController(service, continuity, context, defaultSpaceId);
   }
 
   snapshot(): RewindAgentSessionContext {
@@ -37,7 +39,7 @@ export class RewindToolController {
   }
 
   private spaceId(candidate?: string): string {
-    const value = candidate ?? this.context.activeSpaceId;
+    const value = candidate ?? this.context.activeSpaceId ?? this.defaultSpaceId;
     if (!value) throw new Error("No active space. Inspect a space first or provide spaceId.");
     return value;
   }
