@@ -21,7 +21,10 @@ const checkpoints: AgentCheckpointAccess = {
   },
 };
 
-const sequence = [demoReady, messy, partial, restored];
+// compare_checkpoint and start_rewind each force a fresh trusted observation.
+// Keep the changed scene stable across those two reads, then advance through
+// partial and restored for verify_rewind.
+const sequence = [demoReady, messy, messy, partial, restored];
 let observationIndex = 0;
 const observer: SpaceObserver = {
   async inspect(spaceId: string) {
@@ -54,15 +57,18 @@ const resumed = await RewindToolController.create(service, continuity, actorId, 
 assert.equal(resumed.snapshot().activeSpaceId, "studio");
 assert.equal(resumed.snapshot().activeCheckpointId, saved.id);
 
-await resumed.inspectSpace({});
+// No explicit inspect call here: compare_checkpoint itself must refresh reality.
 const compared = await resumed.compareCheckpoint({});
 assert.equal(compared.match.restored, false);
 assert(compared.changeCount > 0);
+assert.equal(observationIndex, 2);
 
+// start_rewind must refresh again rather than trusting the comparison cache.
 const started = await resumed.startRewind({});
 assert.equal(started.state, "GUIDING");
 assert.equal(started.match.restored, false);
 assert(started.plan.actions.length > 0);
+assert.equal(observationIndex, 3);
 const rewindSessionId = started.rewindSessionId;
 
 // Recreate again; the active Rewind session identifier comes from continuity,
@@ -87,4 +93,4 @@ assert.equal(finalContext.activeCheckpointId, saved.id);
 assert.equal(finalContext.activeRewindSessionId, rewindSessionId);
 assert.equal(finalContext.lastDeterministicState, "RESTORED");
 
-console.log("Phase 8 continuity gate passed.");
+console.log("Phase 8 continuity gate passed: fresh compare + fresh rewind + deterministic verification.");
