@@ -95,6 +95,10 @@ export class RewindToolController {
   async compareCheckpoint(input: ContextualCheckpointInput): Promise<CompareCheckpointResult> {
     const spaceId = this.spaceId(input.spaceId);
     const checkpointId = this.checkpointId(input.checkpointId);
+
+    // Comparison must never rely on a stale cached observation. Refresh physical
+    // reality at the deterministic boundary even if Strands omits inspect_space.
+    await this.service.inspectSpace({ spaceId });
     const result = await this.service.compareCheckpoint({ spaceId, checkpointId });
     await this.persist({
       activeSpaceId: spaceId,
@@ -108,6 +112,10 @@ export class RewindToolController {
   async startRewind(input: ContextualCheckpointInput): Promise<RewindToolResult> {
     const spaceId = this.spaceId(input.spaceId);
     const checkpointId = this.checkpointId(input.checkpointId);
+
+    // Rewind planning also starts from a fresh trusted observation so a previous
+    // comparison cannot become stale after the user changes the physical scene.
+    await this.service.inspectSpace({ spaceId });
     const result = await this.service.startRewind({ spaceId, checkpointId });
     await this.persist({
       activeSpaceId: spaceId,
