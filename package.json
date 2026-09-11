@@ -22,7 +22,7 @@
     "test:phase7": "npm run build && npm run test:phase7:compiled",
     "test:phase7:compiled": "node dist/packages/ring/tests/webhook-security.test.js && node dist/packages/ring/tests/webhook-server.test.js && node dist/packages/ring/tests/account-link.test.js && node dist/packages/ring/tests/account-link-http.test.js",
     "test:phase8": "npm run build && npm run test:phase8:compiled",
-    "test:phase8:compiled": "node dist/packages/agent-tools/tests/agent-tools.test.js",
+    "test:phase8:compiled": "node dist/packages/agent-tools/tests/agent-tools.test.js && node dist/packages/agent-orchestrator/tests/continuity.test.js && node dist/packages/agent-orchestrator/tests/agentcore-memory.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
