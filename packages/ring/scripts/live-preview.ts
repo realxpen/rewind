@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   RingAccountLinkService,
   RingClient,
+  createLiveRingAgentRuntime,
   createRingWebhookServer,
   endWhepSession,
   listRingDevices,
@@ -16,11 +17,19 @@ import { CheckpointService, createDynamoCheckpointStoreFromEnv } from "../../che
 async function main() {
   const config = loadRingConfig();
   const client = new RingClient(config);
-  const nova = new BedrockNovaVisionClient({
-    region: process.env.AWS_REGION ?? "us-east-1",
-    modelId: process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
-  });
+  const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1";
+  const visionModelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0";
+  const nova = new BedrockNovaVisionClient({ region, modelId: visionModelId });
   const checkpoints = new CheckpointService(createDynamoCheckpointStoreFromEnv());
+  const liveAgent = createLiveRingAgentRuntime({
+    checkpoints,
+    region,
+    modelId: process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
+    memoryId: process.env.REWIND_AGENTCORE_MEMORY_ID,
+    actorId: process.env.REWIND_AGENT_ACTOR_ID,
+    sessionId: process.env.REWIND_AGENT_SESSION_ID,
+  });
+
   const assets = resolve("packages/ring/public");
   const preview = createPreviewServer({
     devices: () => listRingDevices(client, config.devicesPath),
@@ -30,6 +39,7 @@ async function main() {
     saveCheckpoint: input => checkpoints.save(input),
     listCheckpoints: spaceId => checkpoints.list(spaceId),
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
+    invokeAgent: input => liveAgent.invoke(input),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: await readFile(resolve(assets, "preview.js"), "utf8"),
@@ -42,7 +52,10 @@ async function main() {
     console.error("Preview could not start. Check whether the port is in use.");
     process.exitCode = 1;
   });
-  preview.server.listen(port, "127.0.0.1", () => console.log(`REWIND preview: http://127.0.0.1:${port}`));
+  preview.server.listen(port, "127.0.0.1", () => {
+    console.log(`REWIND preview: http://127.0.0.1:${port}`);
+    console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
+  });
 
   const signingKey = process.env.RING_HMAC_SECRET?.trim();
   const ringClientId = process.env.RING_CLIENT_ID?.trim();
