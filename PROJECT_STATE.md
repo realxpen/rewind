@@ -291,7 +291,7 @@ Phase 8 implementation order:
 - [x] preserve DynamoDB as canonical checkpoint truth; AgentCore Memory is conversational/session context only.
 - [x] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
 - [x] run a real local conversational flow with Bedrock/Strands: inspect → save → compare → start Rewind → verify → 100% RESTORED.
-- [ ] prove the same conversation resumes through a real AgentCore Memory resource rather than the in-memory fixture fallback.
+- [x] prove continuity through a real AgentCore Memory resource rather than the in-memory fallback.
 - [ ] run the live Ring-backed flow through the agent boundary.
 
 Phase 8 implementation on `main`:
@@ -305,14 +305,16 @@ Phase 8 implementation on `main`:
 - [x] `RewindToolController` restores active space/checkpoint/Rewind identifiers between invocations while leaving physical truth inside the deterministic tool service.
 - [x] `compare_checkpoint` and `start_rewind` force a fresh trusted observation at the controller boundary, preventing stale cached state from being compared after reality changes.
 - [x] `verify_rewind` always performs its own fresh trusted observation before recomputing deterministic progress.
+- [x] critical intents (`What changed?`, `Rewind`, `Check again`) require their authoritative deterministic operation in the same turn and render truth from that result instead of stale model prose.
 - [x] `AgentCoreSessionContinuityStore` uses AgentCore Memory `CreateEvent`/`ListEvents` for short-term continuity.
 - [x] AgentCore context contains only conversation turns and operational identifiers/state labels; it does not store checkpoint PSP as canonical truth.
 - [x] AgentCore events use `extractionMode=SKIP`, preventing operational session context from becoming long-term learned memory.
 - [x] continuity tests recreate the controller between calls and still require deterministic fresh verification before reaching 100% `RESTORED`.
 - [x] AgentCore adapter tests prove context/turn recovery and short-term-only event writes.
 - [x] `npm run agent:fixture` provides a runnable multi-turn Strands/Nova natural-language surface; it uses AgentCore when `REWIND_AGENTCORE_MEMORY_ID` is configured.
+- [x] `npm run agentcore:smoke` writes live AgentCore context/turns, creates a fresh store instance, then reads them back and fails unless remote continuity succeeds.
 - [x] `.env.example` and `docs/PHASE8_AGENT.md` document the AgentCore/Nova configuration without committing credentials.
-- [x] stale-observation regression is covered by the normal Phase 8 test suite; GitHub Actions passed at commit `8809ebe1fc9ab872001bd19d68077b6fcad7987a`.
+- [x] full Phase 8 test suite including the critical-intent truth guard passes on `main`.
 
 Live Strands conversational gate verified on 2026-09-11 using the controlled fixture perception provider:
 
@@ -336,7 +338,22 @@ Inspect my studio
 
 This proves real Bedrock/Strands natural-language orchestration can drive the existing deterministic restore loop without model-declared restoration or stale-state reuse. The perception provider for this gate was the controlled fixture, not Ring.
 
-Phase 8 gate: **OPEN** until real AgentCore Memory continuity and the live Ring-backed agent flow pass. The model is not allowed to close this gate by prose alone.
+Live AgentCore Memory continuity gate verified on 2026-09-11:
+
+```text
+Memory: RewindSessionMemory-4hEnlTBLAD
+status: ACTIVE
+actor: rewind-demo-user
+session: rewind-agentcore-smoke-01
+→ write context + conversation events to AgentCore Memory
+→ construct fresh AgentCoreSessionContinuityStore instance
+→ load same context + turns remotely
+→ PASS
+```
+
+`npm run agentcore:smoke` returned: **PASS AgentCore live continuity: remote context + conversation events survived a fresh store instance.** This proves Phase 8 continuity is using the real AgentCore Memory resource, not only the in-process fallback.
+
+Phase 8 gate: **OPEN only for the live Ring-backed agent flow**. The model is not allowed to close this gate by prose alone.
 
 ## Next after Phase 8 passes
 
