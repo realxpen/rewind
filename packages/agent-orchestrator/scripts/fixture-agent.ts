@@ -66,12 +66,14 @@ function continuityStore(): SessionContinuityStore {
 
 const actorId = process.env.REWIND_AGENT_ACTOR_ID ?? "rewind-demo-user";
 const sessionId = process.env.REWIND_AGENT_SESSION_ID ?? "rewind-demo-session";
+const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID ?? "studio";
 const service = new RewindAgentToolService(observer, checkpoints);
 const orchestrator = new RewindAgentOrchestrator({
   toolService: service,
   continuity: continuityStore(),
   region: process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1",
   modelId: process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
+  defaultSpaceId,
 });
 
 function friendlyError(error: unknown): string {
@@ -106,6 +108,7 @@ if (oneShot) {
 } else {
   console.log("REWIND Phase 8 conversational fixture");
   console.log("Natural language goes to Strands + Nova 2 Lite.");
+  console.log(`Default REWIND space: ${defaultSpaceId}`);
   console.log("Fixture scene commands are local test controls, not agent tools:");
   console.log("  /scene 0  Demo Ready");
   console.log("  /scene 1  Messy");
