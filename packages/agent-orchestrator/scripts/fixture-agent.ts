@@ -1,3 +1,5 @@
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import { buildCheckpoint } from "../../checkpoints/src/service.js";
 import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
 import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
@@ -13,13 +15,8 @@ import {
   type SessionContinuityStore,
 } from "../src/index.js";
 
-const prompt = process.argv.slice(2).join(" ").trim();
-if (!prompt) {
-  console.error('Usage: npm run agent:fixture -- "Inspect my studio"');
-  process.exit(2);
-}
-
 const states = [demoReady, messy, partial, restored];
+const sceneNames = ["Demo Ready", "Messy", "Partial", "Restored"] as const;
 let stateIndex = Number.parseInt(process.env.REWIND_FIXTURE_STATE_INDEX ?? "0", 10);
 if (!Number.isInteger(stateIndex) || stateIndex < 0 || stateIndex >= states.length) stateIndex = 0;
 
@@ -60,12 +57,15 @@ function continuityStore(): SessionContinuityStore {
     console.warn("REWIND_AGENTCORE_MEMORY_ID is not set; using in-memory continuity for this process.");
     return new InMemorySessionContinuityStore();
   }
+  console.log("AgentCore Memory continuity enabled.");
   return new AgentCoreSessionContinuityStore({
     memoryId,
     region: process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1",
   });
 }
 
+const actorId = process.env.REWIND_AGENT_ACTOR_ID ?? "rewind-demo-user";
+const sessionId = process.env.REWIND_AGENT_SESSION_ID ?? "rewind-demo-session";
 const service = new RewindAgentToolService(observer, checkpoints);
 const orchestrator = new RewindAgentOrchestrator({
   toolService: service,
@@ -74,12 +74,50 @@ const orchestrator = new RewindAgentOrchestrator({
   modelId: process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
 });
 
-const result = await orchestrator.invoke({
-  actorId: process.env.REWIND_AGENT_ACTOR_ID ?? "rewind-demo-user",
-  sessionId: process.env.REWIND_AGENT_SESSION_ID ?? "rewind-demo-session",
-  prompt,
-});
+async function invoke(prompt: string): Promise<void> {
+  const result = await orchestrator.invoke({ actorId, sessionId, prompt });
+  console.log(`\nREWIND: ${result.text}\n`);
+  console.log(`Session: ${result.session.activeSpaceId ?? "no-space"} · ${result.session.activeCheckpointName ?? "no-checkpoint"} · ${result.session.lastDeterministicState ?? "no-state"}`);
+}
 
-console.log(result.text);
-console.log("\nSession context:");
-console.log(JSON.stringify(result.session, null, 2));
+const oneShot = process.argv.slice(2).join(" ").trim();
+if (oneShot) {
+  await invoke(oneShot);
+} else {
+  console.log("REWIND Phase 8 conversational fixture");
+  console.log("Natural language goes to Strands + Nova 2 Lite.");
+  console.log("Fixture scene commands are local test controls, not agent tools:");
+  console.log("  /scene 0  Demo Ready");
+  console.log("  /scene 1  Messy");
+  console.log("  /scene 2  Partial");
+  console.log("  /scene 3  Restored");
+  console.log("  /context  show current fixture scene");
+  console.log("  /exit     quit\n");
+  console.log(`Fixture scene: ${stateIndex} — ${sceneNames[stateIndex]}`);
+
+  const terminal = createInterface({ input, output });
+  try {
+    while (true) {
+      const line = (await terminal.question("You: ")).trim();
+      if (!line) continue;
+      if (line === "/exit" || line === "/quit") break;
+      if (line === "/context") {
+        console.log(`Fixture scene: ${stateIndex} — ${sceneNames[stateIndex]}`);
+        continue;
+      }
+      const scene = line.match(/^\/scene\s+([0-3])$/);
+      if (scene) {
+        stateIndex = Number(scene[1]);
+        console.log(`Fixture scene changed to ${stateIndex} — ${sceneNames[stateIndex]}`);
+        continue;
+      }
+      try {
+        await invoke(line);
+      } catch (error) {
+        console.error(`REWIND error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  } finally {
+    terminal.close();
+  }
+}
