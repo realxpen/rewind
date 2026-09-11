@@ -1,6 +1,6 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-10_
+_Last updated: 2026-09-11_
 
 ## Current phase
 
@@ -285,27 +285,32 @@ cancel_rewind
 Phase 8 implementation order:
 
 - [x] define typed agent-tool contracts around the existing services instead of duplicating business logic.
-- [ ] add a Strands agent/orchestrator that calls only those contracts.
+- [x] add a Strands agent/orchestrator that calls only those contracts.
 - [x] give the agent Nova/physical-state summaries, never raw authority over deterministic truth.
-- [ ] add AgentCore session continuity for the active space/checkpoint/Rewind session context.
-- [ ] preserve DynamoDB as canonical checkpoint truth; AgentCore memory is conversational/session context only.
+- [x] add AgentCore session continuity for the active space/checkpoint/Rewind session context.
+- [x] preserve DynamoDB as canonical checkpoint truth; AgentCore Memory is conversational/session context only.
 - [x] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
-- [ ] run a local conversational flow: inspect → save/list → compare → start Rewind → verify → status.
+- [ ] run a real local conversational flow with Bedrock/Strands: inspect → save/list → compare → start Rewind → verify → status.
 - [ ] run the live Ring-backed flow through the agent boundary.
 
-Phase 8 foundation implemented on `main`:
+Phase 8 implementation on `main`:
 
-- [x] `packages/agent-tools/src/contracts.ts` defines the SDK-neutral typed tool boundary.
-- [x] `packages/agent-tools/src/specs.ts` locks all tool schemas with `additionalProperties: false`.
-- [x] no agent tool accepts raw physical state, desired state, match percentage, restore plan, or a `RESTORED` flag.
-- [x] `save_checkpoint` persists only the latest trusted server-held semantic observation.
-- [x] `verify_rewind` always requests a fresh trusted observation itself; the model cannot submit verification state.
-- [x] compare, Rewind planning, progress, and restoration truth remain delegated to `compareStates()`, `calculateMatch()`, `buildRestorePlan()`, and `updateRestoreProgress()`.
-- [x] returned plans/results are defensive copies so caller mutation cannot rewrite server session truth.
-- [x] Phase 8 trust-boundary tests cover state smuggling, false-RESTORED injection, returned-plan mutation, deterministic partial progress, and deterministic 100% restoration.
-- [x] full GitHub Actions `npm test` passed for commit `2178f03310ab9395574429ac4321d4e9a47995c8` with the Phase 8 test included.
+- [x] `packages/agent-tools` remains the SDK-neutral deterministic trust boundary.
+- [x] `packages/agent-orchestrator` adds the TypeScript Strands runtime without creating a second Python service.
+- [x] Strands tools wrap only `inspect_space`, `save_checkpoint`, `list_checkpoints`, `compare_checkpoint`, `start_rewind`, `verify_rewind`, `get_rewind_status`, and `cancel_rewind`.
+- [x] `RewindAgentOrchestrator` uses Nova 2 Lite through Strands and maps natural-language intent to the approved tools.
+- [x] the system prompt explicitly forbids invented observations, IDs, diffs, percentages, restore plans, and model-declared `RESTORED`.
+- [x] `RewindToolController` restores active space/checkpoint/Rewind identifiers between invocations while leaving physical truth inside the deterministic tool service.
+- [x] `AgentCoreSessionContinuityStore` uses AgentCore Memory `CreateEvent`/`ListEvents` for short-term continuity.
+- [x] AgentCore context contains only conversation turns and operational identifiers/state labels; it does not store checkpoint PSP as canonical truth.
+- [x] AgentCore events use `extractionMode=SKIP`, preventing operational session context from becoming long-term learned memory.
+- [x] continuity tests recreate the controller between calls and still require deterministic fresh verification before reaching 100% `RESTORED`.
+- [x] AgentCore adapter tests prove context/turn recovery and short-term-only event writes.
+- [x] `npm run agent:fixture -- "Inspect my studio"` provides a runnable Strands/Nova natural-language smoke surface; it uses AgentCore when `REWIND_AGENTCORE_MEMORY_ID` is configured.
+- [x] `.env.example` and `docs/PHASE8_AGENT.md` document the AgentCore/Nova configuration without committing credentials.
+- [x] full GitHub Actions `npm test` passed after the Strands + AgentCore implementation at commit `2b1c00ad53868e71b93df49e5ab75c8223a2cdfc`.
 
-Phase 8 gate: **OPEN** until an agent-driven flow reaches the existing deterministic restore loop without bypassing its state engine.
+Phase 8 gate: **OPEN** until the real Bedrock/Strands conversational smoke test and the live Ring-backed agent flow pass. The model is not allowed to close this gate by prose alone.
 
 ## Next after Phase 8 passes
 
