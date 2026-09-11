@@ -27,6 +27,7 @@
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
     "ring:smoke": "npm run build && node dist/packages/ring/scripts/playground-smoke.js",
+    "agent:fixture": "npm run build && node dist/packages/agent-orchestrator/scripts/fixture-agent.js",
     "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js"
   },
   "devDependencies": {
