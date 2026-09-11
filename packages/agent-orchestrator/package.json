@@ -1,0 +1,12 @@
+{
+  "name": "@rewind/agent-orchestrator",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Strands orchestration and AgentCore session continuity for REWIND.",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agentcore": "^3.1129.0",
+    "@strands-agents/sdk": "^1.17.0",
+    "zod": "^4.0.0"
+  }
+}
