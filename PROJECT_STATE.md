@@ -290,7 +290,8 @@ Phase 8 implementation order:
 - [x] add AgentCore session continuity for the active space/checkpoint/Rewind session context.
 - [x] preserve DynamoDB as canonical checkpoint truth; AgentCore Memory is conversational/session context only.
 - [x] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
-- [ ] run a real local conversational flow with Bedrock/Strands: inspect → save/list → compare → start Rewind → verify → status.
+- [x] run a real local conversational flow with Bedrock/Strands: inspect → save → compare → start Rewind → verify → 100% RESTORED.
+- [ ] prove the same conversation resumes through a real AgentCore Memory resource rather than the in-memory fixture fallback.
 - [ ] run the live Ring-backed flow through the agent boundary.
 
 Phase 8 implementation on `main`:
@@ -300,17 +301,42 @@ Phase 8 implementation on `main`:
 - [x] Strands tools wrap only `inspect_space`, `save_checkpoint`, `list_checkpoints`, `compare_checkpoint`, `start_rewind`, `verify_rewind`, `get_rewind_status`, and `cancel_rewind`.
 - [x] `RewindAgentOrchestrator` uses Nova 2 Lite through Strands and maps natural-language intent to the approved tools.
 - [x] the system prompt explicitly forbids invented observations, IDs, diffs, percentages, restore plans, and model-declared `RESTORED`.
+- [x] a configured default `studio` space allows natural language such as **Inspect my studio** without exposing internal identifiers.
 - [x] `RewindToolController` restores active space/checkpoint/Rewind identifiers between invocations while leaving physical truth inside the deterministic tool service.
+- [x] `compare_checkpoint` and `start_rewind` force a fresh trusted observation at the controller boundary, preventing stale cached state from being compared after reality changes.
+- [x] `verify_rewind` always performs its own fresh trusted observation before recomputing deterministic progress.
 - [x] `AgentCoreSessionContinuityStore` uses AgentCore Memory `CreateEvent`/`ListEvents` for short-term continuity.
 - [x] AgentCore context contains only conversation turns and operational identifiers/state labels; it does not store checkpoint PSP as canonical truth.
 - [x] AgentCore events use `extractionMode=SKIP`, preventing operational session context from becoming long-term learned memory.
 - [x] continuity tests recreate the controller between calls and still require deterministic fresh verification before reaching 100% `RESTORED`.
 - [x] AgentCore adapter tests prove context/turn recovery and short-term-only event writes.
-- [x] `npm run agent:fixture -- "Inspect my studio"` provides a runnable Strands/Nova natural-language smoke surface; it uses AgentCore when `REWIND_AGENTCORE_MEMORY_ID` is configured.
+- [x] `npm run agent:fixture` provides a runnable multi-turn Strands/Nova natural-language surface; it uses AgentCore when `REWIND_AGENTCORE_MEMORY_ID` is configured.
 - [x] `.env.example` and `docs/PHASE8_AGENT.md` document the AgentCore/Nova configuration without committing credentials.
-- [x] full GitHub Actions `npm test` passed after the Strands + AgentCore implementation at commit `2b1c00ad53868e71b93df49e5ab75c8223a2cdfc`.
+- [x] stale-observation regression is covered by the normal Phase 8 test suite; GitHub Actions passed at commit `8809ebe1fc9ab872001bd19d68077b6fcad7987a`.
 
-Phase 8 gate: **OPEN** until the real Bedrock/Strands conversational smoke test and the live Ring-backed agent flow pass. The model is not allowed to close this gate by prose alone.
+Live Strands conversational gate verified on 2026-09-11 using the controlled fixture perception provider:
+
+```text
+Inspect my studio
+→ 8 trusted entities observed
+→ Save this as Demo Ready
+→ fixture changed to Messy
+→ What changed?
+→ fresh observation
+→ 6 meaningful changes / 25% match / DIFF_READY
+→ Rewind my studio
+→ deterministic 6-action plan / GUIDING
+→ fixture changed to Partial
+→ Check again
+→ 63% match / 3 pending actions / GUIDING
+→ fixture changed to Restored
+→ Check again
+→ 100% / RESTORED
+```
+
+This proves real Bedrock/Strands natural-language orchestration can drive the existing deterministic restore loop without model-declared restoration or stale-state reuse. The perception provider for this gate was the controlled fixture, not Ring.
+
+Phase 8 gate: **OPEN** until real AgentCore Memory continuity and the live Ring-backed agent flow pass. The model is not allowed to close this gate by prose alone.
 
 ## Next after Phase 8 passes
 
