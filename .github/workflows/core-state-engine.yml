@@ -14,12 +14,4 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Run tests
-        run: npm test 2>&1 | tee test-output.log
-      - name: Upload test log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: core-state-engine-test-log
-          path: test-output.log
-          retention-days: 1
+      - run: npm test
