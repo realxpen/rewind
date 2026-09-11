@@ -1,6 +1,13 @@
 import { Agent, BedrockModel } from "@strands-agents/sdk";
 import type { RewindAgentToolService } from "../../agent-tools/src/index.js";
 import { RewindToolController } from "./controller.js";
+import {
+  detectCriticalIntent,
+  operationSatisfied,
+  renderCompareResult,
+  renderRewindResult,
+  type CriticalIntent,
+} from "./critical-intent.js";
 import type { RewindAgentSessionContext, SessionContinuityStore } from "./session.js";
 import { createRewindStrandsTools } from "./tools.js";
 
@@ -58,6 +65,7 @@ NON-NEGOTIABLE TRUST BOUNDARY
 - Never claim the scene is restored unless a REWIND tool result returned state=RESTORED or match.restored=true for the relevant operation.
 - Never rewrite checkpoint state or ask the user to provide physical-state JSON.
 - UNKNOWN/LOW_CONFIDENCE means re-observe or explain uncertainty. Do not guess.
+- A user request to compare, rewind, or verify MUST invoke compare_checkpoint, start_rewind, or verify_rewind respectively in that turn. Never answer those requests from conversational history alone.
 
 SPACE RESOLUTION
 - If the session already has activeSpaceId, use it unless the user explicitly names another configured space.
@@ -85,6 +93,30 @@ SESSION CONTEXT (continuity metadata only; not physical truth)
 ${contextForPrompt(context, defaultSpaceId)}
 
 Keep responses concise and action-oriented. When a restoration plan is active, give the next pending instruction and the deterministic match/progress returned by the tool.`;
+}
+
+async function enforceCriticalIntent(
+  intent: CriticalIntent,
+  controller: RewindToolController,
+  operationMark: number,
+): Promise<string> {
+  const operations = controller.operationsSince(operationMark);
+
+  if (!operationSatisfied(intent, operations)) {
+    if (intent === "compare_checkpoint") await controller.compareCheckpoint({});
+    else if (intent === "start_rewind") await controller.startRewind({});
+    else await controller.verifyRewind({});
+  }
+
+  if (intent === "compare_checkpoint") {
+    const authoritative = controller.latestCompareResult();
+    if (!authoritative) throw new Error("Critical compare did not produce an authoritative result.");
+    return renderCompareResult(authoritative);
+  }
+
+  const authoritative = controller.latestRewindResult();
+  if (!authoritative) throw new Error("Critical Rewind operation did not produce an authoritative result.");
+  return renderRewindResult(authoritative, intent);
 }
 
 export class RewindAgentOrchestrator {
@@ -119,6 +151,7 @@ export class RewindAgentOrchestrator {
       createdAt: startedAt,
     });
 
+    const operationMark = controller.operationMark();
     const agent = new Agent({
       id: "rewind-orchestrator",
       name: "REWIND",
@@ -134,7 +167,11 @@ export class RewindAgentOrchestrator {
     });
 
     const result = await agent.invoke(prompt);
-    const text = textFromMessage(result.lastMessage) || result.toString();
+    const criticalIntent = detectCriticalIntent(prompt);
+    const text = criticalIntent
+      ? await enforceCriticalIntent(criticalIntent, controller, operationMark)
+      : textFromMessage(result.lastMessage) || result.toString();
+
     await this.options.continuity.appendTurn(input.actorId, input.sessionId, {
       role: "assistant",
       text,
