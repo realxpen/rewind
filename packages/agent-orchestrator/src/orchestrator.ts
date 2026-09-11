@@ -1,0 +1,137 @@
+import { Agent, BedrockModel } from "@strands-agents/sdk";
+import type { RewindAgentToolService } from "../../agent-tools/src/index.js";
+import { RewindToolController } from "./controller.js";
+import type { RewindAgentSessionContext, SessionContinuityStore } from "./session.js";
+import { createRewindStrandsTools } from "./tools.js";
+
+export interface RewindAgentInvocation {
+  actorId: string;
+  sessionId: string;
+  prompt: string;
+}
+
+export interface RewindAgentInvocationResult {
+  text: string;
+  stopReason: string;
+  session: RewindAgentSessionContext;
+}
+
+export interface RewindAgentOrchestratorOptions {
+  toolService: RewindAgentToolService;
+  continuity: SessionContinuityStore;
+  region?: string;
+  modelId?: string;
+}
+
+function textFromMessage(message: unknown): string {
+  if (!message || typeof message !== "object") return "";
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return "";
+  return content.map(block => {
+    if (!block || typeof block !== "object") return "";
+    const text = (block as { text?: unknown }).text;
+    return typeof text === "string" ? text : "";
+  }).filter(Boolean).join("\n").trim();
+}
+
+function contextForPrompt(context: RewindAgentSessionContext): string {
+  const rows = [
+    `actorId=${context.actorId}`,
+    `sessionId=${context.sessionId}`,
+    context.activeSpaceId ? `activeSpaceId=${context.activeSpaceId}` : "activeSpaceId=none",
+    context.activeCheckpointId ? `activeCheckpointId=${context.activeCheckpointId}` : "activeCheckpointId=none",
+    context.activeCheckpointName ? `activeCheckpointName=${context.activeCheckpointName}` : "activeCheckpointName=none",
+    context.activeRewindSessionId ? `activeRewindSessionId=${context.activeRewindSessionId}` : "activeRewindSessionId=none",
+    context.lastDeterministicState ? `lastDeterministicState=${context.lastDeterministicState}` : "lastDeterministicState=none",
+  ];
+  return rows.join("\n");
+}
+
+function systemPrompt(context: RewindAgentSessionContext): string {
+  return `You are REWIND, a physical-state restoration agent. REWIND is Ctrl+Z for reality.
+
+NON-NEGOTIABLE TRUST BOUNDARY
+- AI interprets intent and chooses approved tools. Deterministic REWIND code decides physical truth.
+- Never invent an observation, checkpoint ID, Rewind session ID, diff, match percentage, restore action, or RESTORED state.
+- Never claim the scene is restored unless a REWIND tool result returned state=RESTORED or match.restored=true for the relevant operation.
+- Never rewrite checkpoint state or ask the user to provide physical-state JSON.
+- If a tool says a fresh inspection is required, call inspect_space before retrying the requested operation.
+- UNKNOWN/LOW_CONFIDENCE means re-observe or explain uncertainty. Do not guess.
+
+INTENT TO TOOL GUIDANCE
+- inspect/look/check the space -> inspect_space
+- save/remember this state -> inspect_space when needed, then save_checkpoint
+- list/show checkpoints -> list_checkpoints
+- what changed/compare -> inspect_space when needed, then compare_checkpoint
+- rewind/restore -> start_rewind; present only its returned plan
+- check again/verify/did that fix it -> verify_rewind
+- status/progress -> get_rewind_status
+- stop/cancel -> cancel_rewind
+
+Use the active identifiers below when appropriate. If an identifier is missing, use an approved discovery tool rather than fabricating one.
+
+SESSION CONTEXT (continuity metadata only; not physical truth)
+${contextForPrompt(context)}
+
+Keep responses concise and action-oriented. When a restoration plan is active, give the next pending instruction and the deterministic match/progress returned by the tool.`;
+}
+
+export class RewindAgentOrchestrator {
+  private readonly model: BedrockModel;
+
+  constructor(private readonly options: RewindAgentOrchestratorOptions) {
+    this.model = new BedrockModel({
+      region: options.region ?? process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1",
+      modelId: options.modelId ?? process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
+      temperature: 0.1,
+      maxTokens: 1600,
+    });
+  }
+
+  async invoke(input: RewindAgentInvocation): Promise<RewindAgentInvocationResult> {
+    const prompt = input.prompt.trim();
+    if (!prompt || prompt.length > 8_000) throw new Error("Prompt must contain 1 to 8000 characters.");
+
+    const controller = await RewindToolController.create(
+      this.options.toolService,
+      this.options.continuity,
+      input.actorId,
+      input.sessionId,
+    );
+    const priorTurns = await this.options.continuity.loadTurns(input.actorId, input.sessionId, 20);
+    const startedAt = new Date().toISOString();
+    await this.options.continuity.appendTurn(input.actorId, input.sessionId, {
+      role: "user",
+      text: prompt,
+      createdAt: startedAt,
+    });
+
+    const agent = new Agent({
+      id: "rewind-orchestrator",
+      name: "REWIND",
+      description: "Restores a physical space to a saved semantic checkpoint through approved deterministic tools.",
+      model: this.model,
+      systemPrompt: systemPrompt(controller.snapshot()),
+      tools: createRewindStrandsTools(controller),
+      messages: priorTurns.map(turn => ({
+        role: turn.role,
+        content: [{ text: turn.text }],
+      })),
+      printer: false,
+    });
+
+    const result = await agent.invoke(prompt);
+    const text = textFromMessage(result.lastMessage) || result.toString();
+    await this.options.continuity.appendTurn(input.actorId, input.sessionId, {
+      role: "assistant",
+      text,
+      createdAt: new Date().toISOString(),
+    });
+
+    return {
+      text,
+      stopReason: String(result.stopReason),
+      session: controller.snapshot(),
+    };
+  }
+}
