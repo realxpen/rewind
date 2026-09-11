@@ -10,10 +10,10 @@ import type {
   SessionContinuityStore,
 } from "./session.js";
 
-export interface ContextualSpaceInput { spaceId?: string }
+export interface ContextualSpaceInput { spaceId?: string | undefined }
 export interface ContextualSaveCheckpointInput extends ContextualSpaceInput { name: string }
-export interface ContextualCheckpointInput extends ContextualSpaceInput { checkpointId?: string }
-export interface ContextualRewindInput extends ContextualSpaceInput { rewindSessionId?: string }
+export interface ContextualCheckpointInput extends ContextualSpaceInput { checkpointId?: string | undefined }
+export interface ContextualRewindInput extends ContextualSpaceInput { rewindSessionId?: string | undefined }
 
 export class RewindToolController {
   private constructor(
