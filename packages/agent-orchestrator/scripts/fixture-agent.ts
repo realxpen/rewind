@@ -74,6 +74,26 @@ const orchestrator = new RewindAgentOrchestrator({
   modelId: process.env.REWIND_AGENT_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0",
 });
 
+function friendlyError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  const normalized = message.toLowerCase();
+  const authFailure = normalized.includes("session has expired")
+    || normalized.includes("expiredtoken")
+    || normalized.includes("token has expired")
+    || normalized.includes("reauthenticate")
+    || normalized.includes("credential") && normalized.includes("expired");
+
+  if (!authFailure) return message;
+
+  const profile = process.env.AWS_PROFILE?.trim() || "rewind-dev";
+  return [
+    "AWS session expired before Strands could call Nova 2 Lite.",
+    `Reauthenticate in another terminal with: aws login --profile ${profile}`,
+    `Then verify it with: aws sts get-caller-identity --profile ${profile}`,
+    `Before restarting the fixture, export AWS_PROFILE=${profile} AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_SDK_LOAD_CONFIG=1`,
+  ].join("\n");
+}
+
 async function invoke(prompt: string): Promise<void> {
   const result = await orchestrator.invoke({ actorId, sessionId, prompt });
   console.log(`\nREWIND: ${result.text}\n`);
@@ -114,7 +134,7 @@ if (oneShot) {
       try {
         await invoke(line);
       } catch (error) {
-        console.error(`REWIND error: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error(`REWIND error: ${friendlyError(error)}`);
       }
     }
   } finally {
