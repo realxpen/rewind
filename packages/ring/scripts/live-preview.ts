@@ -39,6 +39,10 @@ async function main() {
   const actorId = process.env.REWIND_AGENT_ACTOR_ID?.trim();
   const agentSessionId = process.env.REWIND_AGENT_SESSION_ID?.trim();
   const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "ring-playground";
+  const publicMcpHost = process.env.REWIND_MCP_PUBLIC_HOST?.trim();
+  if (publicMcpHost && !/^[A-Za-z0-9.-]{1,253}$/.test(publicMcpHost)) {
+    throw new Error("REWIND_MCP_PUBLIC_HOST must be a hostname only.");
+  }
 
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
   const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
@@ -123,10 +127,12 @@ async function main() {
     actorId: process.env.REWIND_MCP_ACTOR_ID?.trim() || "rewind-alexa-demo-user",
     sessionId: process.env.REWIND_MCP_SESSION_ID?.trim() || "rewind-alexa-demo-session",
     defaultSpaceId,
-    host: "127.0.0.1",
+    host: publicMcpHost ? "0.0.0.0" : "127.0.0.1",
+    ...(publicMcpHost ? { allowedHosts: ["127.0.0.1", "localhost", publicMcpHost] } : {}),
   });
   const mcpHttp = mcpApp.listen(mcpPort, "127.0.0.1", () => {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
+    if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
     console.log("MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.");
   });
 
@@ -210,6 +216,7 @@ function safeStartupMessage(error: unknown): string {
     "RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.",
     "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.",
+    "REWIND_MCP_PUBLIC_HOST must be a hostname only.",
   ];
   return allowed.includes(message)
     ? message
