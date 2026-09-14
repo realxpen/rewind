@@ -10,3 +10,4 @@ export * from "./webhook-server.js";
 export * from "./account-link.js";
 export * from "./account-link-http.js";
 export * from "./live-agent.js";
+export * from "./observation-bridge.js";
