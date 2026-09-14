@@ -41,16 +41,16 @@ const appearanceCheckpoint: PhysicalState = {
   schemaVersion: "0.1",
   spaceId: "appearance-test",
   capturedAt: "2026-09-10T08:00:00.000Z",
-  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red", material: "feather" } }],
+  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red", material: "feather", species: null } }],
 };
 const appearanceCurrent: PhysicalState = {
   ...appearanceCheckpoint,
   capturedAt: "2026-09-10T08:01:00.000Z",
-  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red_and_black", material: "feathers" } }],
+  entities: [{ key: "bird.1", category: "bird", confidence: 1, attributes: { color: "red_and_black", material: "feathers", species: "cardinal" } }],
 };
 const appearanceDiffs = compareStates(appearanceCheckpoint, appearanceCurrent);
 const appearanceMatch = calculateMatch(appearanceDiffs);
-assert(appearanceDiffs.every((diff) => diff.type === "UNCHANGED"), "Appearance descriptors must not become restoration actions.");
-assert(appearanceMatch.restored && appearanceMatch.percentage === 100, "Appearance-only wording drift must not block restoration.");
+assert(appearanceDiffs.every((diff) => diff.type === "UNCHANGED"), "Appearance/identity descriptors must not become restoration actions.");
+assert(appearanceMatch.restored && appearanceMatch.percentage === 100, "Appearance/species wording drift must not block restoration.");
 
-console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + appearance noise ignored");
+console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + descriptive noise ignored");
