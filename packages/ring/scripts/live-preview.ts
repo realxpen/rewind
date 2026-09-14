@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   RingAccountLinkService,
   RingClient,
+  RingObservationBridge,
   createLiveRingAgentRuntime,
+  createObservationBridgeControlServer,
   createRingWebhookServer,
   endWhepSession,
   listRingDevices,
@@ -13,6 +16,17 @@ import {
 import { createPreviewServer } from "../src/preview-server.js";
 import { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
 import { CheckpointService, createDynamoCheckpointStoreFromEnv } from "../../checkpoints/src/index.js";
+import { RewindAgentToolService, type AgentCheckpointAccess } from "../../agent-tools/src/index.js";
+import {
+  AgentCoreSessionContinuityStore,
+  InMemorySessionContinuityStore,
+  type SessionContinuityStore,
+} from "../../agent-orchestrator/src/index.js";
+import { createRewindMcpHttpApp } from "../../mcp-server/src/http.js";
+
+function validPort(value: number): boolean {
+  return Number.isInteger(value) && value >= 1024 && value <= 65535;
+}
 
 async function main() {
   const config = loadRingConfig();
@@ -24,6 +38,19 @@ async function main() {
   const memoryId = process.env.REWIND_AGENTCORE_MEMORY_ID?.trim();
   const actorId = process.env.REWIND_AGENT_ACTOR_ID?.trim();
   const agentSessionId = process.env.REWIND_AGENT_SESSION_ID?.trim();
+  const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "ring-playground";
+
+  const bridge = new RingObservationBridge(Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 15_000));
+  const checkpointAccess: AgentCheckpointAccess = {
+    save: input => checkpoints.save(input),
+    list: spaceId => checkpoints.list(spaceId),
+    get: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
+  };
+  const mcpToolService = new RewindAgentToolService(bridge, checkpointAccess);
+  const mcpContinuity: SessionContinuityStore = memoryId
+    ? new AgentCoreSessionContinuityStore({ memoryId, region })
+    : new InMemorySessionContinuityStore();
+
   const liveAgent = createLiveRingAgentRuntime({
     checkpoints,
     region,
@@ -38,7 +65,18 @@ async function main() {
     devices: () => listRingDevices(client, config.devicesPath),
     start: (id, offer) => startWhepSession(client, id, offer),
     stop: url => endWhepSession(client, url),
-    observe: request => nova.observe(request),
+    observe: async request => {
+      const result = await nova.observe(request);
+      bridge.publish({
+        observationId: `ring-mcp-${randomUUID()}`,
+        spaceId: result.state.spaceId,
+        state: result.state,
+        ...(result.modelId !== undefined ? { modelId: result.modelId } : {}),
+        ...(result.latencyMs !== undefined ? { latencyMs: result.latencyMs } : {}),
+        receivedAt: Date.now(),
+      });
+      return result;
+    },
     saveCheckpoint: input => checkpoints.save(input),
     listCheckpoints: spaceId => checkpoints.list(spaceId),
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
@@ -50,7 +88,14 @@ async function main() {
   });
 
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
+  const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
+  const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
+  const bridgePort = Number(process.env.REWIND_MCP_BRIDGE_PORT ?? 3005);
+  if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
+  if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
+  if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
+  if (!validPort(bridgePort) || [port, webhookPort, mcpPort].includes(bridgePort)) throw new Error("REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.");
+
   preview.server.on("error", () => {
     console.error("Preview could not start. Check whether the port is in use.");
     process.exitCode = 1;
@@ -58,6 +103,28 @@ async function main() {
   preview.server.listen(port, "127.0.0.1", () => {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
+  });
+
+  const bridgeControl = createObservationBridgeControlServer(bridge, port, bridgePort);
+  bridgeControl.on("error", () => {
+    console.error(`MCP observation bridge could not start. Check whether port ${bridgePort} is in use.`);
+    process.exitCode = 1;
+  });
+  bridgeControl.listen(bridgePort, "127.0.0.1", () => {
+    console.log(`MCP observation bridge (local): http://127.0.0.1:${bridgePort}/observation-request`);
+  });
+
+  const mcpApp = createRewindMcpHttpApp({
+    toolService: mcpToolService,
+    continuity: mcpContinuity,
+    actorId: process.env.REWIND_MCP_ACTOR_ID?.trim() || "rewind-alexa-demo-user",
+    sessionId: process.env.REWIND_MCP_SESSION_ID?.trim() || "rewind-alexa-demo-session",
+    defaultSpaceId,
+    host: "127.0.0.1",
+  });
+  const mcpHttp = mcpApp.listen(mcpPort, "127.0.0.1", () => {
+    console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
+    console.log("MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.");
   });
 
   const signingKey = process.env.RING_HMAC_SECRET?.trim();
@@ -77,10 +144,6 @@ async function main() {
       })
     : undefined;
 
-  const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
-  if (!Number.isInteger(webhookPort) || webhookPort < 1024 || webhookPort > 65535 || webhookPort === port) {
-    throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
-  }
   const webhook = signingKey
     ? createRingWebhookServer({
         signingKey,
@@ -113,8 +176,11 @@ async function main() {
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    bridge.cancelAll("REWIND preview stopped.");
     preview.server.close();
     webhook?.server.close();
+    bridgeControl.close();
+    mcpHttp.close();
     const deadline = setTimeout(() => process.exit(1), 10_000);
     try { await preview.cleanup(); }
     catch {
@@ -124,6 +190,8 @@ async function main() {
     clearTimeout(deadline);
     preview.server.closeAllConnections();
     webhook?.server.closeAllConnections();
+    bridgeControl.closeAllConnections();
+    mcpHttp.closeAllConnections();
   };
   process.on("SIGINT", () => void stop());
   process.on("SIGTERM", () => void stop());
@@ -137,6 +205,8 @@ function safeStartupMessage(error: unknown): string {
     "DYNAMODB_CHECKPOINTS_TABLE is required.",
     "RING_PREVIEW_PORT must be an integer between 1024 and 65535.",
     "RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.",
+    "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
+    "REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.",
   ];
   return allowed.includes(message)
     ? message
