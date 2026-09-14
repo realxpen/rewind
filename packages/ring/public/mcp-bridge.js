@@ -1,7 +1,4 @@
 (() => {
-  const bridgePort = Number('__REWIND_MCP_BRIDGE_PORT__');
-  if (!Number.isInteger(bridgePort)) return;
-
   let lastRequestId;
   let answering = false;
 
@@ -12,7 +9,7 @@
     if (!video || !space || video.readyState < 2 || !video.videoWidth || !space.value) return;
 
     try {
-      const url = `http://127.0.0.1:${bridgePort}/observation-request?spaceId=${encodeURIComponent(space.value)}`;
+      const url = `/api/mcp-observation-request?spaceId=${encodeURIComponent(space.value)}`;
       const response = await fetch(url, { method: 'GET', cache: 'no-store' });
       if (!response.ok) return;
       const request = await response.json();
