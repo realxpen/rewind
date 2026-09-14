@@ -114,6 +114,7 @@ const progressed = await tools.verifyRewind({
 assert.equal(progressed.state, "GUIDING");
 assert(progressed.match.percentage > 0 && progressed.match.percentage < 100);
 assert.equal(progressed.progress?.restored, false);
+assert(progressed.plan.actions.length > 0);
 
 const completed = await tools.verifyRewind({
   spaceId: "studio",
@@ -123,6 +124,33 @@ assert.equal(completed.state, "RESTORED");
 assert.equal(completed.match.percentage, 100);
 assert.equal(completed.match.restored, true);
 assert.equal(completed.progress?.restored, true);
+assert.equal(completed.plan.actions.length, 0);
+
+// A session that begins RESTORED must still recover actionable guidance if reality
+// changes afterwards. This is the live MCP edge case seen when two fresh Ring frames
+// disagree across compare/start/verify turns.
+const divergenceStore = new MemoryCheckpointStore();
+const divergenceTools = new RewindAgentToolService(
+  new SequenceObserver([demoReady, restored, messy]),
+  new CheckpointService(divergenceStore),
+);
+await divergenceTools.inspectSpace({ spaceId: "studio" });
+const divergenceCheckpoint = await divergenceTools.saveCheckpoint({ spaceId: "studio", name: "Divergence Guard" });
+await divergenceTools.inspectSpace({ spaceId: "studio" });
+const initiallyRestored = await divergenceTools.startRewind({
+  spaceId: "studio",
+  checkpointId: divergenceCheckpoint.id,
+});
+assert.equal(initiallyRestored.state, "RESTORED");
+assert.equal(initiallyRestored.plan.actions.length, 0);
+const diverged = await divergenceTools.verifyRewind({
+  spaceId: "studio",
+  rewindSessionId: initiallyRestored.rewindSessionId,
+});
+assert.equal(diverged.state, "GUIDING");
+assert.equal(diverged.match.restored, false);
+assert(diverged.plan.actions.length > 0, "Fresh divergence must regenerate deterministic guidance.");
+assert(diverged.progress && diverged.progress.remainingChanges > 0);
 
 // A model cannot force RESTORED by adding undeclared runtime properties.
 const guardedStore = new MemoryCheckpointStore();
