@@ -108,7 +108,9 @@ REWIND live MCP (Streamable HTTP): http://127.0.0.1:3004/mcp
 MCP observation bridge (local): http://127.0.0.1:3005/observation-request
 ```
 
-With the Ring preview running, verify MCP discovery from a second terminal:
+Open the Ring preview and start live video. Keep that browser tab open; it is the trusted camera responder for MCP.
+
+From a second terminal, verify MCP discovery:
 
 ```bash
 npm run mcp:probe
@@ -119,6 +121,33 @@ Expected:
 ```text
 PASS live MCP discovery: http://127.0.0.1:3004/mcp
 ```
+
+Then exercise the same MCP tools Alexa will eventually call:
+
+```bash
+npm run mcp:live -- save "Demo Ready"
+```
+
+Change the physical scene, then:
+
+```bash
+npm run mcp:live -- compare
+npm run mcp:live -- rewind
+```
+
+Restore only part of the scene:
+
+```bash
+npm run mcp:live -- verify
+```
+
+Fully restore the scene:
+
+```bash
+npm run mcp:live -- verify
+```
+
+Each truth-sensitive command blocks until the open Ring preview answers with a newly captured Ring frame that Nova validates. The final verify must reach deterministic `RESTORED / 100%`.
 
 ## Tunnel safety
 
