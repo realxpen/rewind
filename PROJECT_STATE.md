@@ -1,13 +1,13 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-11_
+_Last updated: 2026-09-14_
 
 ## Current phase
 
-**Phase 8 — Strands + AgentCore: IN PROGRESS**
+**Phase 9 — Alexa+ MCP: IN PROGRESS**
 
 Primary track: **Ring**  
-Additional target: **Alexa+** after the core restore loop works.  
+Additional target: **Alexa+**.  
 Mini-challenges: **AWS Builder + Open Source**.
 
 ## Locked product
@@ -292,7 +292,7 @@ Phase 8 implementation order:
 - [x] add tests proving the agent cannot mark a mismatched scene `RESTORED` or mutate checkpoint truth through tool arguments.
 - [x] run a real local conversational flow with Bedrock/Strands: inspect → save → compare → start Rewind → verify → 100% RESTORED.
 - [x] prove continuity through a real AgentCore Memory resource rather than the in-memory fallback.
-- [ ] run the live Ring-backed flow through the agent boundary.
+- [x] run the live Ring-backed flow through the agent boundary.
 
 Phase 8 implementation on `main`:
 
@@ -301,7 +301,7 @@ Phase 8 implementation on `main`:
 - [x] Strands tools wrap only `inspect_space`, `save_checkpoint`, `list_checkpoints`, `compare_checkpoint`, `start_rewind`, `verify_rewind`, `get_rewind_status`, and `cancel_rewind`.
 - [x] `RewindAgentOrchestrator` uses Nova 2 Lite through Strands and maps natural-language intent to the approved tools.
 - [x] the system prompt explicitly forbids invented observations, IDs, diffs, percentages, restore plans, and model-declared `RESTORED`.
-- [x] a configured default `studio` space allows natural language such as **Inspect my studio** without exposing internal identifiers.
+- [x] a configured default space allows natural language such as **Inspect my studio** without exposing internal identifiers.
 - [x] `RewindToolController` restores active space/checkpoint/Rewind identifiers between invocations while leaving physical truth inside the deterministic tool service.
 - [x] `compare_checkpoint` and `start_rewind` force a fresh trusted observation at the controller boundary, preventing stale cached state from being compared after reality changes.
 - [x] `verify_rewind` always performs its own fresh trusted observation before recomputing deterministic progress.
@@ -313,6 +313,7 @@ Phase 8 implementation on `main`:
 - [x] AgentCore adapter tests prove context/turn recovery and short-term-only event writes.
 - [x] `npm run agent:fixture` provides a runnable multi-turn Strands/Nova natural-language surface; it uses AgentCore when `REWIND_AGENTCORE_MEMORY_ID` is configured.
 - [x] `npm run agentcore:smoke` writes live AgentCore context/turns, creates a fresh store instance, then reads them back and fails unless remote continuity succeeds.
+- [x] live Ring preview exposes **Ask REWIND** and resolves only server-issued Nova observation IDs; browser-supplied semantic state cannot become agent truth.
 - [x] `.env.example` and `docs/PHASE8_AGENT.md` document the AgentCore/Nova configuration without committing credentials.
 - [x] full Phase 8 test suite including the critical-intent truth guard passes on `main`.
 
@@ -336,8 +337,6 @@ Inspect my studio
 → 100% / RESTORED
 ```
 
-This proves real Bedrock/Strands natural-language orchestration can drive the existing deterministic restore loop without model-declared restoration or stale-state reuse. The perception provider for this gate was the controlled fixture, not Ring.
-
 Live AgentCore Memory continuity gate verified on 2026-09-11:
 
 ```text
@@ -351,15 +350,45 @@ session: rewind-agentcore-smoke-01
 → PASS
 ```
 
-`npm run agentcore:smoke` returned: **PASS AgentCore live continuity: remote context + conversation events survived a fresh store instance.** This proves Phase 8 continuity is using the real AgentCore Memory resource, not only the in-process fallback.
+`npm run agentcore:smoke` returned: **PASS AgentCore live continuity: remote context + conversation events survived a fresh store instance.**
 
-Phase 8 gate: **OPEN only for the live Ring-backed agent flow**. The model is not allowed to close this gate by prose alone.
+Live Ring-backed agent gate verified on 2026-09-14:
 
-## Next after Phase 8 passes
+```text
+Ring live preview
+→ fresh frame captured by Ask REWIND
+→ Nova validates semantic state
+→ server-held observation ID enters agent boundary
+→ Strands invokes approved REWIND tools
+→ deterministic verification against Demo Ready
+→ RESTORED — 100% match
+```
 
-**Phase 9 — Alexa+ MCP**
+Observed UI result:
 
-Expose the approved REWIND tool surface through the Alexa+ compatible MCP boundary after the Strands/AgentCore trust boundary is proven.
+```text
+RESTORED — 100% match with Demo Ready. All deterministic restoration checks passed.
+Session: ring-playground · Demo Ready · RESTORED
+```
+
+The video session subsequently reported **Connection lost. Start again.** after the completed verification; this occurred after the deterministic `RESTORED` result and does not invalidate the Phase 8 gate.
+
+Phase 8 gate: **PASS**.
+
+## Phase 9 — Alexa+ MCP
+
+Goal: expose the approved REWIND tool surface through an Alexa+ compatible MCP server while preserving the same deterministic trust boundary proven in Phase 8.
+
+Master-spec requirements:
+
+- [ ] implement MCP `2025-11-25` or newer using Streamable HTTP.
+- [ ] expose approved REWIND operations without duplicating physical-state business logic.
+- [ ] keep checkpoint truth in DynamoDB and restoration truth in deterministic REWIND code.
+- [ ] onboard/test through the Alexa AI CLI or supported Alexa+ developer path.
+- [ ] prove at minimum `save_checkpoint`, `compare_checkpoint`, `start_rewind`, and `verify_rewind` through the MCP surface.
+- [ ] preserve no-raw-media persistence and no model-declared `RESTORED` guarantees.
+
+Phase 9 gate: **OPEN** until the required MCP operations work through the Alexa+ compatible surface.
 
 ## MVP completion gate
 
