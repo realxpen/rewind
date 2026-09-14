@@ -40,6 +40,15 @@ async function main() {
   const agentSessionId = process.env.REWIND_AGENT_SESSION_ID?.trim();
   const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "ring-playground";
 
+  const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
+  const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
+  const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
+  const bridgePort = Number(process.env.REWIND_MCP_BRIDGE_PORT ?? 3005);
+  if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
+  if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
+  if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
+  if (!validPort(bridgePort) || [port, webhookPort, mcpPort].includes(bridgePort)) throw new Error("REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.");
+
   const bridge = new RingObservationBridge(Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 15_000));
   const checkpointAccess: AgentCheckpointAccess = {
     save: input => checkpoints.save(input),
@@ -61,6 +70,9 @@ async function main() {
   });
 
   const assets = resolve("packages/ring/public");
+  const previewJs = await readFile(resolve(assets, "preview.js"), "utf8");
+  const mcpBridgeJs = (await readFile(resolve(assets, "mcp-bridge.js"), "utf8"))
+    .replace("__REWIND_MCP_BRIDGE_PORT__", String(bridgePort));
   const preview = createPreviewServer({
     devices: () => listRingDevices(client, config.devicesPath),
     start: (id, offer) => startWhepSession(client, id, offer),
@@ -83,18 +95,9 @@ async function main() {
     invokeAgent: input => liveAgent.invoke(input),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
-    js: await readFile(resolve(assets, "preview.js"), "utf8"),
+    js: `${previewJs}\n${mcpBridgeJs}`,
     verifyJs: await readFile(resolve(assets, "verify.js"), "utf8"),
   });
-
-  const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
-  const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
-  const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
-  const bridgePort = Number(process.env.REWIND_MCP_BRIDGE_PORT ?? 3005);
-  if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
-  if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
-  if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
-  if (!validPort(bridgePort) || [port, webhookPort, mcpPort].includes(bridgePort)) throw new Error("REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.");
 
   preview.server.on("error", () => {
     console.error("Preview could not start. Check whether the port is in use.");
