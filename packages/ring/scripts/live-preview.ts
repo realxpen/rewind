@@ -50,7 +50,7 @@ async function main() {
   });
 
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error();
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
   preview.server.on("error", () => {
     console.error("Preview could not start. Check whether the port is in use.");
     process.exitCode = 1;
@@ -78,7 +78,9 @@ async function main() {
     : undefined;
 
   const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
-  if (!Number.isInteger(webhookPort) || webhookPort < 1024 || webhookPort > 65535 || webhookPort === port) throw new Error();
+  if (!Number.isInteger(webhookPort) || webhookPort < 1024 || webhookPort > 65535 || webhookPort === port) {
+    throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
+  }
   const webhook = signingKey
     ? createRingWebhookServer({
         signingKey,
@@ -127,7 +129,21 @@ async function main() {
   process.on("SIGTERM", () => void stop());
 }
 
-main().catch(() => {
-  console.error("Preview setup failed. Set Ring variables, DYNAMODB_CHECKPOINTS_TABLE, and valid AWS credentials, then retry from the repository root.");
+function safeStartupMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const allowed = [
+    "RING_API_BASE_URL is required.",
+    "RING_ACCESS_TOKEN is required.",
+    "DYNAMODB_CHECKPOINTS_TABLE is required.",
+    "RING_PREVIEW_PORT must be an integer between 1024 and 65535.",
+    "RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.",
+  ];
+  return allowed.includes(message)
+    ? message
+    : "Check Ring variables, DYNAMODB_CHECKPOINTS_TABLE, AWS authentication, and local port availability.";
+}
+
+main().catch(error => {
+  console.error(`Preview setup failed: ${safeStartupMessage(error)}`);
   process.exitCode = 1;
 });
