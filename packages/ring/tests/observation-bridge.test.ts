@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { demoReady } from "../../physical-state-protocol/src/fixtures.js";
+import { demoReady } from "../../physical-state-protocol/fixtures/studio.js";
 import { RingObservationBridge } from "../src/observation-bridge.js";
 
 const bridge = new RingObservationBridge(2_000);
