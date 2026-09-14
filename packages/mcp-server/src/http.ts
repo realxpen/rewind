@@ -13,6 +13,8 @@ import { createRewindMcpServer, type RewindMcpServerOptions } from "./server.js"
 
 export interface RewindMcpHttpOptions extends RewindMcpServerOptions {
   host?: string;
+  allowedHosts?: string[];
+  allowedOrigins?: string[];
   auth?: RewindMcpAuthOptions;
 }
 
@@ -25,7 +27,12 @@ function methodNotAllowed(res: Response): void {
 }
 
 export function createRewindMcpHttpApp(options: RewindMcpHttpOptions) {
-  const app = createMcpExpressApp({ host: options.host ?? "127.0.0.1" });
+  const expressOptions = {
+    host: options.host ?? "127.0.0.1",
+    ...(options.allowedHosts?.length ? { allowedHosts: options.allowedHosts } : {}),
+    ...(options.allowedOrigins?.length ? { allowedOrigins: options.allowedOrigins } : {}),
+  };
+  const app = createMcpExpressApp(expressOptions);
 
   if (options.auth) {
     validateMcpAuthOptions(options.auth);
