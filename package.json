@@ -24,7 +24,7 @@
     "test:phase8": "npm run build && npm run test:phase8:compiled",
     "test:phase8:compiled": "node dist/packages/agent-tools/tests/agent-tools.test.js && node dist/packages/agent-orchestrator/tests/continuity.test.js && node dist/packages/agent-orchestrator/tests/agentcore-memory.test.js && node dist/packages/agent-orchestrator/tests/critical-intent.test.js",
     "test:phase9": "npm run build && npm run test:phase9:compiled",
-    "test:phase9:compiled": "node dist/packages/mcp-server/tests/mcp-http.test.js && node dist/packages/mcp-server/tests/alexa-auth.test.js",
+    "test:phase9:compiled": "node dist/packages/mcp-server/tests/mcp-http.test.js && node dist/packages/mcp-server/tests/alexa-auth.test.js && node dist/packages/mcp-server/tests/live-ring-bridge.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
