@@ -38,93 +38,56 @@ get_rewind_status
 cancel_rewind
 ```
 
-The Phase 9 minimum gate tools are:
-
-```text
-save_checkpoint
-compare_checkpoint
-start_rewind
-verify_rewind
-```
+The Phase 9 minimum gate tools are `save_checkpoint`, `compare_checkpoint`, `start_rewind`, and `verify_rewind`.
 
 ## Live Ring observation bridge
 
-`npm run ring:preview` now starts three coordinated local surfaces:
+`npm run ring:preview` starts two coordinated local surfaces:
 
 ```text
-3002  Ring preview + Nova observation UI
+3002  Ring preview + Nova observation UI + same-origin MCP observation signal
 3004  MCP Streamable HTTP endpoint
-3005  loopback observation-request signal
 ```
 
-The bridge exists so a remote Alexa/MCP tool call does not reuse cached physical state.
+When an MCP tool needs current reality:
 
 ```text
-MCP tool needs current reality
-→ RingObservationBridge creates one pending request
-→ preview browser sees request ID on loopback control channel
-→ browser captures one fresh Ring frame
-→ existing /api/observe sends image to Nova
-→ Nova returns validated PhysicalState
-→ server publishes semantic observation into bridge
-→ waiting deterministic MCP tool continues
+MCP tool
+→ RingObservationBridge pending request
+→ browser polls /api/mcp-observation-request on 3002
+→ fresh Ring frame
+→ /api/observe
+→ Nova validated PhysicalState
+→ bridge resolves
+→ deterministic MCP tool continues
 ```
 
-The control channel carries only a request ID and timestamp. It never carries image bytes, checkpoint contents, semantic physical state, or restoration truth.
+The same-origin signal carries only request metadata. It never carries image bytes, semantic state, checkpoints, restore plans, or restoration truth. The preview keeps `connect-src 'self'` unchanged.
 
-If the open Ring preview does not answer within `REWIND_MCP_OBSERVATION_TIMEOUT_MS`, the tool fails instead of using stale state.
+If the preview does not answer within `REWIND_MCP_OBSERVATION_TIMEOUT_MS`, the MCP tool fails instead of using stale state.
 
 ## Local verification
-
-Pull/install/test:
 
 ```bash
 git pull origin main
 npm install
 npm test
-```
-
-The automated Phase 9 live bridge gate requires:
-
-```text
-Demo Ready
-→ fresh Messy comparison
-→ fresh Messy Rewind plan
-→ fresh Partial verification
-→ fresh Restored verification
-→ RESTORED / 100%
-```
-
-Start the real local stack:
-
-```bash
 npm run ring:preview
 ```
 
-Expected additional startup lines:
+Expected startup lines:
 
 ```text
+MCP fresh-observation signal: http://127.0.0.1:3002/api/mcp-observation-request
 REWIND live MCP (Streamable HTTP): http://127.0.0.1:3004/mcp
-MCP observation bridge (local): http://127.0.0.1:3005/observation-request
 ```
 
-Open the Ring preview and start live video. Keep that browser tab open; it is the trusted camera responder for MCP.
+Open `http://127.0.0.1:3002`, start the Ring live view, and keep the tab open.
 
-From a second terminal, verify MCP discovery:
+From a second terminal:
 
 ```bash
 npm run mcp:probe
-```
-
-Expected:
-
-```text
-PASS live MCP discovery: http://127.0.0.1:3004/mcp
-```
-
-Then exercise the same MCP tools Alexa will eventually call:
-
-```bash
 npm run mcp:live -- save "Demo Ready"
 ```
 
@@ -135,38 +98,28 @@ npm run mcp:live -- compare
 npm run mcp:live -- rewind
 ```
 
-Restore only part of the scene:
+Restore part of the scene and run:
 
 ```bash
 npm run mcp:live -- verify
 ```
 
-Fully restore the scene:
-
-```bash
-npm run mcp:live -- verify
-```
-
-Each truth-sensitive command blocks until the open Ring preview answers with a newly captured Ring frame that Nova validates. The final verify must reach deterministic `RESTORED / 100%`.
+Fully restore it and run verify again. The final result must be deterministic `RESTORED / 100%`.
 
 ## Tunnel safety
 
-The MCP SDK's DNS-rebinding protection remains enabled.
-
-For a public HTTPS tunnel, set only the tunnel hostname before restarting the preview:
+The MCP SDK's DNS-rebinding protection remains enabled. For a public HTTPS tunnel, set only the public hostname before restarting:
 
 ```bash
 export REWIND_MCP_PUBLIC_HOST="example.trycloudflare.com"
 npm run ring:preview
 ```
 
-`REWIND_MCP_PUBLIC_HOST` must be a hostname only — no `https://` and no path. REWIND then allowlists localhost plus that public host rather than disabling Host validation.
-
-Do not expose port `3005`. The observation-request control channel must remain loopback-only.
+Only port 3004 should be exposed to Alexa. The Ring preview on 3002 stays local.
 
 ## Alexa+ authentication boundary
 
-REWIND already implements and tests the resource-server side needed for Alexa onboarding:
+REWIND implements and tests:
 
 - Bearer-only protected MCP requests when auth is enabled.
 - bare HTTP `401` without `WWW-Authenticate` for rejected requests.
@@ -174,22 +127,15 @@ REWIND already implements and tests the resource-server side needed for Alexa on
 - configurable authorization-server URI/scopes.
 - PKCE `S256` metadata validation.
 
-The authorization server / Alexa account-linking configuration remains external to deterministic REWIND truth and will be finalized after Amazon enables the Alexa+ developer tooling account.
+Authorization-server / Alexa account-linking setup will be finalized after Amazon enables the Alexa+ developer tooling account.
 
 ## External Amazon blocker
 
-Local IAM is intentionally least-privilege and already grants only:
-
-```text
-sts:AssumeRole
-→ arn:aws:iam::372468808636:role/AddOn3PDeveloperToolsRead
-```
-
-The cross-account assume-role request is still rejected by Amazon's side. Support case **52846821** is open. Do not add `AdministratorAccess` or unrelated IAM actions to work around this.
+The cross-account Alexa developer-tools role assumption is still rejected on Amazon's side. Support case **52846821** is open. Do not add broad IAM permissions to work around it.
 
 ## Phase 9 gate
 
-Phase 9 is complete only when:
+Phase 9 completes only when:
 
 ```text
 Alexa+
@@ -199,4 +145,4 @@ Alexa+
 → deterministic REWIND result
 ```
 
-At minimum the Alexa+ path must exercise `save_checkpoint`, `compare_checkpoint`, `start_rewind`, and `verify_rewind` without bypassing the deterministic state engine.
+At minimum the Alexa+ path must exercise save, compare, start Rewind, and verify without bypassing the deterministic state engine.
