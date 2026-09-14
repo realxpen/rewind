@@ -227,9 +227,18 @@ export class RewindAgentToolService {
     const observation = this.latest(session.spaceId);
     const diffs = compareStates(checkpoint.state, observation.state);
     const match = calculateMatch(diffs);
-    const progress = updateRestoreProgress(session.plan, diffs);
-    const blockedUnknowns = diffs.filter((diff) => diff.type === "UNKNOWN").map((diff) => diff.entity);
-    const plan: RestorePlan = { actions: progress.actions, blockedUnknowns };
+
+    // Rebuild guidance from the latest deterministic diff on every verification.
+    // Reality may diverge after a session was created (including after an earlier
+    // RESTORED observation). Reusing an old or empty plan would produce GUIDING
+    // with no actionable instructions. Fresh diffs, not historical plan shape,
+    // decide what must be restored now.
+    const currentPlan = buildRestorePlan(diffs);
+    const progress = updateRestoreProgress(currentPlan, diffs);
+    const plan: RestorePlan = {
+      actions: progress.actions,
+      blockedUnknowns: currentPlan.blockedUnknowns,
+    };
 
     session.checkpoint = summarizeCheckpoint(checkpoint);
     session.match = clone(match);
