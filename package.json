@@ -6,7 +6,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled",
+    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled",
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
@@ -23,6 +23,8 @@
     "test:phase7:compiled": "node dist/packages/ring/tests/webhook-security.test.js && node dist/packages/ring/tests/webhook-server.test.js && node dist/packages/ring/tests/account-link.test.js && node dist/packages/ring/tests/account-link-http.test.js",
     "test:phase8": "npm run build && npm run test:phase8:compiled",
     "test:phase8:compiled": "node dist/packages/agent-tools/tests/agent-tools.test.js && node dist/packages/agent-orchestrator/tests/continuity.test.js && node dist/packages/agent-orchestrator/tests/agentcore-memory.test.js && node dist/packages/agent-orchestrator/tests/critical-intent.test.js",
+    "test:phase9": "npm run build && npm run test:phase9:compiled",
+    "test:phase9:compiled": "node dist/packages/mcp-server/tests/mcp-http.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
