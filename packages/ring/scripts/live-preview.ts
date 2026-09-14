@@ -6,7 +6,6 @@ import {
   RingClient,
   RingObservationBridge,
   createLiveRingAgentRuntime,
-  createObservationBridgeControlServer,
   createRingWebhookServer,
   endWhepSession,
   listRingDevices,
@@ -47,11 +46,9 @@ async function main() {
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
   const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
   const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
-  const bridgePort = Number(process.env.REWIND_MCP_BRIDGE_PORT ?? 3005);
   if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
   if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
   if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
-  if (!validPort(bridgePort) || [port, webhookPort, mcpPort].includes(bridgePort)) throw new Error("REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.");
 
   const bridge = new RingObservationBridge(Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 15_000));
   const checkpointAccess: AgentCheckpointAccess = {
@@ -75,8 +72,7 @@ async function main() {
 
   const assets = resolve("packages/ring/public");
   const previewJs = await readFile(resolve(assets, "preview.js"), "utf8");
-  const mcpBridgeJs = (await readFile(resolve(assets, "mcp-bridge.js"), "utf8"))
-    .replace("__REWIND_MCP_BRIDGE_PORT__", String(bridgePort));
+  const mcpBridgeJs = await readFile(resolve(assets, "mcp-bridge.js"), "utf8");
   const preview = createPreviewServer({
     devices: () => listRingDevices(client, config.devicesPath),
     start: (id, offer) => startWhepSession(client, id, offer),
@@ -97,6 +93,7 @@ async function main() {
     listCheckpoints: spaceId => checkpoints.list(spaceId),
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
     invokeAgent: input => liveAgent.invoke(input),
+    pendingMcpObservationRequest: spaceId => bridge.pendingRequest(spaceId),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: `${previewJs}\n${mcpBridgeJs}`,
@@ -110,15 +107,7 @@ async function main() {
   preview.server.listen(port, "127.0.0.1", () => {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
-  });
-
-  const bridgeControl = createObservationBridgeControlServer(bridge, port, bridgePort);
-  bridgeControl.on("error", () => {
-    console.error(`MCP observation bridge could not start. Check whether port ${bridgePort} is in use.`);
-    process.exitCode = 1;
-  });
-  bridgeControl.listen(bridgePort, "127.0.0.1", () => {
-    console.log(`MCP observation bridge (local): http://127.0.0.1:${bridgePort}/observation-request`);
+    console.log(`MCP fresh-observation signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
   });
 
   const mcpApp = createRewindMcpHttpApp({
@@ -188,7 +177,6 @@ async function main() {
     bridge.cancelAll("REWIND preview stopped.");
     preview.server.close();
     webhook?.server.close();
-    bridgeControl.close();
     mcpHttp.close();
     const deadline = setTimeout(() => process.exit(1), 10_000);
     try { await preview.cleanup(); }
@@ -199,7 +187,6 @@ async function main() {
     clearTimeout(deadline);
     preview.server.closeAllConnections();
     webhook?.server.closeAllConnections();
-    bridgeControl.closeAllConnections();
     mcpHttp.closeAllConnections();
   };
   process.on("SIGINT", () => void stop());
@@ -215,7 +202,6 @@ function safeStartupMessage(error: unknown): string {
     "RING_PREVIEW_PORT must be an integer between 1024 and 65535.",
     "RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.",
     "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
-    "REWIND_MCP_BRIDGE_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_MCP_PUBLIC_HOST must be a hostname only.",
   ];
   return allowed.includes(message)
