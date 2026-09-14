@@ -23,6 +23,12 @@ export interface PreviewAgentResult {
   session: unknown;
 }
 
+export interface PreviewObservationRequest {
+  id: string;
+  spaceId: string;
+  requestedAt: number;
+}
+
 export interface PreviewServices {
   devices(): Promise<RingDevice[]>;
   start(deviceId: string, offer: string): Promise<RingWhepSession>;
@@ -32,6 +38,7 @@ export interface PreviewServices {
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
+  pendingMcpObservationRequest?(spaceId: string): PreviewObservationRequest | undefined;
 }
 
 interface RewindSession {
@@ -161,6 +168,16 @@ export function createPreviewServer(
         if (!validSpaceId(spaceId)) throw new InputError("Choose a valid space before loading checkpoints.");
         const checkpoints = await services.listCheckpoints(spaceId);
         send(res, 200, checkpoints.map(summarizeCheckpoint)); return;
+      }
+      if (req.method === "GET" && path === "/api/mcp-observation-request") {
+        if (!services.pendingMcpObservationRequest) { send(res, 503, { error: "MCP observation bridge is not configured." }); return; }
+        const spaceId = requestUrl.searchParams.get("spaceId");
+        if (!validSpaceId(spaceId)) throw new InputError("A valid spaceId is required.");
+        const pending = services.pendingMcpObservationRequest(spaceId);
+        send(res, 200, pending
+          ? { requested: true, requestId: pending.id, requestedAt: pending.requestedAt }
+          : { requested: false });
+        return;
       }
       if (req.method !== "POST" || ![
         "/api/start",
