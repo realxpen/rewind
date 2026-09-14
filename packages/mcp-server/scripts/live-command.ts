@@ -14,6 +14,11 @@ const mapping: Record<string, { tool: string; args: Record<string, unknown> }> =
   list: { tool: "list_checkpoints", args: {} },
 };
 
+interface TextBlock {
+  type?: string;
+  text?: string;
+}
+
 if (!command || !mapping[command]) {
   console.error("Usage: npm run mcp:live -- <save|compare|rewind|verify|status|list> [checkpoint name]");
   process.exitCode = 2;
@@ -27,15 +32,18 @@ if (!command || !mapping[command]) {
     if (["save", "compare", "rewind", "verify"].includes(command)) {
       console.log("Waiting for the open Ring preview to capture a fresh frame and validate it with Nova…");
     }
+
     const result = await client.callTool({ name: selected.tool, arguments: selected.args });
+    const blocks = (result.content ?? []) as TextBlock[];
     if (result.isError) {
-      const message = result.content
-        .filter((item: any) => item.type === "text")
-        .map((item: any) => item.text)
+      const message = blocks
+        .filter((item): item is TextBlock & { text: string } => item.type === "text" && typeof item.text === "string")
+        .map(item => item.text)
         .join("\n");
       throw new Error(message || `${selected.tool} failed.`);
     }
-    console.log(JSON.stringify(result.structuredContent ?? result.content, null, 2));
+
+    console.log(JSON.stringify(result.structuredContent ?? blocks, null, 2));
   } catch (error) {
     console.error(`REWIND MCP error: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
