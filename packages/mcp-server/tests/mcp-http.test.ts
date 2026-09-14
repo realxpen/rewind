@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { InMemorySessionContinuityStore } from "../../agent-orchestrator/src/index.js";
 import { createPhase9FixtureToolService } from "../src/fixture.js";
 import { createRewindMcpHttpApp } from "../src/http.js";
@@ -23,7 +24,7 @@ const client = new Client({ name: "rewind-phase9-gate", version: "1.0.0" });
 const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${address.port}/mcp`));
 
 try {
-  await client.connect(transport);
+  await client.connect(transport as unknown as Transport);
 
   const listed = await client.listTools();
   const names = listed.tools.map(tool => tool.name);
