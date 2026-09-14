@@ -33,6 +33,7 @@
     "agentcore:smoke": "npm run build && node dist/packages/agent-orchestrator/scripts/agentcore-smoke.js",
     "mcp:fixture": "npm run build && node dist/packages/mcp-server/scripts/fixture-server.js",
     "mcp:probe": "npm run build && node dist/packages/mcp-server/scripts/live-probe.js",
+    "mcp:live": "npm run build && node dist/packages/mcp-server/scripts/live-command.js",
     "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js"
   },
   "devDependencies": {
