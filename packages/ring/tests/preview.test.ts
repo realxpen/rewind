@@ -31,6 +31,9 @@ const preview = createPreviewServer({
       session: { activeSpaceId: input.spaceId, lastDeterministicState: "DIFF_READY" },
     };
   },
+  pendingMcpObservationRequest: spaceId => spaceId === "unit-space"
+    ? { id: "request-1", spaceId, requestedAt: 123 }
+    : undefined,
 }, { html: "<!doctype html><title>REWIND</title>", js: "/* preview */" });
 preview.server.listen(0, "127.0.0.1");
 await once(preview.server, "listening");
@@ -44,17 +47,26 @@ try {
   const page = await fetch(base);
   assert.equal(page.status, 200);
   assert.equal(page.headers.get("cache-control"), "no-store");
+  assert.match(page.headers.get("content-security-policy") ?? "", /connect-src 'self'/);
   assert.match(await page.text(), /REWIND/);
   assert.equal((await fetch(`${base}/preview.js`)).status, 200);
   assert.equal((await fetch(`${base}/api/devices`)).status, 200);
+
+  const pendingResponse = await fetch(`${base}/api/mcp-observation-request?spaceId=unit-space`);
+  assert.equal(pendingResponse.status, 200);
+  assert.deepEqual(await pendingResponse.json(), { requested: true, requestId: "request-1", requestedAt: 123 });
+  const idleResponse = await fetch(`${base}/api/mcp-observation-request?spaceId=other-space`);
+  assert.deepEqual(await idleResponse.json(), { requested: false });
+  assert.equal((await fetch(`${base}/api/mcp-observation-request?spaceId=`)).status, 400);
+
   const foreignHostStatus = await new Promise<number | undefined>((resolve, reject) => {
     const req = httpRequest(base, { headers: { Host: "attacker.example" } }, res => { res.resume(); resolve(res.statusCode); });
     req.on("error", reject); req.end();
   });
   assert.equal(foreignHostStatus, 403);
   assert.equal((await post("start", {}, "https://attacker.example")).status, 403);
-  assert.equal((await post("start", { deviceId: "other", offer: "v=0\r\n" })).status, 400);
   assert.equal(created, 0);
+  assert.equal((await post("start", { deviceId: "other", offer: "v=0\r\n" })).status, 400);
   const response = await post("start", { deviceId: "test-device", offer: "v=0\r\n" });
   assert.equal(response.status, 201);
   const session = await response.json() as { id: string; answer: string; sessionUrl?: string };
@@ -106,7 +118,7 @@ try {
   assert.equal((await post("observe", { ...frame, spaceId: "" })).status, 400);
   await post("start", { deviceId: "test-device", offer: "v=0\r\n" });
   await preview.cleanup(); assert.equal(deleted, 2);
-  console.log("PASS ring preview: discovery + origin guard + session lifecycle/retry + frame validation + Nova handoff + trusted agent observation + cleanup");
+  console.log("PASS ring preview: discovery + same-origin MCP signal + origin guard + session lifecycle/retry + frame validation + Nova handoff + trusted agent observation + cleanup");
 } finally {
   preview.server.close(); preview.server.closeAllConnections();
 }
