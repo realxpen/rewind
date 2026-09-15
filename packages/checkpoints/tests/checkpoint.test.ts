@@ -29,6 +29,16 @@ assert.equal(checkpoint.stateHash, hashPhysicalState(state));
 assert.equal((await service.list("studio")).length, 1);
 assert.equal((await service.get("studio", checkpoint.id))?.id, checkpoint.id);
 assert.equal(summarizeCheckpoint(checkpoint).entityCount, 1);
+
+const controlled = await service.save({
+  spaceId: "studio",
+  name: "Demo Ready (Controlled)",
+  observationId: "obs-2",
+  state,
+});
+assert.equal(controlled.name, "Demo Ready (Controlled)");
+assert.equal((await service.list("studio")).length, 2);
+
 await assert.rejects(() => service.save({ ...checkpoint, name: "<>" }));
 
-console.log("PASS checkpoints: save + list + get + stable state hash");
+console.log("PASS checkpoints: save + list + get + stable state hash + descriptive names");
