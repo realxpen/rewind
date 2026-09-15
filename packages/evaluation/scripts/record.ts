@@ -8,8 +8,9 @@ import type { EvaluationOutcome, EvaluationSource, EvaluationTrial } from "../sr
 const outputPath = process.env.REWIND_EVALUATION_LOG ?? "Raw/phase11-evaluation.jsonl";
 const rl = createInterface({ input, output });
 
-function parseCount(value: string, label: string): number {
-  const number = Number(value.trim() || "0");
+function parseCount(value: string, label: string, fallback = 0): number {
+  const normalized = value.trim();
+  const number = Number(normalized === "" ? fallback : normalized);
   if (!Number.isFinite(number) || number < 0 || !Number.isInteger(number)) {
     throw new Error(`${label} must be a non-negative whole number.`);
   }
@@ -17,7 +18,8 @@ function parseCount(value: string, label: string): number {
 }
 
 function parseLatency(value: string): number {
-  const number = Number(value.trim() || "0");
+  const normalized = value.trim();
+  const number = Number(normalized === "" ? 0 : normalized);
   if (!Number.isFinite(number) || number < 0) throw new Error("Latency must be a non-negative number.");
   return number;
 }
@@ -31,10 +33,10 @@ try {
   if (outcomeAnswer !== "PASS" && outcomeAnswer !== "FAIL") throw new Error("Outcome must be PASS or FAIL.");
   const outcome = outcomeAnswer as EvaluationOutcome;
 
-  const expectedObjects = parseCount(await rl.question("Expected tracked objects (8): "), "Expected objects") || 8;
-  const correctObjects = parseCount(await rl.question(`Correctly recognized objects (${expectedObjects}): `), "Correct objects") || expectedObjects;
-  const expectedDiffs = parseCount(await rl.question("Expected meaningful diffs (6 for Messy, 0 for unchanged): "), "Expected diffs");
-  const correctDiffs = parseCount(await rl.question(`Correct diffs (${expectedDiffs}): `), "Correct diffs") || expectedDiffs;
+  const expectedObjects = parseCount(await rl.question("Expected tracked objects (8): "), "Expected objects", 8);
+  const correctObjects = parseCount(await rl.question(`Correctly recognized objects (${expectedObjects}): `), "Correct objects", expectedObjects);
+  const expectedDiffs = parseCount(await rl.question("Expected meaningful diffs (6 for Messy, 0 for unchanged): "), "Expected diffs", 0);
+  const correctDiffs = parseCount(await rl.question(`Correct diffs (${expectedDiffs}): `), "Correct diffs", expectedDiffs);
   const latencyMs = parseLatency(await rl.question("End-to-end latency in ms (0 if not measured): "));
   const novaFailures = parseCount(await rl.question("Nova failures (0): "), "Nova failures");
   const ringFailures = parseCount(await rl.question("Ring failures (0): "), "Ring failures");
