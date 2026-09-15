@@ -7,6 +7,7 @@ import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/cont
 import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress, type RestorePlan } from "../../restore-engine/src/index.js";
+import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
 
 export interface PreviewAgentInput {
   prompt: string;
@@ -57,6 +58,14 @@ interface StoredObservation {
   receivedAt: number;
 }
 
+type ControlledDemoScenario = "demo-ready" | "messy" | "partial" | "restored";
+const controlledDemoStates = {
+  "demo-ready": demoReady,
+  messy,
+  partial,
+  restored,
+} as const;
+
 class InputError extends Error {}
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -81,6 +90,20 @@ function validSpaceId(value: unknown): value is string {
 }
 function validOpaqueId(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 120;
+}
+function validControlledDemoScenario(value: unknown): value is ControlledDemoScenario {
+  return typeof value === "string" && Object.hasOwn(controlledDemoStates, value);
+}
+function createControlledDemoObservation(scenario: ControlledDemoScenario, spaceId: string): VisionObservation {
+  const state = structuredClone(controlledDemoStates[scenario]);
+  state.spaceId = spaceId;
+  state.capturedAt = new Date().toISOString();
+  return {
+    state,
+    rawText: `controlled-demo:${scenario}`,
+    modelId: "rewind-controlled-demo",
+    latencyMs: 0,
+  };
 }
 function safeAgentError(error: unknown): string {
   if (error instanceof Error && /^(No active |No fresh trusted |Checkpoint not found|Rewind session not found|Prompt must)/.test(error.message)) {
@@ -184,6 +207,7 @@ export function createPreviewServer(
         "/api/stop",
         "/api/heartbeat",
         "/api/observe",
+        "/api/demo/observe",
         "/api/agent",
         "/api/checkpoints",
         "/api/diff",
@@ -196,6 +220,22 @@ export function createPreviewServer(
         send(res, 403, { error: "Use the local preview page." }); return;
       }
       const data = await body(req);
+      if (path === "/api/demo/observe") {
+        if (!validSpaceId(data.spaceId) || !validControlledDemoScenario(data.scenario)) {
+          throw new InputError("Choose a valid controlled demo scenario and space.");
+        }
+        const result = createControlledDemoObservation(data.scenario, data.spaceId);
+        const observationId = rememberObservation(data.spaceId, result);
+        send(res, 200, {
+          observationId,
+          state: result.state,
+          modelId: result.modelId,
+          latencyMs: result.latencyMs,
+          source: "controlled-demo",
+          scenario: data.scenario,
+        });
+        return;
+      }
       if (path === "/api/observe") {
         if (observing) { send(res, 409, { error: "An observation is already running." }); return; }
         if (typeof data.image !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data.image) ||
