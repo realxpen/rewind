@@ -46,6 +46,19 @@ assert.match(bridge, /MutationObserver/);
 assert.match(bridge, /verifyState/);
 assert.match(bridge, /playRestoredTone/);
 
+// Controlled Demo must remain explicitly disclosed and limited to server-owned named scenarios.
+assert.match(bridge, /Live Ring/);
+assert.match(bridge, /Controlled Demo/);
+assert.match(bridge, /Never presented as live camera truth/);
+assert.match(bridge, /validated semantic fixtures, not frames from the Ring Playground/);
+assert.match(bridge, /demo-ready/);
+assert.match(bridge, /messy/);
+assert.match(bridge, /partial/);
+assert.match(bridge, /restored/);
+assert.match(bridge, /api\('demo\/observe'/);
+assert.match(bridge, /Demo Ready \(Controlled\)/);
+assert.match(bridge, /same deterministic checkpoint, diff, restore-plan, and verification endpoints/);
+
 // The experience observer watches matchScore, so writes back to matchScore must be
 // idempotent. Otherwise a same-value textContent write can recursively schedule the
 // observer forever and starve the browser's first paint/reload.
@@ -57,4 +70,4 @@ assert.doesNotMatch(bridge, /matchScore\.textContent\s*=\s*['"]—['"]/);
 // Parse without executing browser globals so plain JS syntax remains part of CI.
 new Function(bridge);
 
-console.log("PASS Phase 10 experience contract: critical controls + workflow rail + trust copy + responsive motion + observer stability + browser JS syntax");
+console.log("PASS Phase 10 experience contract: critical controls + workflow rail + trust copy + controlled demo disclosure + observer stability + browser JS syntax");
