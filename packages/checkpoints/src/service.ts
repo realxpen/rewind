@@ -7,13 +7,19 @@ function assertToken(value: string, label: string, max = 80) {
   }
 }
 
+function assertCheckpointName(value: string) {
+  if (!/^[a-zA-Z0-9._ ()-]{1,120}$/.test(value)) {
+    throw new Error("Checkpoint name is invalid.");
+  }
+}
+
 export function hashPhysicalState(state: SaveCheckpointInput["state"]): string {
   return createHash("sha256").update(JSON.stringify(state)).digest("hex");
 }
 
 export function buildCheckpoint(input: SaveCheckpointInput, now = new Date()): Checkpoint {
   assertToken(input.spaceId, "Space ID");
-  assertToken(input.name.trim(), "Checkpoint name", 120);
+  assertCheckpointName(input.name.trim());
   if (!input.observationId || input.observationId.length > 120) throw new Error("Observation ID is invalid.");
   if (input.state.spaceId !== input.spaceId) throw new Error("Observation does not belong to this space.");
 
