@@ -28,6 +28,7 @@ export interface EvaluationSummary {
   objectAccuracy: number;
   diffAccuracy: number;
   averageLatencyMs: number;
+  measuredLatencyTrials: number;
   verificationSuccessRate: number;
   novaFailures: number;
   ringFailures: number;
@@ -44,7 +45,8 @@ export function summarizeEvaluation(trials: EvaluationTrial[]): EvaluationSummar
   const correctObjects = trials.reduce((sum, trial) => sum + trial.correctObjects, 0);
   const expectedDiffs = trials.reduce((sum, trial) => sum + trial.expectedDiffs, 0);
   const correctDiffs = trials.reduce((sum, trial) => sum + trial.correctDiffs, 0);
-  const latencyTotal = trials.reduce((sum, trial) => sum + trial.latencyMs, 0);
+  const measuredLatency = trials.filter(trial => trial.latencyMs > 0);
+  const latencyTotal = measuredLatency.reduce((sum, trial) => sum + trial.latencyMs, 0);
   const passes = trials.filter(trial => trial.outcome === "PASS").length;
   const restored = trials.filter(trial => trial.verificationRestored).length;
 
@@ -56,7 +58,8 @@ export function summarizeEvaluation(trials: EvaluationTrial[]): EvaluationSummar
     controlledDemoTrials: trials.filter(trial => trial.source === "controlled-demo").length,
     objectAccuracy: ratio(correctObjects, expectedObjects),
     diffAccuracy: ratio(correctDiffs, expectedDiffs),
-    averageLatencyMs: trials.length > 0 ? latencyTotal / trials.length : 0,
+    averageLatencyMs: measuredLatency.length > 0 ? latencyTotal / measuredLatency.length : 0,
+    measuredLatencyTrials: measuredLatency.length,
     verificationSuccessRate: ratio(restored, trials.length),
     novaFailures: trials.reduce((sum, trial) => sum + trial.novaFailures, 0),
     ringFailures: trials.reduce((sum, trial) => sum + trial.ringFailures, 0),
