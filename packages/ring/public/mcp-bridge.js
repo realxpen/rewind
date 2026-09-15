@@ -49,6 +49,7 @@
   const completionText = el('completionText');
   const dismissCompletion = el('dismissCompletion');
   const soundToggle = el('soundToggle');
+  const agentPrompt = el('agentPrompt');
   let completionShownFor = '';
   let soundEnabled = true;
   let audioContext;
@@ -60,19 +61,27 @@
   }
 
   function percentageFromUi() {
-    const verifyText = el('verifySummary')?.textContent || '';
-    const verified = verifyText.match(/(\d+)%/);
-    if (verified) return Number(verified[1]);
-    const score = matchScore?.textContent?.match(/(\d+)%/);
-    return score ? Number(score[1]) : undefined;
+    const verifyPanel = el('verifyPanel');
+    if (verifyPanel && !verifyPanel.hidden) {
+      const verifyText = el('verifySummary')?.textContent || '';
+      const verified = verifyText.match(/(\d+)%/);
+      if (verified) return Number(verified[1]);
+    }
+    const diffPanel = el('diffPanel');
+    if (diffPanel && !diffPanel.hidden) {
+      const score = matchScore?.textContent?.match(/(\d+)%/);
+      if (score) return Number(score[1]);
+    }
+    return undefined;
   }
 
   function updateProgress() {
     const percentage = percentageFromUi();
     if (percentage === undefined) {
+      if (matchScore && el('diffPanel')?.hidden) matchScore.textContent = '—';
       progressValue.textContent = '—';
       progressBar.style.width = '0%';
-      progressCaption.textContent = 'Save or compare a checkpoint to begin.';
+      progressCaption.textContent = 'Compare a saved checkpoint to calculate physical match.';
       return;
     }
     const safe = Math.max(0, Math.min(100, percentage));
@@ -147,6 +156,41 @@
     playRestoredTone();
   }
 
+  function installDemoPrompts() {
+    if (!agentPrompt || document.getElementById('demoPrompts')) return;
+    const panel = agentPrompt.closest('.agent-panel');
+    const controls = panel?.querySelector('.controls');
+    if (!panel || !controls) return;
+
+    const hint = document.createElement('div');
+    hint.className = 'demo-hint';
+    hint.innerHTML = '<strong>Demo flow</strong><span>Save a checkpoint, physically move something in view, then ask what changed. REWIND guides restoration; it never moves objects itself.</span>';
+    agentPrompt.before(hint);
+
+    const prompts = document.createElement('div');
+    prompts.id = 'demoPrompts';
+    prompts.className = 'prompt-suggestions';
+    const options = [
+      ['Inspect', 'Inspect my studio'],
+      ['Save Demo Ready', 'Save this as Demo Ready'],
+      ['What changed?', 'What changed?'],
+      ['Rewind', 'Rewind my studio'],
+      ['Check again', 'Check again'],
+    ];
+    for (const [label, prompt] of options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ghost prompt-chip';
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        agentPrompt.value = prompt;
+        agentPrompt.focus();
+      });
+      prompts.append(button);
+    }
+    controls.before(prompts);
+  }
+
   function refresh() {
     updateProgress();
     updateFlow();
@@ -173,6 +217,7 @@
   for (const node of [statusNode, matchScore, rewindState, verifyState, el('verifySummary'), el('diffPanel'), el('rewindPanel'), el('verifyPanel')]) {
     if (node) observer.observe(node, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
   }
+  installDemoPrompts();
   setInterval(updateStream, 1000);
   refresh();
 })();
@@ -191,6 +236,12 @@
     .progress-card{padding:20px}
     .privacy{padding:16px 18px}
     .layout>.stack:last-child{gap:14px}
+    .demo-hint{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:start;margin:12px 0 8px;padding:11px 13px;border:1px solid rgba(140,244,199,.15);border-radius:12px;background:rgba(14,31,26,.45);color:var(--soft);font-size:12px}
+    .demo-hint strong{color:var(--mint);font-size:10px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;padding-top:2px}
+    .demo-hint span{line-height:1.55}
+    .prompt-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
+    .prompt-chip{padding:7px 10px;border-radius:999px;font-size:11px;color:var(--soft);background:#101923}
+    .prompt-chip:hover:not(:disabled){color:var(--text);border-color:rgba(140,244,199,.4)}
     @media (min-width:981px){
       .app{max-width:1540px;padding-left:30px;padding-right:30px}
       .layout{grid-template-columns:minmax(0,1.72fr) minmax(350px,.68fr);gap:20px}
@@ -205,6 +256,10 @@
     @media (min-width:1280px){
       .hero-copy h2{max-width:760px}
       .video-shell,video{min-height:500px}
+    }
+    @media (max-width:640px){
+      .demo-hint{grid-template-columns:1fr}
+      .demo-hint strong{padding-top:0}
     }
   `;
   document.head.append(style);
