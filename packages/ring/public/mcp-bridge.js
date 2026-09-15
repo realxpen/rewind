@@ -170,7 +170,7 @@
 
     const hint = document.createElement('div');
     hint.className = 'demo-hint';
-    hint.innerHTML = '<strong>Demo flow</strong><span>Save a checkpoint, physically move something in view, then ask what changed. REWIND guides restoration; it never moves objects itself.</span>';
+    hint.innerHTML = '<strong>Demo flow</strong><span>Use Live Ring to prove the real camera integration. Use Controlled Demo below when you need repeatable physical-state changes the Ring Playground cannot provide.</span>';
     agentPrompt.before(hint);
 
     const prompts = document.createElement('div');
@@ -280,4 +280,212 @@
     new MutationObserver(syncTitle).observe(devices, { childList: true, subtree: true });
     syncTitle();
   }
+})();
+
+/* Controlled restore demo. Server-owned fixtures; never represented as live Ring truth. */
+(() => {
+  const space = byId('space');
+  const agentPanel = document.querySelector('.agent-panel');
+  if (!space || !agentPanel || document.getElementById('controlledDemoPanel')) return;
+
+  let mode = 'ring';
+  let scenario = 'demo-ready';
+  let controlledCheckpointId;
+  let liveSpace = space.value || 'ring-playground';
+  const originalCaptureFreshAgentObservation = captureFreshAgentObservation;
+  const originalControls = controls;
+  const liveAgentHandler = byId('agentSend').onclick;
+
+  const panel = document.createElement('section');
+  panel.id = 'controlledDemoPanel';
+  panel.className = 'panel controlled-demo-panel';
+  panel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Observation source</div>
+        <h2>Live proof + repeatable restore demo</h2>
+        <p>Live Ring proves the camera integration. Controlled Demo uses server-owned validated semantic fixtures for repeatable state changes.</p>
+      </div>
+      <span class="chip demo-disclosure">Never presented as live camera truth</span>
+    </div>
+    <div class="source-switch" role="group" aria-label="Observation source">
+      <button type="button" class="source-button active" data-source="ring">● Live Ring</button>
+      <button type="button" class="source-button" data-source="demo">○ Controlled Demo</button>
+    </div>
+    <div id="controlledDemoBody" hidden>
+      <div class="demo-warning"><strong>CONTROLLED DEMO</strong><span>These states are validated semantic fixtures, not frames from the Ring Playground. They still pass through the same deterministic checkpoint, diff, restore-plan, and verification endpoints.</span></div>
+      <div class="scenario-grid" role="group" aria-label="Controlled demo scene">
+        <button type="button" class="scenario-button active" data-scenario="demo-ready"><span>01</span><strong>Demo Ready</strong><small>Baseline</small></button>
+        <button type="button" class="scenario-button" data-scenario="messy"><span>02</span><strong>Messy</strong><small>6 changes</small></button>
+        <button type="button" class="scenario-button" data-scenario="partial"><span>03</span><strong>Partial</strong><small>Progress</small></button>
+        <button type="button" class="scenario-button" data-scenario="restored"><span>04</span><strong>Restored</strong><small>100%</small></button>
+      </div>
+      <div class="demo-actions">
+        <button type="button" class="primary" id="saveControlledBaseline">Save Demo Ready</button>
+        <button type="button" id="compareControlledBaseline" disabled>Compare to Demo Ready</button>
+        <span class="muted" id="controlledDemoStatus">Select Demo Ready and save the baseline.</span>
+      </div>
+      <div class="demo-route"><span>Demo Ready → Save</span><span>Messy → Compare → Start Rewind</span><span>Partial → Check Again</span><span>Restored → Check Again</span></div>
+    </div>`;
+  agentPanel.before(panel);
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .controlled-demo-panel{padding:18px}
+    .controlled-demo-panel .section-head{padding:0;border:0;margin-bottom:14px}
+    .source-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:5px;border:1px solid var(--line);border-radius:14px;background:#0b1119}
+    .source-button{border:0;background:transparent;color:var(--muted);box-shadow:none}
+    .source-button.active{background:#17251f;color:var(--mint);border:1px solid rgba(140,244,199,.35)}
+    #controlledDemoBody{margin-top:14px}
+    .demo-warning{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:12px 14px;border:1px solid rgba(255,201,112,.26);border-radius:12px;background:rgba(72,54,22,.20);font-size:12px}
+    .demo-warning strong{color:var(--amber);font-size:10px;letter-spacing:.12em}
+    .demo-warning span{color:var(--soft)}
+    .scenario-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+    .scenario-button{display:grid;gap:2px;text-align:left;background:#101923;padding:12px}
+    .scenario-button span{font-size:9px;letter-spacing:.12em;color:var(--mint)}
+    .scenario-button strong{font-size:12px}
+    .scenario-button small{color:var(--muted);font-size:10px}
+    .scenario-button.active{border-color:rgba(140,244,199,.55);background:#17251f}
+    .demo-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+    .demo-actions .muted{margin-left:auto}
+    .demo-route{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .demo-route span{padding:6px 8px;border-radius:8px;background:#0b1119;color:var(--muted);font-size:10px;border:1px solid var(--line)}
+    body[data-observation-source="demo"] .video-shell{filter:saturate(.55) brightness(.72)}
+    body[data-observation-source="demo"] .live-overlay:after{content:"CONTROLLED DEMO drives restore state · live Ring remains visual proof only";position:absolute;left:0;right:0;bottom:-18px;color:var(--amber);font-size:10px;letter-spacing:.05em}
+    @media(max-width:700px){.scenario-grid{grid-template-columns:repeat(2,1fr)}.demo-warning{grid-template-columns:1fr}.demo-actions .muted{width:100%;margin-left:0}}
+  `;
+  document.head.append(style);
+
+  const demoBody = document.getElementById('controlledDemoBody');
+  const demoStatus = document.getElementById('controlledDemoStatus');
+  const saveBaseline = document.getElementById('saveControlledBaseline');
+  const compareBaseline = document.getElementById('compareControlledBaseline');
+
+  function setDemoStatus(message) {
+    if (demoStatus && demoStatus.textContent !== message) demoStatus.textContent = message;
+  }
+
+  function setScenario(next) {
+    scenario = next;
+    panel.querySelectorAll('[data-scenario]').forEach(button => button.classList.toggle('active', button.dataset.scenario === next));
+  }
+
+  async function captureControlledScenario(next = scenario) {
+    setScenario(next);
+    const result = await api('demo/observe', { scenario: next, spaceId: space.value });
+    latestObservationId = result.observationId;
+    latestDiffCheckpointId = undefined;
+    controls();
+    setDemoStatus(`${next.replace('-', ' ')} loaded as a trusted controlled observation.`);
+    status(`Controlled Demo: ${next.replace('-', ' ')} state loaded. This is not live Ring camera truth.`);
+    return result;
+  }
+
+  function activateMode(next) {
+    if (mode === next) return;
+    mode = next;
+    document.body.dataset.observationSource = next;
+    panel.querySelectorAll('[data-source]').forEach(button => {
+      button.classList.toggle('active', button.dataset.source === next);
+      button.textContent = `${button.dataset.source === next ? '●' : '○'} ${button.dataset.source === 'ring' ? 'Live Ring' : 'Controlled Demo'}`;
+    });
+    if (next === 'demo') {
+      liveSpace = space.value || liveSpace;
+      space.value = 'controlled-demo';
+      demoBody.hidden = false;
+      byId('agentSend').textContent = 'Run controlled demo';
+      byId('capture').hidden = true;
+      status('Controlled Demo selected. Fixtures are clearly separated from live Ring truth.');
+    } else {
+      space.value = liveSpace || 'ring-playground';
+      demoBody.hidden = true;
+      byId('agentSend').textContent = 'Run with live Ring';
+      byId('capture').hidden = false;
+      status('Live Ring selected. Fresh camera frames drive semantic observation.');
+    }
+    latestObservationId = undefined;
+    latestDiffCheckpointId = undefined;
+    hideDiff();
+    space.dispatchEvent(new Event('change'));
+    controls();
+  }
+
+  panel.querySelectorAll('[data-source]').forEach(button => button.addEventListener('click', () => activateMode(button.dataset.source)));
+  panel.querySelectorAll('[data-scenario]').forEach(button => button.addEventListener('click', async () => {
+    if (mode !== 'demo') activateMode('demo');
+    try { await captureControlledScenario(button.dataset.scenario); }
+    catch (error) { setDemoStatus(error.message || 'Could not load controlled scenario.'); }
+  }));
+
+  saveBaseline.addEventListener('click', async () => {
+    try {
+      if (mode !== 'demo') activateMode('demo');
+      const observation = await captureControlledScenario('demo-ready');
+      const checkpoint = await api('checkpoints', {
+        observationId: observation.observationId,
+        spaceId: space.value,
+        name: 'Demo Ready (Controlled)',
+      });
+      controlledCheckpointId = checkpoint.id;
+      compareBaseline.disabled = false;
+      await refreshCheckpoints();
+      setDemoStatus('Baseline saved. Choose Messy, then Compare to Demo Ready.');
+      status('Controlled Demo baseline saved to DynamoDB as Demo Ready (Controlled).');
+    } catch (error) {
+      setDemoStatus(error.message || 'Could not save controlled baseline.');
+    }
+  });
+
+  compareBaseline.addEventListener('click', async () => {
+    if (!controlledCheckpointId) return;
+    try {
+      if (scenario === 'demo-ready') await captureControlledScenario('messy');
+      await compareCheckpoint(controlledCheckpointId);
+      setDemoStatus('Diff ready. Click Start Rewind below, then move to Partial and Restored.');
+    } catch (error) {
+      setDemoStatus(error.message || 'Could not compare controlled state.');
+    }
+  });
+
+  captureFreshAgentObservation = async function () {
+    return mode === 'demo' ? captureControlledScenario(scenario) : originalCaptureFreshAgentObservation();
+  };
+
+  controls = function () {
+    originalControls();
+    if (mode === 'demo') {
+      byId('agentSend').disabled = pending || observing || agentRunning || !space.checkValidity();
+      byId('capture').disabled = true;
+    }
+  };
+
+  byId('agentSend').onclick = async event => {
+    if (mode !== 'demo') return liveAgentHandler.call(byId('agentSend'), event);
+    const prompt = byId('agentPrompt').value.trim();
+    if (!prompt || agentRunning || !space.reportValidity()) return;
+    agentRunning = true; controls(); byId('agentResponse').hidden = true; byId('agentSession').textContent = '';
+    try {
+      status(`Controlled Demo: loading ${scenario.replace('-', ' ')} semantic state…`);
+      const observation = await captureControlledScenario(scenario);
+      status('Controlled fixture loaded. Strands is choosing the approved REWIND tool…');
+      const result = await api('agent', {
+        prompt,
+        spaceId: space.value,
+        observationId: observation.observationId,
+      });
+      byId('agentResponse').textContent = result.text;
+      byId('agentResponse').hidden = false;
+      const session = result.session || {};
+      byId('agentSession').textContent = `Session: ${session.activeSpaceId || 'no-space'} · ${session.activeCheckpointName || 'no-checkpoint'} · ${session.lastDeterministicState || 'no-state'} · controlled demo`;
+      await refreshCheckpoints();
+      status('REWIND agent completed against a server-owned controlled fixture.');
+    } catch (error) {
+      byId('agentResponse').textContent = error.message || 'REWIND controlled demo request failed.';
+      byId('agentResponse').hidden = false;
+      status(error.message || 'REWIND controlled demo request failed.');
+    } finally { agentRunning = false; controls(); }
+  };
+
+  document.body.dataset.observationSource = 'ring';
+  controls();
 })();
