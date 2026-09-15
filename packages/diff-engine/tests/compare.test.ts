@@ -50,7 +50,27 @@ const appearanceCurrent: PhysicalState = {
 };
 const appearanceDiffs = compareStates(appearanceCheckpoint, appearanceCurrent);
 const appearanceMatch = calculateMatch(appearanceDiffs);
-assert(appearanceDiffs.every((diff) => diff.type === "UNCHANGED"), "Appearance/identity descriptors must not become restoration actions.");
-assert(appearanceMatch.restored && appearanceMatch.percentage === 100, "Appearance/species wording drift must not block restoration.");
+assert(appearanceDiffs.length === 0, "Transient living entities must be excluded from restoration truth.");
+assert(appearanceMatch.restored && appearanceMatch.percentage === 100, "Transient bird changes must not block restoration.");
 
-console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + descriptive noise ignored");
+const birdFeederCheckpoint: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "bird-feeder-test",
+  capturedAt: "2026-09-15T09:00:00.000Z",
+  entities: [
+    { key: "bird_feeder_1", category: "bird_feeder", confidence: 1 },
+    { key: "bird_1", category: "bird", confidence: 1, relations: [{ type: "ON", target: "bird_feeder_1", confidence: 1 }] },
+  ],
+};
+const birdFeederCurrent: PhysicalState = {
+  ...birdFeederCheckpoint,
+  capturedAt: "2026-09-15T09:01:00.000Z",
+  entities: [
+    { key: "bird_feeder_1", category: "bird_feeder", confidence: 1 },
+    { key: "bird_1", category: "bird", confidence: 1, relations: [{ type: "INSIDE", target: "bird_feeder_1", confidence: 1 }] },
+  ],
+};
+const birdFeederDiffs = compareStates(birdFeederCheckpoint, birdFeederCurrent);
+assert(birdFeederDiffs.length === 1 && birdFeederDiffs[0]?.entity === "bird_feeder_1" && birdFeederDiffs[0]?.type === "UNCHANGED", "Bird motion must not create a restore action while the feeder remains tracked.");
+
+console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + transient living-state noise ignored");
