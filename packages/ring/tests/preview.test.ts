@@ -4,7 +4,7 @@ import { request as httpRequest } from "node:http";
 import { once } from "node:events";
 import { createPreviewServer, type PreviewAgentInput } from "../src/preview-server.js";
 import type { VisionObservationRequest } from "../../vision/src/contracts.js";
-import { demoReady } from "../../physical-state-protocol/fixtures/studio.js";
+import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
 
 let created = 0, deleted = 0, failDelete = false, failObserve = false;
 let observed: VisionObservationRequest | undefined;
@@ -58,6 +58,41 @@ try {
   const idleResponse = await fetch(`${base}/api/mcp-observation-request?spaceId=other-space`);
   assert.deepEqual(await idleResponse.json(), { requested: false });
   assert.equal((await fetch(`${base}/api/mcp-observation-request?spaceId=`)).status, 400);
+
+  // Controlled Demo accepts only a named server-owned fixture. Client-supplied state is ignored.
+  const controlledResponse = await post("demo/observe", {
+    scenario: "messy",
+    spaceId: "controlled-demo",
+    state: { spaceId: "attacker-controlled", entities: [] },
+  });
+  assert.equal(controlledResponse.status, 200);
+  const controlled = await controlledResponse.json() as {
+    observationId: string;
+    source: string;
+    scenario: string;
+    modelId: string;
+    state: typeof messy;
+  };
+  assert.equal(controlled.source, "controlled-demo");
+  assert.equal(controlled.scenario, "messy");
+  assert.equal(controlled.modelId, "rewind-controlled-demo");
+  assert.equal(controlled.state.spaceId, "controlled-demo");
+  assert.equal(controlled.state.entities.length, messy.entities.length);
+  assert.deepEqual(controlled.state.entities.map(entity => entity.key), messy.entities.map(entity => entity.key));
+  assert.equal((await post("demo/observe", { scenario: "invented", spaceId: "controlled-demo" })).status, 400);
+  assert.equal((await post("demo/observe", { scenario: "messy", spaceId: "" })).status, 400);
+
+  const controlledAgentResponse = await post("agent", {
+    prompt: "What changed?",
+    spaceId: "controlled-demo",
+    observationId: controlled.observationId,
+    state: { spaceId: "attacker-controlled", entities: [] },
+  });
+  assert.equal(controlledAgentResponse.status, 200);
+  assert.equal(agentInput?.spaceId, "controlled-demo");
+  assert.equal(agentInput?.observationId, controlled.observationId);
+  assert.equal(agentInput?.state.entities.length, messy.entities.length);
+  assert.equal(agentInput?.modelId, "rewind-controlled-demo");
 
   const foreignHostStatus = await new Promise<number | undefined>((resolve, reject) => {
     const req = httpRequest(base, { headers: { Host: "attacker.example" } }, res => { res.resume(); resolve(res.statusCode); });
@@ -118,7 +153,7 @@ try {
   assert.equal((await post("observe", { ...frame, spaceId: "" })).status, 400);
   await post("start", { deviceId: "test-device", offer: "v=0\r\n" });
   await preview.cleanup(); assert.equal(deleted, 2);
-  console.log("PASS ring preview: discovery + same-origin MCP signal + origin guard + session lifecycle/retry + frame validation + Nova handoff + trusted agent observation + cleanup");
+  console.log("PASS ring preview: discovery + controlled demo trust boundary + same-origin MCP signal + origin guard + session lifecycle/retry + frame validation + Nova handoff + trusted agent observation + cleanup");
 } finally {
   preview.server.close(); preview.server.closeAllConnections();
 }
