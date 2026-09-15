@@ -1,17 +1,110 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>REWIND • Observe</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090c12">
+<title>REWIND • Ctrl+Z for reality</title>
 <style>
-:root{color-scheme:dark;font:16px system-ui;background:#10141c;color:#f1f5fc}*{box-sizing:border-box}body{margin:0}main{max-width:1160px;margin:auto;padding:32px 24px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}h1{font-size:26px;letter-spacing:.12em;margin:0}small,p{color:#b4c0d5}h2{font-size:20px}button,select,input,textarea,a{font:inherit}button,select,input,textarea{padding:12px;border:1px solid #526078;border-radius:8px;background:#202b3c;color:inherit}textarea{width:100%;min-height:92px;resize:vertical}button{cursor:pointer}button.primary{background:#92ecc6;color:#10261d;border:0;font-weight:650}button:disabled{opacity:.45;cursor:default}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:16px 0}video{width:100%;max-height:560px;background:#05070a;border-radius:12px;min-height:220px}#status{min-height:24px;color:#92ecc6}section{margin-top:28px;border-top:1px solid #354054;padding-top:16px}#frame{max-width:100%;max-height:360px;border-radius:10px}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:18px;background:#192230;border-radius:10px}a{color:#92ecc6}[hidden]{display:none!important}label{display:flex;align-items:center;gap:8px}.checkpoint-list,.diff-list,.restore-list{display:grid;gap:10px;padding:0;list-style:none}.checkpoint-list li,.diff-list li,.restore-list li{padding:12px 14px;border:1px solid #354054;border-radius:10px;background:#151c27}.checkpoint-list strong,.diff-list strong,.restore-list strong{display:block}.muted{color:#8896ad;font-size:14px}.checkpoint-actions{margin-top:10px}.diff-head{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}.diff-score{font-size:42px;font-weight:750}.diff-type{font-size:12px;letter-spacing:.08em;color:#92ecc6}.diff-list li.unknown{border-color:#8a7443}.restore-step{font-size:12px;letter-spacing:.08em;color:#92ecc6}.restore-state{display:inline-block;padding:6px 10px;border:1px solid #526078;border-radius:999px;color:#92ecc6}.agent-panel{padding:18px;border:1px solid #354054;border-radius:12px;background:#151c27}.agent-panel h2{margin-top:0}.agent-session{min-height:20px}@media(max-width:600px){main{padding:20px 14px}.controls>*{max-width:100%}header{align-items:start;gap:16px}small{max-width:130px}}
-</style></head><body><main><header><h1>REWIND</h1><small>Observe · Local preview</small></header>
-<h2>Connect your camera</h2><div class="controls"><label>Device <select id="devices" aria-label="Ring device"></select></label><button id="reload">Refresh devices</button><button class="primary" id="start" disabled>Start live view</button><button id="stop" disabled>Stop</button></div>
-<p id="status" role="status" aria-live="polite">Discovering devices…</p><video id="video" autoplay muted playsinline controls></video>
-<section class="agent-panel"><h2>Ask REWIND</h2><p>Natural language runs through Strands + Nova. Every request first captures a fresh Ring frame and validates it with Nova; the agent receives only the server-held semantic observation ID.</p><label for="agentPrompt">Command</label><textarea id="agentPrompt" maxlength="8000" placeholder="Inspect my studio">Inspect my studio</textarea><div class="controls"><button class="primary" id="agentSend" disabled>Run with live Ring</button></div><pre id="agentResponse" hidden></pre><p id="agentSession" class="muted agent-session"></p></section>
-<div class="controls"><button class="primary" id="capture" disabled>Capture frame</button></div>
-<section id="snapshot" hidden><h2>Captured frame</h2><p id="captureTime"></p><img id="frame" alt="Captured Ring frame"><div class="controls"><a id="download" download="rewind-frame.jpg">Download frame</a><button id="discard">Discard frame</button></div>
-<label>Space name <input id="space" value="ring-playground" maxlength="80" pattern="[a-zA-Z0-9._-]+"></label><div class="controls"><button class="primary" id="observe">Observe with Nova</button></div><p>Only this captured frame is sent to Nova when you click Observe. The server does not save the image.</p>
-<pre id="result" hidden></pre>
-<div id="savePanel" hidden><h2>Save checkpoint</h2><div class="controls"><label>Name <input id="checkpointName" value="Demo Ready" maxlength="120"></label><button class="primary" id="saveCheckpoint" disabled>Save checkpoint</button></div><p>REWIND stores the validated semantic state in DynamoDB. The captured image is not persisted.</p></div></section>
-<section><h2>Saved checkpoints</h2><p class="muted">After observing the current scene, compare it against any saved checkpoint.</p><div class="controls"><button id="refreshCheckpoints">Refresh checkpoints</button></div><ul id="checkpoints" class="checkpoint-list"><li class="muted">No checkpoints loaded yet.</li></ul></section>
-<section id="diffPanel" hidden><div class="diff-head"><h2 id="diffTitle">Physical diff</h2><div class="diff-score" id="matchScore">0%</div></div><p id="diffSummary"></p><ul id="diffList" class="diff-list"></ul><div class="controls"><button class="primary" id="startRewind" hidden>Start Rewind</button></div></section>
-<section id="rewindPanel" hidden><div class="diff-head"><h2 id="rewindTitle">Rewind plan</h2><span class="restore-state" id="rewindState">GUIDING</span></div><p id="rewindSummary"></p><ul id="rewindList" class="restore-list"></ul></section>
-<section id="verifyPanel" hidden><div class="diff-head"><h2>Verify Rewind</h2><span class="restore-state" id="verifyState">WAITING_FOR_CHANGE</span></div><p id="verifySummary">Follow one or more guidance steps, capture a fresh Ring frame, observe it with Nova, then Check Again.</p><div class="controls"><button class="primary" id="checkAgain" disabled>Check Again</button></div><p class="muted">Check Again is the deterministic fallback and remains available when Ring motion-event verification is added in Phase 7.</p></section>
-</main><script src="/preview.js"></script><script src="/verify.js"></script></body></html>
+:root{color-scheme:dark;--bg:#090c12;--panel:#101620;--panel2:#141c28;--line:#273244;--line2:#35445b;--text:#f4f7fb;--muted:#8d9bb0;--soft:#b8c4d4;--mint:#8cf4c7;--mint2:#39d99d;--amber:#ffc970;--red:#ff7d86;--blue:#8bbcff;--shadow:0 24px 70px rgba(0,0,0,.35);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:radial-gradient(circle at 72% -10%,rgba(68,145,117,.16),transparent 34%),radial-gradient(circle at 0 35%,rgba(64,93,145,.10),transparent 28%),var(--bg)}button,select,input,textarea,a{font:inherit}button,select,input,textarea{border:1px solid var(--line2);border-radius:12px;background:#151d29;color:inherit;transition:border-color .18s ease,transform .18s ease,background .18s ease,opacity .18s ease}button{cursor:pointer;padding:11px 15px;font-weight:650}button:hover:not(:disabled){border-color:#60728e;transform:translateY(-1px)}button:active:not(:disabled){transform:translateY(0)}button.primary{border-color:transparent;background:var(--mint);color:#071c14;box-shadow:0 8px 28px rgba(79,226,170,.12)}button.ghost{background:transparent}button:disabled{opacity:.38;cursor:default}select,input,textarea{padding:11px 12px}textarea{width:100%;min-height:92px;resize:vertical}a{color:var(--mint)}[hidden]{display:none!important}.app{max-width:1440px;margin:auto;padding:22px 24px 70px}.topbar{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:22px}.brand{display:flex;align-items:center;gap:12px}.mark{width:34px;height:34px;border-radius:11px;border:1px solid rgba(140,244,199,.38);display:grid;place-items:center;background:linear-gradient(145deg,rgba(140,244,199,.15),rgba(140,244,199,.03));box-shadow:inset 0 0 24px rgba(140,244,199,.05)}.mark:before{content:"↶";font-size:21px;color:var(--mint)}h1{font-size:18px;letter-spacing:.18em;margin:0}.tagline{color:var(--muted);font-size:12px}.topmeta{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(16,22,32,.7);color:var(--soft);font-size:12px}.dot{width:7px;height:7px;border-radius:50%;background:#627086}.dot.live{background:var(--mint2);box-shadow:0 0 0 4px rgba(57,217,157,.10)}.hero-copy{margin:16px 0 20px;display:flex;align-items:end;justify-content:space-between;gap:24px}.hero-copy h2{font-size:clamp(28px,4.2vw,54px);line-height:.98;letter-spacing:-.045em;margin:0;max-width:720px}.hero-copy p{max-width:500px;color:var(--muted);margin:0}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}.flow-step{position:relative;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(16,22,32,.78);overflow:hidden}.flow-step:after{content:"";position:absolute;left:0;right:100%;bottom:0;height:2px;background:var(--mint);transition:right .5s ease}.flow-step.active{border-color:rgba(140,244,199,.5);background:rgba(27,47,42,.65)}.flow-step.active:after{right:0}.flow-step strong{display:block;font-size:11px;letter-spacing:.12em}.flow-step span{color:var(--muted);font-size:11px}.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.72fr);gap:18px;align-items:start}.stack{display:grid;gap:18px}.panel{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(18,25,36,.95),rgba(13,18,27,.95));box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}.panel-head h2,.panel h2{font-size:15px;margin:0}.eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mint)}.camera-tools{padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}.camera-tools label,.field{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}.video-shell{position:relative;background:#030507;min-height:390px;border-top:1px solid rgba(255,255,255,.02);border-bottom:1px solid var(--line);overflow:hidden}.video-shell:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(5,8,12,.1),transparent 25%,transparent 70%,rgba(5,8,12,.74))}.video-shell:after{content:"";position:absolute;inset:18px;z-index:2;pointer-events:none;border:1px solid rgba(140,244,199,.13);border-radius:11px}video{display:block;width:100%;min-height:390px;max-height:620px;object-fit:contain;background:#030507}.live-overlay{position:absolute;z-index:3;left:30px;right:30px;bottom:24px;display:flex;justify-content:space-between;align-items:end;gap:16px;pointer-events:none}.live-title{font-weight:750;font-size:14px}.live-sub{color:#bbc8d7;font-size:11px}.signal{display:flex;align-items:center;gap:8px;font-size:11px;color:#dce7f4}.pulse{width:8px;height:8px;border-radius:50%;background:var(--mint2);box-shadow:0 0 0 0 rgba(57,217,157,.5);animation:pulse 2s infinite}.status-wrap{padding:13px 18px;display:flex;align-items:center;gap:11px;background:rgba(10,14,21,.75)}#status{margin:0;min-height:22px;color:var(--soft);font-size:13px}.status-icon{width:8px;height:8px;border-radius:50%;background:var(--mint)}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.agent-panel{padding:18px}.agent-panel p{color:var(--muted);margin:6px 0 14px}.agent-response{border:1px solid rgba(140,244,199,.17);background:#0b1119}.session-strip{min-height:20px;color:var(--muted);font-size:11px}.progress-card{padding:18px}.progress-top{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:12px}.progress-number{font-size:40px;font-weight:800;line-height:1;letter-spacing:-.04em}.meter{height:7px;border-radius:999px;background:#1a2533;overflow:hidden}.meter>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--mint2),var(--mint));border-radius:inherit;transition:width .7s cubic-bezier(.22,.8,.22,1)}.privacy{padding:14px 16px;border:1px solid rgba(139,188,255,.16);border-radius:14px;background:rgba(20,30,45,.7)}.privacy strong{display:block;font-size:12px}.privacy span{color:var(--muted);font-size:11px}.snapshot-inner{padding:18px}.snapshot-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(260px,1fr);gap:18px}#frame{width:100%;max-height:360px;object-fit:contain;border-radius:12px;border:1px solid var(--line);background:#05080c}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:#0b1119;border:1px solid var(--line);border-radius:12px;color:#d8e3ef;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.section-panel{padding:18px}.section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:12px}.checkpoint-list,.diff-list,.restore-list{display:grid;gap:10px;padding:0;margin:0;list-style:none}.checkpoint-list{position:relative}.checkpoint-list:before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:1px;background:var(--line)}.checkpoint-list li{position:relative;margin-left:24px}.checkpoint-list li:before{content:"";position:absolute;left:-20px;top:17px;width:9px;height:9px;border-radius:50%;background:#202c3d;border:2px solid var(--mint)}.checkpoint-list li,.diff-list li,.restore-list li{padding:14px 15px;border:1px solid var(--line);border-radius:13px;background:#111923}.checkpoint-list strong,.diff-list strong,.restore-list strong{display:block}.checkpoint-actions{margin-top:10px}.muted{color:var(--muted);font-size:12px}.diff-head{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}.diff-score{font-size:46px;font-weight:800;line-height:1;letter-spacing:-.04em}.diff-type,.restore-step{font-size:10px;letter-spacing:.12em;color:var(--mint)}.diff-list li{border-left:3px solid var(--amber)}.diff-list li.unknown,.restore-list li.unknown{border-color:#806b3d}.restore-list li{position:relative;padding-left:48px}.restore-list li:before{content:"✓";position:absolute;left:15px;top:15px;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:#182532;color:var(--mint);font-size:11px}.restore-state{display:inline-flex;align-items:center;padding:6px 10px;border:1px solid var(--line2);border-radius:999px;color:var(--mint);font-size:11px;letter-spacing:.08em}.restore-state[data-state="RESTORED"]{background:rgba(57,217,157,.12);border-color:rgba(140,244,199,.42)}.completion{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,7,10,.78);backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:opacity .35s ease}.completion.show{opacity:1;pointer-events:auto}.completion-card{width:min(520px,calc(100vw - 36px));padding:34px;border:1px solid rgba(140,244,199,.35);border-radius:24px;background:linear-gradient(180deg,#13261f,#0c1513);box-shadow:0 30px 100px #000;text-align:center}.completion-icon{width:76px;height:76px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:var(--mint);color:#062017;font-size:34px;font-weight:900;box-shadow:0 0 0 12px rgba(140,244,199,.08)}.completion-card h2{font-size:34px;letter-spacing:-.04em;margin:0}.completion-card p{color:#a8c2b6}.sound-toggle{padding:7px 10px;font-size:11px}.full{grid-column:1/-1}label{display:flex;align-items:center;gap:8px}.footer-note{margin-top:24px;text-align:center;color:#66758a;font-size:11px}@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(57,217,157,0)}100%{box-shadow:0 0 0 0 rgba(57,217,157,0)}}@media(max-width:980px){.layout{grid-template-columns:1fr}.hero-copy{align-items:start;flex-direction:column}.snapshot-grid{grid-template-columns:1fr}.video-shell,video{min-height:300px}}@media(max-width:640px){.app{padding:15px 12px 54px}.topbar{align-items:flex-start}.topmeta{display:none}.hero-copy h2{font-size:36px}.flow{grid-template-columns:repeat(2,1fr)}.camera-tools>*{max-width:100%}.video-shell,video{min-height:230px}.live-overlay{left:20px;right:20px;bottom:18px}.progress-number,.diff-score{font-size:34px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>REWIND</h1><div class="tagline">Ctrl+Z for reality</div></div></div>
+  <div class="topmeta"><span class="chip"><span class="dot live"></span> Ring + Nova</span><span class="chip">Deterministic restore</span><button id="soundToggle" class="ghost sound-toggle" type="button">Sound on</button></div>
+</header>
+
+<div class="hero-copy">
+  <h2>Save how reality should be. Rewind it when it drifts.</h2>
+  <p>Ring observes the scene, Nova converts it into semantic state, and deterministic REWIND code decides what changed and whether reality is truly restored.</p>
+</div>
+
+<nav class="flow" aria-label="REWIND workflow">
+  <div class="flow-step active" data-flow="save"><strong>01 · SAVE</strong><span>Capture a semantic checkpoint</span></div>
+  <div class="flow-step" data-flow="diff"><strong>02 · DIFF</strong><span>Detect meaningful changes</span></div>
+  <div class="flow-step" data-flow="rewind"><strong>03 · REWIND</strong><span>Guide deterministic actions</span></div>
+  <div class="flow-step" data-flow="verify"><strong>04 · VERIFY</strong><span>Prove 100% restored</span></div>
+</nav>
+
+<div class="layout">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Live physical state</div><h2>Ring observation</h2></div><span class="chip" id="streamChip"><span class="dot" id="streamDot"></span><span id="streamLabel">Connecting</span></span></div>
+      <div class="camera-tools">
+        <label>Device <select id="devices" aria-label="Ring device"></select></label>
+        <button id="reload">Refresh devices</button>
+        <button class="primary" id="start" disabled>Start live view</button>
+        <button id="stop" disabled>Stop</button>
+        <label>Space <input id="space" value="ring-playground" maxlength="80" pattern="[a-zA-Z0-9._-]+"></label>
+      </div>
+      <div class="video-shell">
+        <video id="video" autoplay muted playsinline controls></video>
+        <div class="live-overlay"><div><div class="live-title">Ring Playground</div><div class="live-sub" id="overlayState">Waiting for live state</div></div><div class="signal"><span class="pulse"></span> Semantic observation only</div></div>
+      </div>
+      <div class="status-wrap"><span class="status-icon"></span><p id="status" role="status" aria-live="polite">Discovering devices…</p></div>
+    </section>
+
+    <section class="panel agent-panel">
+      <div class="section-head"><div><div class="eyebrow">Strands + AgentCore</div><h2>Ask REWIND</h2><p>Natural language can choose approved tools. It cannot invent physical truth.</p></div><span class="chip">Fresh Ring frame required</span></div>
+      <label for="agentPrompt" class="muted">Command</label>
+      <textarea id="agentPrompt" maxlength="8000" placeholder="Inspect my studio">Inspect my studio</textarea>
+      <div class="controls"><button class="primary" id="agentSend" disabled>Run with live Ring</button><button class="ghost" id="capture" disabled>Capture frame manually</button></div>
+      <pre id="agentResponse" class="agent-response" hidden></pre>
+      <p id="agentSession" class="session-strip"></p>
+    </section>
+
+    <section id="snapshot" class="panel" hidden>
+      <div class="panel-head"><div><div class="eyebrow">Ephemeral capture</div><h2>Observed frame</h2></div><span id="captureTime" class="muted"></span></div>
+      <div class="snapshot-inner snapshot-grid">
+        <div><img id="frame" alt="Captured Ring frame"><div class="controls"><a id="download" download="rewind-frame.jpg">Download frame</a><button id="discard">Discard frame</button></div></div>
+        <div><button class="primary" id="observe">Observe with Nova</button><p class="muted">This frame is sent to Nova for semantic extraction. REWIND does not persist the image.</p><pre id="result" hidden></pre><div id="savePanel" hidden><h2>Save checkpoint</h2><div class="controls"><label>Name <input id="checkpointName" value="Demo Ready" maxlength="120"></label><button class="primary" id="saveCheckpoint" disabled>Save checkpoint</button></div></div></div>
+      </div>
+    </section>
+
+    <section class="panel section-panel">
+      <div class="section-head"><div><div class="eyebrow">Semantic memory</div><h2>Checkpoint timeline</h2><p>Saved state persists in DynamoDB. Raw Ring frames do not.</p></div><button id="refreshCheckpoints">Refresh</button></div>
+      <ul id="checkpoints" class="checkpoint-list"><li class="muted">No checkpoints loaded yet.</li></ul>
+    </section>
+
+    <section id="diffPanel" class="panel section-panel" hidden>
+      <div class="section-head"><div><div class="eyebrow">Deterministic comparison</div><div class="diff-head"><h2 id="diffTitle">Physical diff</h2><div class="diff-score" id="matchScore">0%</div></div><p id="diffSummary"></p></div><span class="chip">AI does not decide match</span></div>
+      <ul id="diffList" class="diff-list"></ul>
+      <div class="controls"><button class="primary" id="startRewind" hidden>Start Rewind</button></div>
+    </section>
+
+    <section id="rewindPanel" class="panel section-panel" hidden>
+      <div class="section-head"><div><div class="eyebrow">Restoration plan</div><h2 id="rewindTitle">Rewind plan</h2></div><span class="restore-state" id="rewindState">GUIDING</span></div>
+      <p id="rewindSummary" class="muted"></p><ul id="rewindList" class="restore-list"></ul>
+    </section>
+
+    <section id="verifyPanel" class="panel section-panel" hidden>
+      <div class="section-head"><div><div class="eyebrow">Fresh observation required</div><h2>Verify Rewind</h2></div><span class="restore-state" id="verifyState">WAITING_FOR_CHANGE</span></div>
+      <p id="verifySummary">Follow one or more guidance steps, capture a fresh Ring frame, observe it with Nova, then Check Again.</p>
+      <div class="controls"><button class="primary" id="checkAgain" disabled>Check Again</button></div>
+      <p class="muted">Signed Ring motion can trigger automatic verification. Check Again remains the deterministic fallback.</p>
+    </section>
+  </div>
+
+  <aside class="stack">
+    <section class="panel progress-card">
+      <div class="progress-top"><div><div class="eyebrow">Restoration confidence</div><h2>Physical match</h2></div><div class="progress-number" id="progressValue">—</div></div>
+      <div class="meter" aria-hidden="true"><span id="progressBar"></span></div>
+      <p class="muted" id="progressCaption">Save or compare a checkpoint to begin.</p>
+    </section>
+    <div class="privacy"><strong>Remember the state. Forget the footage.</strong><span>REWIND stores validated semantic checkpoints, not continuous raw video.</span></div>
+    <section class="panel section-panel">
+      <div class="eyebrow">Trust boundary</div><h2>How REWIND decides</h2>
+      <p class="muted">Nova interprets what the camera sees. Deterministic TypeScript compares state, builds restoration actions, and is the only layer allowed to declare RESTORED.</p>
+      <div class="controls"><span class="chip">Ring</span><span class="chip">Nova 2 Lite</span><span class="chip">Strands</span><span class="chip">AgentCore</span><span class="chip">DynamoDB</span></div>
+    </section>
+  </aside>
+</div>
+
+<div class="completion" id="completion" aria-hidden="true"><div class="completion-card"><div class="completion-icon">✓</div><div class="eyebrow">Verification complete</div><h2>100% RESTORED</h2><p id="completionText">Reality matches the saved checkpoint.</p><button class="primary" id="dismissCompletion">Continue</button></div></div>
+<div class="footer-note">REWIND · Ring track · Amazon Developer Hackathon</div>
+</div>
+<script src="/preview.js"></script><script src="/verify.js"></script>
+</body>
+</html>
