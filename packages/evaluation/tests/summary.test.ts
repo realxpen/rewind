@@ -27,7 +27,7 @@ const trials: EvaluationTrial[] = [
     correctObjects: 3,
     expectedDiffs: 2,
     correctDiffs: 1,
-    latencyMs: 2800,
+    latencyMs: 0,
     novaFailures: 1,
     ringFailures: 0,
     toolFailures: 0,
@@ -44,11 +44,12 @@ assert.equal(summary.liveRingTrials, 1);
 assert.equal(summary.controlledDemoTrials, 1);
 assert.equal(summary.objectAccuracy, 11 / 12);
 assert.equal(summary.diffAccuracy, 7 / 8);
-assert.equal(summary.averageLatencyMs, 2000);
+assert.equal(summary.averageLatencyMs, 1200);
+assert.equal(summary.measuredLatencyTrials, 1);
 assert.equal(summary.verificationSuccessRate, 0.5);
 assert.equal(summary.novaFailures, 1);
 assert.equal(summary.ringFailures, 0);
 assert.equal(summary.toolFailures, 0);
 assert.equal(summary.verificationFailures, 1);
 
-console.log("PASS Phase 11 evaluation summary: accuracy + latency + failure aggregation");
+console.log("PASS Phase 11 evaluation summary: accuracy + measured latency + failure aggregation");
