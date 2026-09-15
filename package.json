@@ -6,7 +6,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled",
+    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled && npm run test:phase11:compiled",
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
@@ -25,6 +25,8 @@
     "test:phase8:compiled": "node dist/packages/agent-tools/tests/agent-tools.test.js && node dist/packages/agent-orchestrator/tests/continuity.test.js && node dist/packages/agent-orchestrator/tests/agentcore-memory.test.js && node dist/packages/agent-orchestrator/tests/critical-intent.test.js",
     "test:phase9": "npm run build && npm run test:phase9:compiled",
     "test:phase9:compiled": "node dist/packages/mcp-server/tests/mcp-http.test.js && node dist/packages/mcp-server/tests/alexa-auth.test.js && node dist/packages/mcp-server/tests/live-ring-bridge.test.js",
+    "test:phase11": "npm run build && npm run test:phase11:compiled",
+    "test:phase11:compiled": "node dist/packages/evaluation/tests/summary.test.js",
     "vision:fixture": "npm run build && node dist/packages/vision/scripts/live-fixture.js",
     "vision:matrix": "npm run build && node dist/packages/vision/scripts/live-matrix.js",
     "ring:preview": "npm run build && node dist/packages/ring/scripts/live-preview.js",
@@ -34,7 +36,9 @@
     "mcp:fixture": "npm run build && node dist/packages/mcp-server/scripts/fixture-server.js",
     "mcp:probe": "npm run build && node dist/packages/mcp-server/scripts/live-probe.js",
     "mcp:live": "npm run build && node dist/packages/mcp-server/scripts/live-command.js",
-    "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js"
+    "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js",
+    "eval:record": "npm run build && node dist/packages/evaluation/scripts/record.js",
+    "eval:summary": "npm run build && node dist/packages/evaluation/scripts/report.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
