@@ -1,5 +1,7 @@
-import type { PhysicalEntity, PhysicalRelation, PhysicalState } from "./types.js";
+import type { AttributeValue, PhysicalEntity, PhysicalRelation, PhysicalState } from "./types.js";
 import { parseState } from "./validate.js";
+
+const ACTIONABLE_ATTRIBUTES = new Set(["clear", "powered"]);
 
 function normalizeRelation(relation: PhysicalRelation): PhysicalRelation {
   const normalized: PhysicalRelation = { type: relation.type };
@@ -12,11 +14,16 @@ function relationKey(relation: PhysicalRelation): string {
   return `${relation.type}:${relation.target ?? ""}`;
 }
 
-function normalizeEntity(entity: PhysicalEntity): PhysicalEntity {
-  const attributes = entity.attributes
-    ? Object.fromEntries(Object.entries(entity.attributes).sort(([a], [b]) => a.localeCompare(b)))
-    : undefined;
+function normalizeAttributes(attributes: Record<string, AttributeValue> | undefined): Record<string, AttributeValue> | undefined {
+  if (!attributes) return undefined;
+  const entries = Object.entries(attributes)
+    .filter(([key]) => ACTIONABLE_ATTRIBUTES.has(key.trim().toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
 
+function normalizeEntity(entity: PhysicalEntity): PhysicalEntity {
+  const attributes = normalizeAttributes(entity.attributes);
   const relations = entity.relations
     ? [...entity.relations].map(normalizeRelation).sort((a, b) => relationKey(a).localeCompare(relationKey(b)))
     : undefined;
@@ -26,7 +33,7 @@ function normalizeEntity(entity: PhysicalEntity): PhysicalEntity {
     category: entity.category.trim().toLowerCase(),
     confidence: entity.confidence,
   };
-  if (attributes && Object.keys(attributes).length > 0) normalized.attributes = attributes;
+  if (attributes) normalized.attributes = attributes;
   if (relations && relations.length > 0) normalized.relations = relations;
   return normalized;
 }
