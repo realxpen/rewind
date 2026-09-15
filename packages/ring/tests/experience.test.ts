@@ -46,7 +46,15 @@ assert.match(bridge, /MutationObserver/);
 assert.match(bridge, /verifyState/);
 assert.match(bridge, /playRestoredTone/);
 
+// The experience observer watches matchScore, so writes back to matchScore must be
+// idempotent. Otherwise a same-value textContent write can recursively schedule the
+// observer forever and starve the browser's first paint/reload.
+assert.match(bridge, /function setText\(node, value\)/);
+assert.match(bridge, /node\.textContent !== value/);
+assert.match(bridge, /setText\(matchScore, '—'\)/);
+assert.doesNotMatch(bridge, /matchScore\.textContent\s*=\s*['"]—['"]/);
+
 // Parse without executing browser globals so plain JS syntax remains part of CI.
 new Function(bridge);
 
-console.log("PASS Phase 10 experience contract: critical controls + workflow rail + trust copy + responsive motion + browser JS syntax");
+console.log("PASS Phase 10 experience contract: critical controls + workflow rail + trust copy + responsive motion + observer stability + browser JS syntax");
