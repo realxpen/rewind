@@ -1,13 +1,13 @@
 # REWIND — Project State
 
-_Last updated: 2026-09-14_
+_Last updated: 2026-09-15_
 
 ## Current phase
 
-**Phase 9 — Alexa+ MCP: IN PROGRESS**
+**Phase 10 — Experience Polish: IN PROGRESS**
 
 Primary track: **Ring**  
-Additional target: **Alexa+**.  
+Alexa+ status: **future/optional integration**. Amazon/Devpost staff confirmed Alexa+ MCP/Add-on developer tooling is currently restricted to select partners, so live Alexa+ onboarding is not on REWIND's hackathon critical path.  
 Mini-challenges: **AWS Builder + Open Source**.
 
 ## Locked product
@@ -379,16 +379,91 @@ Phase 8 gate: **PASS**.
 
 Goal: expose the approved REWIND tool surface through an Alexa+ compatible MCP server while preserving the same deterministic trust boundary proven in Phase 8.
 
-Master-spec requirements:
+Implemented and verified:
 
-- [ ] implement MCP `2025-11-25` or newer using Streamable HTTP.
-- [ ] expose approved REWIND operations without duplicating physical-state business logic.
-- [ ] keep checkpoint truth in DynamoDB and restoration truth in deterministic REWIND code.
-- [ ] onboard/test through the Alexa AI CLI or supported Alexa+ developer path.
-- [ ] prove at minimum `save_checkpoint`, `compare_checkpoint`, `start_rewind`, and `verify_rewind` through the MCP surface.
-- [ ] preserve no-raw-media persistence and no model-declared `RESTORED` guarantees.
+- [x] MCP `2025-11-25` compatible Streamable HTTP surface.
+- [x] all approved REWIND operations exposed without duplicating physical-state business logic.
+- [x] DynamoDB remains checkpoint truth and deterministic REWIND code remains restoration truth.
+- [x] `save_checkpoint`, `compare_checkpoint`, `start_rewind`, and `verify_rewind` verified through a real MCP Streamable HTTP client.
+- [x] live MCP calls request a fresh Ring frame through the same-origin preview bridge before truth-sensitive operations.
+- [x] fresh Ring frame → Nova → normalized PSP → deterministic REWIND verified through the MCP surface.
+- [x] no raw-media persistence and no model-declared `RESTORED` guarantees preserved.
+- [x] MCP discovery verified with all eight tools.
+- [x] two consecutive live `verify_rewind` calls on an unchanged scene remained deterministic **100% RESTORED** after transient living entities and non-actionable visual descriptors were removed from restoration truth.
+- [x] local `.env` loading and a 30-second fresh-observation timeout reduce daily/demo startup friction.
+- [x] Alexa-compatible resource-server protection implemented and tested, including Bearer auth boundary and Protected Resource Metadata support.
+- [x] direct Alexa+ onboarding investigated through the documented AWS role path.
 
-Phase 9 gate: **OPEN** until the required MCP operations work through the Alexa+ compatible surface.
+Alexa+ access decision:
+
+- Live Alexa+ Add-on/MCP developer tooling is currently restricted to select Amazon partners.
+- Devpost/Amazon hackathon staff confirmed that this restriction is expected and there is currently no public path to join the partner cohort.
+- Therefore live Alexa+ onboarding is **deferred, not treated as a REWIND failure**.
+- REWIND remains a **Ring-track** project; the MCP surface remains a future assistant-integration extension.
+- Submission/demo materials must not claim Alexa+ was deployed or tested.
+
+Live MCP stability gate verified on 2026-09-15:
+
+```text
+MCP discovery → 8 tools
+save_checkpoint("Demo Ready Final") → fresh Ring frame → Nova → persisted checkpoint
+compare_checkpoint → 100% match
+start_rewind → RESTORED / 100%
+verify_rewind #1 → RESTORED / 100%
+verify_rewind #2 → RESTORED / 100%
+```
+
+Phase 9 MCP engineering gate: **PASS**.  
+Live Alexa+ onboarding: **DEFERRED — partner-only external access restriction**.
+
+## Phase 10 — Experience Polish
+
+Rule: polish the proven workflow; do not redesign the underlying product flow.
+
+- [ ] animations.
+- [ ] live state overlay.
+- [ ] checkpoint timeline.
+- [ ] diff visualization polish.
+- [ ] progress animation.
+- [ ] sound feedback.
+- [ ] responsive layouts.
+- [ ] empty states.
+- [ ] error states.
+
+Phase 10 gate: **OPEN**.
+
+## Phase 11 — Evaluation
+
+- [ ] repeat the complete demo many times.
+- [ ] record object accuracy.
+- [ ] record diff accuracy.
+- [ ] record latency.
+- [ ] record Nova failures.
+- [ ] record Ring failures.
+- [ ] record tool failures.
+- [ ] record verification failures.
+- [ ] keep `docs/FRICTION_LOG.md` current with meaningful Amazon developer friction.
+
+Phase 11 gate: **NOT STARTED**.
+
+## Phase 12 — Submission
+
+- [ ] README.
+- [ ] architecture diagram.
+- [ ] screenshots.
+- [ ] public repo verification.
+- [ ] license verification.
+- [ ] setup steps.
+- [ ] demo script.
+- [ ] demo video.
+- [ ] Devpost story.
+- [ ] product feedback.
+- [ ] friction log.
+- [ ] feature requests.
+- [ ] AWS Builder explanation.
+- [ ] Open Source explanation.
+
+Phase 12 gate: **NOT STARTED**.
 
 ## MVP completion gate
 
