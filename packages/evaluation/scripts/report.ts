@@ -24,7 +24,9 @@ try {
   console.log(`Object accuracy: ${percent(summary.objectAccuracy)}`);
   console.log(`Diff accuracy: ${percent(summary.diffAccuracy)}`);
   console.log(`Verification success: ${percent(summary.verificationSuccessRate)}`);
-  console.log(`Average end-to-end latency: ${summary.averageLatencyMs.toFixed(0)} ms`);
+  console.log(summary.measuredLatencyTrials > 0
+    ? `Average end-to-end latency: ${summary.averageLatencyMs.toFixed(0)} ms (${summary.measuredLatencyTrials} measured trial${summary.measuredLatencyTrials === 1 ? "" : "s"})`
+    : "Average end-to-end latency: not measured yet");
   console.log(`Failures — Nova: ${summary.novaFailures}, Ring: ${summary.ringFailures}, tools: ${summary.toolFailures}, verification: ${summary.verificationFailures}`);
 } catch (error) {
   if (error instanceof Error && "code" in error && error.code === "ENOENT") {
