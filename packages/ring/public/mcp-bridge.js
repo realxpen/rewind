@@ -176,3 +176,47 @@
   setInterval(updateStream, 1000);
   refresh();
 })();
+
+/* Phase 10 desktop refinement: presentation only, no workflow authority. */
+(() => {
+  const style = document.createElement('style');
+  style.textContent = `
+    .hero-copy{margin-top:22px;margin-bottom:24px}
+    .hero-copy p{font-size:14px;line-height:1.7}
+    .panel-head{padding:17px 20px}
+    .camera-tools{padding:15px 20px}
+    #devices{min-width:0;max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+    #space{min-width:0;width:100%}
+    .status-wrap{padding:14px 20px}
+    .progress-card{padding:20px}
+    .privacy{padding:16px 18px}
+    .layout>.stack:last-child{gap:14px}
+    @media (min-width:981px){
+      .app{max-width:1540px;padding-left:30px;padding-right:30px}
+      .layout{grid-template-columns:minmax(0,1.72fr) minmax(350px,.68fr);gap:20px}
+      .layout>.stack:last-child{position:sticky;top:18px}
+      .camera-tools{display:grid;grid-template-columns:minmax(300px,1fr) auto auto auto minmax(190px,220px);align-items:center}
+      .camera-tools label:first-child{min-width:0;width:100%}
+      .camera-tools label:first-child select{width:100%}
+      .camera-tools label:last-child{min-width:0;width:100%}
+      .video-shell,video{min-height:470px}
+      .live-overlay{left:32px;right:32px;bottom:26px}
+    }
+    @media (min-width:1280px){
+      .hero-copy h2{max-width:760px}
+      .video-shell,video{min-height:500px}
+    }
+  `;
+  document.head.append(style);
+
+  const devices = document.getElementById('devices');
+  if (devices) {
+    const syncTitle = () => {
+      const selected = devices.selectedOptions?.[0];
+      devices.title = selected?.textContent || 'Ring device';
+    };
+    devices.addEventListener('change', syncTitle);
+    new MutationObserver(syncTitle).observe(devices, { childList: true, subtree: true });
+    syncTitle();
+  }
+})();
