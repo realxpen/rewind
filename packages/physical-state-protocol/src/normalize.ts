@@ -2,6 +2,7 @@ import type { AttributeValue, PhysicalEntity, PhysicalRelation, PhysicalState } 
 import { parseState } from "./validate.js";
 
 const ACTIONABLE_ATTRIBUTES = new Set(["clear", "powered"]);
+const TRANSIENT_LIVING_CATEGORIES = new Set(["person", "human", "bird", "animal", "pet"]);
 
 function normalizeRelation(relation: PhysicalRelation): PhysicalRelation {
   const normalized: PhysicalRelation = { type: relation.type };
@@ -43,7 +44,10 @@ export function normalizeState(input: PhysicalState | unknown): PhysicalState {
   return {
     ...state,
     spaceId: state.spaceId.trim(),
-    entities: [...state.entities].map(normalizeEntity).sort((a, b) => a.key.localeCompare(b.key)),
+    entities: [...state.entities]
+      .map(normalizeEntity)
+      .filter((entity) => !TRANSIENT_LIVING_CATEGORIES.has(entity.category))
+      .sort((a, b) => a.key.localeCompare(b.key)),
   };
 }
 
