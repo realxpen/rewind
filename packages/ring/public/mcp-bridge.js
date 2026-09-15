@@ -54,6 +54,10 @@
   let soundEnabled = true;
   let audioContext;
 
+  function setText(node, value) {
+    if (node && node.textContent !== value) node.textContent = value;
+  }
+
   function activateFlow(stage) {
     const order = ['save', 'diff', 'rewind', 'verify'];
     const activeIndex = Math.max(0, order.indexOf(stage));
@@ -78,18 +82,18 @@
   function updateProgress() {
     const percentage = percentageFromUi();
     if (percentage === undefined) {
-      if (matchScore && el('diffPanel')?.hidden) matchScore.textContent = '—';
-      progressValue.textContent = '—';
-      progressBar.style.width = '0%';
-      progressCaption.textContent = 'Compare a saved checkpoint to calculate physical match.';
+      if (matchScore && el('diffPanel')?.hidden) setText(matchScore, '—');
+      setText(progressValue, '—');
+      if (progressBar && progressBar.style.width !== '0%') progressBar.style.width = '0%';
+      setText(progressCaption, 'Compare a saved checkpoint to calculate physical match.');
       return;
     }
     const safe = Math.max(0, Math.min(100, percentage));
-    progressValue.textContent = `${safe}%`;
-    progressBar.style.width = `${safe}%`;
-    progressCaption.textContent = safe === 100
+    setText(progressValue, `${safe}%`);
+    if (progressBar && progressBar.style.width !== `${safe}%`) progressBar.style.width = `${safe}%`;
+    setText(progressCaption, safe === 100
       ? 'Deterministic checks report a complete semantic match.'
-      : `${100 - safe}% of the saved physical state still needs attention.`;
+      : `${100 - safe}% of the saved physical state still needs attention.`);
   }
 
   function updateFlow() {
@@ -104,7 +108,9 @@
 
   function updateStatePills() {
     for (const node of [rewindState, verifyState]) {
-      if (node) node.dataset.state = node.textContent.trim();
+      if (!node) continue;
+      const state = node.textContent.trim();
+      if (node.dataset.state !== state) node.dataset.state = state;
     }
   }
 
@@ -113,8 +119,8 @@
     const connected = /Live video connected|Fresh Ring|Camera ready|RESTORED|restored/i.test(message);
     const failed = /failed|error|lost|expired|could not|rejected/i.test(message);
     streamDot?.classList.toggle('live', connected && !failed);
-    streamLabel.textContent = failed ? 'Needs attention' : connected ? 'Live' : 'Standby';
-    overlayState.textContent = failed ? 'Connection needs attention' : connected ? 'Fresh semantic state available' : 'Waiting for live state';
+    setText(streamLabel, failed ? 'Needs attention' : connected ? 'Live' : 'Standby');
+    setText(overlayState, failed ? 'Connection needs attention' : connected ? 'Fresh semantic state available' : 'Waiting for live state');
   }
 
   function ensureAudioContext() {
@@ -148,11 +154,11 @@
     if (completionShownFor === key) return;
     completionShownFor = key;
     const checkpoint = el('rewindTitle')?.textContent?.replace(/^Rewind to\s+/i, '').trim();
-    completionText.textContent = checkpoint
+    setText(completionText, checkpoint
       ? `Reality matches “${checkpoint}”. All deterministic restoration checks passed.`
-      : 'Reality matches the saved checkpoint. All deterministic restoration checks passed.';
-    completion.classList.add('show');
-    completion.setAttribute('aria-hidden', 'false');
+      : 'Reality matches the saved checkpoint. All deterministic restoration checks passed.');
+    completion?.classList.add('show');
+    completion?.setAttribute('aria-hidden', 'false');
     playRestoredTone();
   }
 
@@ -202,12 +208,12 @@
   document.addEventListener('pointerdown', ensureAudioContext, { once: true });
   soundToggle?.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
-    soundToggle.textContent = soundEnabled ? 'Sound on' : 'Sound off';
+    setText(soundToggle, soundEnabled ? 'Sound on' : 'Sound off');
     if (soundEnabled) ensureAudioContext();
   });
   dismissCompletion?.addEventListener('click', () => {
-    completion.classList.remove('show');
-    completion.setAttribute('aria-hidden', 'true');
+    completion?.classList.remove('show');
+    completion?.setAttribute('aria-hidden', 'true');
   });
   completion?.addEventListener('click', event => {
     if (event.target === completion) dismissCompletion?.click();
