@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { loadEnvFile } from "node:process";
 import {
   RingAccountLinkService,
   RingClient,
@@ -22,6 +24,15 @@ import {
   type SessionContinuityStore,
 } from "../../agent-orchestrator/src/index.js";
 import { createRewindMcpHttpApp } from "../../mcp-server/src/http.js";
+
+function loadLocalEnvironment(): void {
+  const path = resolve(".env");
+  if (!existsSync(path)) return;
+  loadEnvFile(path);
+  console.log("Loaded local configuration from .env");
+}
+
+loadLocalEnvironment();
 
 function validPort(value: number): boolean {
   return Number.isInteger(value) && value >= 1024 && value <= 65535;
