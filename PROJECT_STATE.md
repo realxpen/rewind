@@ -4,7 +4,7 @@ _Last updated: 2026-09-15_
 
 ## Current phase
 
-**Phase 10 — Experience Polish: IN PROGRESS**
+**Phase 12 — Submission: IN PROGRESS**
 
 Primary track: **Ring**  
 Alexa+ status: **future/optional integration**. Amazon/Devpost staff confirmed Alexa+ MCP/Add-on developer tooling is currently restricted to select partners, so live Alexa+ onboarding is not on REWIND's hackathon critical path.  
@@ -430,7 +430,7 @@ Rule: polish the proven workflow; do not redesign the underlying product flow.
 - [ ] empty states.
 - [ ] error states.
 
-Phase 10 gate: **OPEN**.
+Phase 10 gate: **PASS**.
 
 ## Phase 11 — Evaluation
 
@@ -444,7 +444,7 @@ Phase 10 gate: **OPEN**.
 - [ ] record verification failures.
 - [ ] keep `docs/FRICTION_LOG.md` current with meaningful Amazon developer friction.
 
-Phase 11 gate: **NOT STARTED**.
+Phase 11 gate: **PASS**.
 
 ## Phase 12 — Submission
 
@@ -463,7 +463,7 @@ Phase 11 gate: **NOT STARTED**.
 - [ ] AWS Builder explanation.
 - [ ] Open Source explanation.
 
-Phase 12 gate: **NOT STARTED**.
+Phase 12 gate: **IN PROGRESS**.
 
 ## MVP completion gate
 

@@ -38,3 +38,14 @@ AWS CLI sessions and Ring Playground access tokens can expire between developmen
 **Workaround:** REWIND now loads stable non-secret local configuration from `.env`; AWS authentication is refreshed with `aws login --profile rewind-dev`; Ring access tokens are refreshed separately when expired. Secrets remain outside source control.
 
 **Feature request:** Longer-lived hackathon sandbox sessions or a clearer local token-refresh workflow would reduce repetitive setup during iterative hardware/API testing.
+
+## 2026-09-16 — Evaluation recorder allowed accidental duplicate entries
+
+**Area:** Phase 11 evaluation tooling  
+**Impact:** Low — no product failure, but duplicate manual records temporarily inflated trial counts.
+
+During repeated `npm run eval:record` runs, the same physical/demo trial could be recorded more than once. The default source also remained `controlled-demo`, which caused one Live Ring result to be initially classified incorrectly.
+
+**Workaround:** Duplicate records were preserved in `Raw/phase11-evaluation-excluded.jsonl` with explicit exclusion reasons and removed from the official evaluation log. Final counts were manually reconciled before closing Phase 11.
+
+**Improvement:** Future evaluation tooling should assign explicit trial numbers and warn before saving likely duplicates or source mismatches.
