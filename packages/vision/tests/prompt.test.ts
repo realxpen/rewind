@@ -26,9 +26,17 @@ const prompt = buildNovaObservationPrompt({
   ],
 });
 
+const untrackedPrompt = buildNovaObservationPrompt({
+  spaceId: "bedroom",
+  capturedAt: "2026-09-17T10:30:00.000Z",
+});
+
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /observe only/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /do NOT compare/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /below 0\.60/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Every entity key.*MUST be unique/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /lamp\.bedside/);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /plant\.desk/);
 assert.match(prompt, /desk\.main/);
 assert.match(prompt, /attribute "clear"/i);
 assert.match(prompt, /attribute "powered"/i);
@@ -38,10 +46,15 @@ assert.match(prompt, /confidence below 0\.60/i);
 assert.match(prompt, /Relations are written on the subject entity/i);
 assert.match(prompt, /never the reverse/i);
 assert.match(prompt, /tripod\.camera/);
+assert.match(prompt, /Every entity key MUST be unique/i);
+assert.match(prompt, /scan the complete entities array once for duplicate keys/i);
+assert.match(prompt, /final uniqueness check/i);
+assert.match(untrackedPrompt, /conservative, unique semantic keys/i);
+assert.match(untrackedPrompt, /role\/location qualifiers/i);
 assert.match(prompt, /Return JSON only/i);
 assert.match(prompt, /NEAR/);
 assert.match(prompt, /spaceId: "studio"/);
 
 console.log(
-  "PASS vision prompt: observation-only + tracked attributes + absence/uncertainty contract",
+  "PASS vision prompt: observation-only + tracked attributes + absence/uncertainty + stable unique entity keys",
 );
