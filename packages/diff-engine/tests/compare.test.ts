@@ -37,6 +37,83 @@ const uncertain: PhysicalState = {
 };
 assert(compareStates(demoReady, uncertain).some((diff) => diff.entity === "chair.main" && diff.type === "UNKNOWN"), "Low-confidence chair should be UNKNOWN.");
 
+// Vision-mode regression: a model returning another relation that can coexist with the
+// checkpoint relation must not manufacture a MOVED result. LEFT_OF does not prove NEAR is
+// false, so a missing NEAR becomes uncertainty rather than fake restoration guidance.
+const relationNoiseCheckpoint: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "vision-relation-noise",
+  capturedAt: "2026-09-17T12:00:00.000Z",
+  entities: [
+    { key: "cabinet.main", category: "cabinet", confidence: 0.99 },
+    { key: "backpack.main", category: "backpack", confidence: 0.98, relations: [{ type: "NEAR", target: "cabinet.main", confidence: 0.95 }] },
+  ],
+};
+const relationNoiseCurrent: PhysicalState = {
+  ...relationNoiseCheckpoint,
+  capturedAt: "2026-09-17T12:01:00.000Z",
+  entities: [
+    { key: "cabinet.main", category: "cabinet", confidence: 0.99 },
+    { key: "backpack.main", category: "backpack", confidence: 0.96, relations: [{ type: "LEFT_OF", target: "cabinet.main", confidence: 0.92 }] },
+  ],
+};
+const relationNoiseDiffs = compareStates(relationNoiseCheckpoint, relationNoiseCurrent, { evidenceMode: "vision" });
+assert(
+  relationNoiseDiffs.some(diff => diff.entity === "backpack.main" && diff.type === "UNKNOWN") &&
+  !relationNoiseDiffs.some(diff => diff.entity === "backpack.main" && diff.type === "MOVED"),
+  "Coexisting visual relation noise must not become a fake MOVED result.",
+);
+
+// If the expected relation is still explicitly re-observed, extra coexisting relations are
+// harmless and the tracked entity remains unchanged.
+const relationPreservedCurrent: PhysicalState = {
+  ...relationNoiseCheckpoint,
+  capturedAt: "2026-09-17T12:02:00.000Z",
+  entities: [
+    { key: "cabinet.main", category: "cabinet", confidence: 0.99 },
+    {
+      key: "backpack.main",
+      category: "backpack",
+      confidence: 0.97,
+      relations: [
+        { type: "NEAR", target: "cabinet.main", confidence: 0.95 },
+        { type: "LEFT_OF", target: "cabinet.main", confidence: 0.91 },
+      ],
+    },
+  ],
+};
+const relationPreservedDiffs = compareStates(relationNoiseCheckpoint, relationPreservedCurrent, { evidenceMode: "vision" });
+assert(
+  relationPreservedDiffs.some(diff => diff.entity === "backpack.main" && diff.type === "UNCHANGED"),
+  "Re-observed checkpoint relation must remain unchanged even when another true relation is also present.",
+);
+
+// Explicit physical contradictions still produce a real movement in vision mode.
+const supportCheckpoint: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "vision-support-change",
+  capturedAt: "2026-09-17T12:03:00.000Z",
+  entities: [
+    { key: "nightstand.main", category: "nightstand", confidence: 0.99 },
+    { key: "desk.main", category: "desk", confidence: 0.99 },
+    { key: "candle.main", category: "candle", confidence: 0.98, relations: [{ type: "ON", target: "nightstand.main", confidence: 0.96 }] },
+  ],
+};
+const supportCurrent: PhysicalState = {
+  ...supportCheckpoint,
+  capturedAt: "2026-09-17T12:04:00.000Z",
+  entities: [
+    { key: "nightstand.main", category: "nightstand", confidence: 0.99 },
+    { key: "desk.main", category: "desk", confidence: 0.99 },
+    { key: "candle.main", category: "candle", confidence: 0.97, relations: [{ type: "ON", target: "desk.main", confidence: 0.95 }] },
+  ],
+};
+assert(
+  compareStates(supportCheckpoint, supportCurrent, { evidenceMode: "vision" })
+    .some(diff => diff.entity === "candle.main" && diff.type === "MOVED"),
+  "ON relation changing to another support must still be a confirmed MOVED result.",
+);
+
 const appearanceCheckpoint: PhysicalState = {
   schemaVersion: "0.1",
   spaceId: "appearance-test",
@@ -73,4 +150,4 @@ const birdFeederCurrent: PhysicalState = {
 const birdFeederDiffs = compareStates(birdFeederCheckpoint, birdFeederCurrent);
 assert(birdFeederDiffs.length === 1 && birdFeederDiffs[0]?.entity === "bird_feeder_1" && birdFeederDiffs[0]?.type === "UNCHANGED", "Bird motion must not create a restore action while the feeder remains tracked.");
 
-console.log("PASS diff-engine: six demo changes + ADDED + UNKNOWN + 100% restored + transient living-state noise ignored");
+console.log("PASS diff-engine: deterministic demo + conservative vision relations + confirmed support moves + transient noise ignored");
