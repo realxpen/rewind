@@ -1,6 +1,6 @@
 import { observationErrorMessage } from "./observation-error.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
 import type { VisionObservationRequest, VisionObservation } from "../../vision/src/contracts.js";
 import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
@@ -50,11 +50,15 @@ interface RewindSession {
   touched: number;
 }
 
+type ObservationBasis = "controlled-demo" | "nova-open" | "nova-tracked" | "exact-image";
+
 interface StoredObservation {
   spaceId: string;
   state: VisionObservation["state"];
   modelId?: string;
   latencyMs?: number;
+  sourceImageHash?: string;
+  basis?: ObservationBasis;
   receivedAt: number;
 }
 
@@ -94,6 +98,9 @@ function validOpaqueId(value: unknown): value is string {
 function validControlledDemoScenario(value: unknown): value is ControlledDemoScenario {
   return typeof value === "string" && Object.hasOwn(controlledDemoStates, value);
 }
+function hashImage(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 function createControlledDemoObservation(scenario: ControlledDemoScenario, spaceId: string): VisionObservation {
   const state = structuredClone(controlledDemoStates[scenario]);
   state.spaceId = spaceId;
@@ -102,6 +109,16 @@ function createControlledDemoObservation(scenario: ControlledDemoScenario, space
     state,
     rawText: `controlled-demo:${scenario}`,
     modelId: "rewind-controlled-demo",
+    latencyMs: 0,
+  };
+}
+function createExactImageObservation(checkpoint: Checkpoint, capturedAt: string): VisionObservation {
+  const state = structuredClone(checkpoint.state);
+  state.capturedAt = capturedAt;
+  return {
+    state,
+    rawText: "exact-image-fingerprint-match",
+    modelId: "rewind-exact-image-match",
     latencyMs: 0,
   };
 }
@@ -116,10 +133,11 @@ function trackedEntitiesFromCheckpoint(checkpoint: Checkpoint): NonNullable<Visi
     const hint: NonNullable<VisionObservationRequest["context"]["trackedEntities"]>[number] = {
       key: entity.key,
       category: entity.category,
+      description: `This is the checkpoint identity ${entity.key}. Match the corresponding visible ${entity.category} to this exact key; never replace, split, or rename it.`,
     };
     if (entity.attributes && Object.keys(entity.attributes).length > 0) {
       hint.observableAttributes = Object.fromEntries(
-        Object.keys(entity.attributes).map(attribute => [attribute, `Observe the current visible value for \"${attribute}\" on this tracked entity.`]),
+        Object.keys(entity.attributes).map(attribute => [attribute, `Observe only the current visible value for \"${attribute}\" on this tracked entity. Omit it if the image does not support a value.`]),
       );
     }
     return hint;
@@ -143,7 +161,12 @@ export function createPreviewServer(
     await services.stop(active.url);
     active = undefined;
   }
-  function rememberObservation(spaceId: string, result: VisionObservation) {
+  function rememberObservation(
+    spaceId: string,
+    result: VisionObservation,
+    sourceImageHash?: string,
+    basis?: ObservationBasis,
+  ) {
     const id = randomUUID();
     const row: StoredObservation = {
       spaceId,
@@ -152,6 +175,8 @@ export function createPreviewServer(
     };
     if (result.modelId !== undefined) row.modelId = result.modelId;
     if (result.latencyMs !== undefined) row.latencyMs = result.latencyMs;
+    if (sourceImageHash !== undefined) row.sourceImageHash = sourceImageHash;
+    if (basis !== undefined) row.basis = basis;
     observations.set(id, row);
     while (observations.size > 20) {
       const oldest = observations.keys().next().value as string | undefined;
@@ -176,19 +201,18 @@ export function createPreviewServer(
     }
     return session;
   }
-  async function trackedEntitiesForCheckpoint(spaceId: string, checkpointId: string) {
+  async function checkpointForId(spaceId: string, checkpointId: string) {
     if (!services.getCheckpoint) return undefined;
     const checkpoint = await services.getCheckpoint(spaceId, checkpointId);
     if (!checkpoint) throw new InputError("Checkpoint not found.");
-    return trackedEntitiesFromCheckpoint(checkpoint);
+    return checkpoint;
   }
-  async function trackedEntitiesForActiveRewind(spaceId: string) {
-    if (!services.getCheckpoint) return undefined;
+  async function checkpointForActiveRewind(spaceId: string) {
     const session = [...rewindSessions.values()]
       .filter(candidate => candidate.spaceId === spaceId)
       .sort((left, right) => right.touched - left.touched)[0];
     if (!session) return undefined;
-    return trackedEntitiesForCheckpoint(spaceId, session.checkpointId);
+    return checkpointForId(spaceId, session.checkpointId);
   }
 
   const server = createServer(async (req, res) => {
@@ -253,7 +277,7 @@ export function createPreviewServer(
           throw new InputError("Choose a valid controlled demo scenario and space.");
         }
         const result = createControlledDemoObservation(data.scenario, data.spaceId);
-        const observationId = rememberObservation(data.spaceId, result);
+        const observationId = rememberObservation(data.spaceId, result, undefined, "controlled-demo");
         send(res, 200, {
           observationId,
           state: result.state,
@@ -261,6 +285,7 @@ export function createPreviewServer(
           latencyMs: result.latencyMs,
           source: "controlled-demo",
           scenario: data.scenario,
+          observationBasis: "controlled-demo",
         });
         return;
       }
@@ -279,14 +304,32 @@ export function createPreviewServer(
         }
         observing = true;
         try {
-          const trackedEntities = validOpaqueId(data.checkpointId)
-            ? await trackedEntitiesForCheckpoint(data.spaceId, data.checkpointId)
-            : await trackedEntitiesForActiveRewind(data.spaceId);
-          const context: VisionObservationRequest["context"] = { spaceId: data.spaceId, capturedAt: data.capturedAt };
-          if (trackedEntities?.length) context.trackedEntities = trackedEntities;
-          const result = await services.observe({ imageBytes: bytes, format: "jpeg", context });
-          const observationId = rememberObservation(data.spaceId, result);
-          send(res, 200, { observationId, state: result.state, modelId: result.modelId, latencyMs: result.latencyMs });
+          const sourceImageHash = hashImage(bytes);
+          const checkpoint = validOpaqueId(data.checkpointId)
+            ? await checkpointForId(data.spaceId, data.checkpointId)
+            : await checkpointForActiveRewind(data.spaceId);
+          const exactImageMatch = Boolean(checkpoint?.sourceImageHash && checkpoint.sourceImageHash === sourceImageHash);
+          const basis: ObservationBasis = exactImageMatch ? "exact-image" : checkpoint ? "nova-tracked" : "nova-open";
+          const result = exactImageMatch && checkpoint
+            ? createExactImageObservation(checkpoint, data.capturedAt)
+            : await services.observe({
+                imageBytes: bytes,
+                format: "jpeg",
+                context: {
+                  spaceId: data.spaceId,
+                  capturedAt: data.capturedAt,
+                  ...(checkpoint ? { trackedEntities: trackedEntitiesFromCheckpoint(checkpoint) } : {}),
+                },
+              });
+          const observationId = rememberObservation(data.spaceId, result, sourceImageHash, basis);
+          send(res, 200, {
+            observationId,
+            state: result.state,
+            modelId: result.modelId,
+            latencyMs: result.latencyMs,
+            observationBasis: basis,
+            exactImageMatch,
+          });
         } finally { observing = false; }
         return;
       }
@@ -329,6 +372,7 @@ export function createPreviewServer(
           name: data.name,
           observationId: data.observationId,
           state: observation.state,
+          ...(observation.sourceImageHash ? { sourceImageHash: observation.sourceImageHash } : {}),
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
       }
@@ -367,6 +411,8 @@ export function createPreviewServer(
           progress,
           changeCount: changes.length,
           changes,
+          observationBasis: observation.basis,
+          exactImageMatch: observation.basis === "exact-image",
         });
         return;
       }
@@ -388,6 +434,8 @@ export function createPreviewServer(
             match,
             changeCount: changes.length,
             changes,
+            observationBasis: observation.basis,
+            exactImageMatch: observation.basis === "exact-image",
           });
           return;
         }
@@ -404,6 +452,8 @@ export function createPreviewServer(
           state,
           match,
           plan,
+          observationBasis: observation.basis,
+          exactImageMatch: observation.basis === "exact-image",
         });
         return;
       }
