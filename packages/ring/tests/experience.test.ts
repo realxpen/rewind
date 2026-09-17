@@ -88,8 +88,8 @@ assert.match(verify, /Live Ring is real camera evidence/);
 
 // Everyday photo mode is a real observation source, not a fake fixture path.
 assert.match(consumer, /Phase 12 everyday photo flow\. Reuses the same Nova → PSP → deterministic REWIND services\./);
+assert.match(consumer, /section\.id = 'consumerPhotoFlow'/);
 for (const id of [
-  "consumerPhotoFlow",
   "consumerSpaceName",
   "consumerStateName",
   "consumerSavedState",
