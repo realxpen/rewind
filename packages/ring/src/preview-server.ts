@@ -140,8 +140,20 @@ function trackedEntitiesFromCheckpoint(checkpoint: Checkpoint): NonNullable<Visi
         Object.keys(entity.attributes).map(attribute => [attribute, `Observe only the current visible value for \"${attribute}\" on this tracked entity. Omit it if the image does not support a value.`]),
       );
     }
+    if (entity.relations?.length) {
+      hint.observableRelations = entity.relations.map(relation => ({
+        type: relation.type,
+        ...(relation.target ? { target: relation.target } : {}),
+        description: relation.target
+          ? `Re-check whether ${entity.key} is still ${relation.type} ${relation.target}. If visibly true, emit this exact relation. If uncertain, omit it. If clearly false, report only visually clear contradictory current evidence.`
+          : `Re-check whether ${entity.key} is still in checkpoint state ${relation.type}. If visibly true, emit this exact relation; otherwise omit or report only a clear contradiction.`,
+      }));
+    }
     return hint;
   });
+}
+function comparisonEvidenceMode(observation: StoredObservation): "strict" | "vision" {
+  return observation.basis === "controlled-demo" ? "strict" : "vision";
 }
 
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
@@ -389,7 +401,7 @@ export function createPreviewServer(
         }
         const checkpoint = await services.getCheckpoint(session.spaceId, session.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state);
+        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const progress = updateRestoreProgress(session.plan, diffs);
         const blockedUnknowns = diffs.filter(diff => diff.type === "UNKNOWN").map(diff => diff.entity);
@@ -425,7 +437,7 @@ export function createPreviewServer(
         if (!observation || observation.spaceId !== data.spaceId) throw new InputError("Observe this space again before comparing it.");
         const checkpoint = await services.getCheckpoint(data.spaceId, data.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state);
+        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
         if (path === "/api/diff") {
