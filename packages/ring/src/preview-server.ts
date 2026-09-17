@@ -111,6 +111,20 @@ function safeAgentError(error: unknown): string {
   }
   return "REWIND agent request failed. Check AWS credentials, AgentCore Memory, and Bedrock access, then retry.";
 }
+function trackedEntitiesFromCheckpoint(checkpoint: Checkpoint): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
+  return checkpoint.state.entities.map(entity => {
+    const hint: NonNullable<VisionObservationRequest["context"]["trackedEntities"]>[number] = {
+      key: entity.key,
+      category: entity.category,
+    };
+    if (entity.attributes && Object.keys(entity.attributes).length > 0) {
+      hint.observableAttributes = Object.fromEntries(
+        Object.keys(entity.attributes).map(attribute => [attribute, `Observe the current visible value for \"${attribute}\" on this tracked entity.`]),
+      );
+    }
+    return hint;
+  });
+}
 
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
 export function createPreviewServer(
@@ -161,6 +175,15 @@ export function createPreviewServer(
       rewindSessions.delete(oldest);
     }
     return session;
+  }
+  async function trackedEntitiesForActiveRewind(spaceId: string) {
+    if (!services.getCheckpoint) return undefined;
+    const session = [...rewindSessions.values()]
+      .filter(candidate => candidate.spaceId === spaceId)
+      .sort((left, right) => right.touched - left.touched)[0];
+    if (!session) return undefined;
+    const checkpoint = await services.getCheckpoint(spaceId, session.checkpointId);
+    return checkpoint ? trackedEntitiesFromCheckpoint(checkpoint) : undefined;
   }
 
   const server = createServer(async (req, res) => {
@@ -248,7 +271,10 @@ export function createPreviewServer(
         }
         observing = true;
         try {
-          const result = await services.observe({ imageBytes: bytes, format: "jpeg", context: { spaceId: data.spaceId, capturedAt: data.capturedAt } });
+          const trackedEntities = await trackedEntitiesForActiveRewind(data.spaceId);
+          const context: VisionObservationRequest["context"] = { spaceId: data.spaceId, capturedAt: data.capturedAt };
+          if (trackedEntities?.length) context.trackedEntities = trackedEntities;
+          const result = await services.observe({ imageBytes: bytes, format: "jpeg", context });
           const observationId = rememberObservation(data.spaceId, result);
           send(res, 200, { observationId, state: result.state, modelId: result.modelId, latencyMs: result.latencyMs });
         } finally { observing = false; }
