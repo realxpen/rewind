@@ -131,7 +131,10 @@ assert(
   "Vision omission must be UNKNOWN, never a confirmed REMOVED restoration action.",
 );
 assert(omittedVisionMatch.percentage === 100, "Uncertain omission must not reduce match percentage for comparable evidence.");
-assert(omittedVisionMatch.coveragePercentage < 100, "Uncertain omission must reduce evidence coverage instead.");
+assert(
+  omittedVisionMatch.coveragePercentage !== undefined && omittedVisionMatch.coveragePercentage < 100,
+  "Uncertain omission must reduce evidence coverage instead.",
+);
 assert(!omittedVisionMatch.restored, "Uncertain omission must prevent an unsupported exact-restored declaration.");
 assert(
   compareStates(supportCheckpoint, omittedVisionCurrent, { evidenceMode: "strict" })
