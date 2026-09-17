@@ -176,14 +176,19 @@ export function createPreviewServer(
     }
     return session;
   }
+  async function trackedEntitiesForCheckpoint(spaceId: string, checkpointId: string) {
+    if (!services.getCheckpoint) return undefined;
+    const checkpoint = await services.getCheckpoint(spaceId, checkpointId);
+    if (!checkpoint) throw new InputError("Checkpoint not found.");
+    return trackedEntitiesFromCheckpoint(checkpoint);
+  }
   async function trackedEntitiesForActiveRewind(spaceId: string) {
     if (!services.getCheckpoint) return undefined;
     const session = [...rewindSessions.values()]
       .filter(candidate => candidate.spaceId === spaceId)
       .sort((left, right) => right.touched - left.touched)[0];
     if (!session) return undefined;
-    const checkpoint = await services.getCheckpoint(spaceId, session.checkpointId);
-    return checkpoint ? trackedEntitiesFromCheckpoint(checkpoint) : undefined;
+    return trackedEntitiesForCheckpoint(spaceId, session.checkpointId);
   }
 
   const server = createServer(async (req, res) => {
@@ -265,13 +270,18 @@ export function createPreviewServer(
             !validSpaceId(data.spaceId) || typeof data.capturedAt !== "string" || !Number.isFinite(Date.parse(data.capturedAt))) {
           throw new InputError("A captured JPEG, space name, and capture time are required.");
         }
+        if (data.checkpointId !== undefined && !validOpaqueId(data.checkpointId)) {
+          throw new InputError("Choose a valid saved state before analyzing this photo.");
+        }
         const bytes = Buffer.from(data.image, "base64");
         if (bytes.length < 4 || bytes.length > 3_500_000 || bytes[0] !== 255 || bytes[1] !== 216 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) {
           throw new InputError("Capture a JPEG frame under 3.5 MB.");
         }
         observing = true;
         try {
-          const trackedEntities = await trackedEntitiesForActiveRewind(data.spaceId);
+          const trackedEntities = validOpaqueId(data.checkpointId)
+            ? await trackedEntitiesForCheckpoint(data.spaceId, data.checkpointId)
+            : await trackedEntitiesForActiveRewind(data.spaceId);
           const context: VisionObservationRequest["context"] = { spaceId: data.spaceId, capturedAt: data.capturedAt };
           if (trackedEntities?.length) context.trackedEntities = trackedEntities;
           const result = await services.observe({ imageBytes: bytes, format: "jpeg", context });
