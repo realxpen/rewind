@@ -13,7 +13,8 @@ Hard rules:
 - Never infer invisible objects.
 - Never invent object identity to make the expected answer look complete.
 - Prefer semantic relations over pixel coordinates.
-- Return exactly one JSON object and no Markdown, prose, or code fences.
+- Return exactly one COMPLETE JSON object and no Markdown, prose, or code fences.
+- Keep the JSON concise. Do not spend output on decorative detail that is not useful for restoration.
 - Attribute values must be primitive JSON values: string, number, boolean, or null.
 - Every entity key in the returned document MUST be unique.
 - When more than one visible object shares a category, distinguish each untracked object with a stable semantic role/location key such as "lamp.bedside", "lamp.desk", "plant.window", or "plant.desk". Never reuse the same key for two objects.
@@ -24,12 +25,14 @@ Hard rules:
 - If presence or identity is genuinely uncertain because of ambiguity, occlusion, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes.
 - Never use low confidence merely because a visible object's state differs from an expected checkpoint. You are observing the current image only.
 - For untracked extra objects, only add an entity when it is visually clear and useful to the physical-state task.
+- If no tracked vocabulary is supplied, return at most 20 entities. Prioritize movable/restorable objects and stable room anchors needed for relations.
+- If tracked vocabulary is supplied, prioritize those tracked entities and add no more than 6 clearly useful untracked extras.
 - Confidence must be between 0 and 1.
 - Never identify or name people.`;
 
 function trackedVocabulary(context: ObservationContext): string {
   if (!context.trackedEntities || context.trackedEntities.length === 0) {
-    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
+    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. Return at most 20 entities total, prioritizing movable/restorable objects and stable anchors. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
   }
 
   return context.trackedEntities
@@ -73,6 +76,13 @@ Entity identity rules:
 - For untracked repeated objects, create distinct role/location-based keys that are likely to remain stable across later photos. Examples: "lamp.bedside" versus "lamp.desk", "plant.window" versus "plant.desk".
 - Before returning JSON, scan the complete entities array once for duplicate keys. If any duplicate exists, rename only the untracked duplicate using a visible semantic qualifier.
 
+Output-size rules:
+- Return one complete, parseable JSON object; never stop mid-object or mid-array.
+- Keep each entity concise: key, category, confidence, only useful primitive attributes, and only useful relations.
+- With no tracked vocabulary, include at most 20 entities total.
+- With tracked vocabulary, prioritize tracked entities and include at most 6 additional untracked entities.
+- Prefer omission of minor decorative objects over risking an incomplete JSON response.
+
 Observable attribute rules:
 - For tracked entities that define observable attributes, explicitly inspect every listed attribute.
 - Use the exact supplied attribute key.
@@ -115,5 +125,6 @@ Observation guidance:
 9. For ON, UNDER, INSIDE, BEHIND, LEFT_OF, RIGHT_OF, IN_FRONT_OF, NEAR, and ATTACHED_TO, always make the entity owning the relation the subject and target the referenced object.
 10. Do not create inverse relations merely because two objects are visible near each other.
 11. Perform a final uniqueness check over all entity keys before responding.
-12. Return JSON only.`;
+12. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
+13. Return JSON only.`;
 }
