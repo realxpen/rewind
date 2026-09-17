@@ -114,6 +114,34 @@ assert(
   "ON relation changing to another support must still be a confirmed MOVED result.",
 );
 
+// A checkpoint entity that a later vision pass simply fails to emit must never become a
+// deterministic REMOVED action. This protects against over-segmentation/misclassification in
+// the saved image (for example, a lamp base interpreted as a candle). Strict semantic sources
+// retain deterministic removal behavior.
+const omittedVisionCurrent: PhysicalState = {
+  ...supportCheckpoint,
+  capturedAt: "2026-09-17T12:05:00.000Z",
+  entities: supportCheckpoint.entities.filter(entity => entity.key !== "candle.main"),
+};
+const omittedVisionDiffs = compareStates(supportCheckpoint, omittedVisionCurrent, { evidenceMode: "vision" });
+const omittedVisionMatch = calculateMatch(omittedVisionDiffs);
+assert(
+  omittedVisionDiffs.some(diff => diff.entity === "candle.main" && diff.type === "UNKNOWN") &&
+  !omittedVisionDiffs.some(diff => diff.entity === "candle.main" && diff.type === "REMOVED"),
+  "Vision omission must be UNKNOWN, never a confirmed REMOVED restoration action.",
+);
+assert(omittedVisionMatch.percentage === 100, "Uncertain omission must not reduce match percentage for comparable evidence.");
+assert(
+  omittedVisionMatch.coveragePercentage !== undefined && omittedVisionMatch.coveragePercentage < 100,
+  "Uncertain omission must reduce evidence coverage instead.",
+);
+assert(!omittedVisionMatch.restored, "Uncertain omission must prevent an unsupported exact-restored declaration.");
+assert(
+  compareStates(supportCheckpoint, omittedVisionCurrent, { evidenceMode: "strict" })
+    .some(diff => diff.entity === "candle.main" && diff.type === "REMOVED"),
+  "Strict deterministic semantic sources must still detect real removals.",
+);
+
 const appearanceCheckpoint: PhysicalState = {
   schemaVersion: "0.1",
   spaceId: "appearance-test",
@@ -150,4 +178,4 @@ const birdFeederCurrent: PhysicalState = {
 const birdFeederDiffs = compareStates(birdFeederCheckpoint, birdFeederCurrent);
 assert(birdFeederDiffs.length === 1 && birdFeederDiffs[0]?.entity === "bird_feeder_1" && birdFeederDiffs[0]?.type === "UNCHANGED", "Bird motion must not create a restore action while the feeder remains tracked.");
 
-console.log("PASS diff-engine: deterministic demo + conservative vision relations + confirmed support moves + transient noise ignored");
+console.log("PASS diff-engine: deterministic demo + conservative vision relations/removals + confirmed support moves + transient noise ignored");

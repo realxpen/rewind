@@ -55,7 +55,7 @@ export interface CompareStatesOptions {
   /**
    * strict: deterministic fixtures/known semantic states; any replacement relation can be
    * treated as contradictory. vision: current state came from perception, so coexisting or
-   * omitted relations must not become fake physical moves.
+   * omitted relations must not become fake physical moves/removals.
    */
   evidenceMode?: ComparisonEvidenceMode;
 }
@@ -237,14 +237,33 @@ export function compareStates(
     }
 
     if (expected && !actual) {
-      diffs.push({
-        type: expected.confidence < UNKNOWN_CONFIDENCE ? "UNKNOWN" : "REMOVED",
-        entity: key,
-        category: expected.category,
-        expected: { entity: expected },
-        confidence: expected.confidence,
-        reason: expected.confidence < UNKNOWN_CONFIDENCE ? "Checkpoint entity confidence is below the trusted threshold." : "The tracked checkpoint entity is absent from the current observation.",
-      });
+      // A vision model failing to emit an entity is not proof that the physical object was
+      // removed. This is especially important for small/ambiguous checkpoint entities that
+      // may have been over-segmented or misclassified in the original image (for example a
+      // lamp base interpreted as a candle). Only strict semantic sources may turn omission
+      // into a deterministic REMOVED change.
+      if (evidenceMode === "vision") {
+        diffs.push({
+          type: "UNKNOWN",
+          entity: key,
+          category: expected.category,
+          expected: { entity: expected },
+          actual: {},
+          confidence: expected.confidence,
+          reason: "Tracked checkpoint entity was not re-observed. Vision omission alone cannot prove that the physical object was removed.",
+        });
+      } else {
+        diffs.push({
+          type: expected.confidence < UNKNOWN_CONFIDENCE ? "UNKNOWN" : "REMOVED",
+          entity: key,
+          category: expected.category,
+          expected: { entity: expected },
+          confidence: expected.confidence,
+          reason: expected.confidence < UNKNOWN_CONFIDENCE
+            ? "Checkpoint entity confidence is below the trusted threshold."
+            : "The tracked checkpoint entity is absent from the current semantic state.",
+        });
+      }
       continue;
     }
 
