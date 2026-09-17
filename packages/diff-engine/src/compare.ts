@@ -12,6 +12,25 @@ const SPATIAL_RELATIONS = new Set<RelationType>([
   "ON", "UNDER", "INSIDE", "LEFT_OF", "RIGHT_OF", "BEHIND", "IN_FRONT_OF", "NEAR", "ATTACHED_TO",
 ]);
 
+const EXCLUSIVE_TARGET_RELATIONS = new Set<RelationType>([
+  "ON", "UNDER", "INSIDE", "ATTACHED_TO",
+]);
+
+const OPPOSITE_RELATIONS = new Map<RelationType, RelationType>([
+  ["LEFT_OF", "RIGHT_OF"],
+  ["RIGHT_OF", "LEFT_OF"],
+  ["BEHIND", "IN_FRONT_OF"],
+  ["IN_FRONT_OF", "BEHIND"],
+  ["ON", "UNDER"],
+  ["UNDER", "ON"],
+  ["OPEN", "CLOSED"],
+  ["CLOSED", "OPEN"],
+  ["ON_STATE", "OFF_STATE"],
+  ["OFF_STATE", "ON_STATE"],
+  ["CLEAR", "OCCUPIED"],
+  ["OCCUPIED", "CLEAR"],
+]);
+
 /**
  * Appearance/identity descriptors help perception identify an entity, but they are not
  * restoration state for the MVP. Nova can vary wording for these between observations.
@@ -29,6 +48,17 @@ const DESCRIPTIVE_ATTRIBUTES = new Set([
 ]);
 
 const UNKNOWN_CONFIDENCE = 0.6;
+const VISION_ADDED_CONFIDENCE = 0.85;
+
+export type ComparisonEvidenceMode = "strict" | "vision";
+export interface CompareStatesOptions {
+  /**
+   * strict: deterministic fixtures/known semantic states; any replacement relation can be
+   * treated as contradictory. vision: current state came from perception, so coexisting or
+   * omitted relations must not become fake physical moves.
+   */
+  evidenceMode?: ComparisonEvidenceMode;
+}
 
 function minConfidence(...values: Array<number | undefined>): number {
   const present = values.filter((value): value is number => typeof value === "number");
@@ -43,13 +73,48 @@ function sameRelation(left: PhysicalRelation, right: PhysicalRelation): boolean 
   return relationKey(left) === relationKey(right);
 }
 
-function comparableReplacement(expected: PhysicalRelation, actual: PhysicalRelation): boolean {
+function sameTarget(left: PhysicalRelation, right: PhysicalRelation): boolean {
+  return Boolean(left.target && right.target && left.target === right.target);
+}
+
+function visionContradiction(expected: PhysicalRelation, actual: PhysicalRelation): boolean {
   const expectedSpatial = SPATIAL_RELATIONS.has(expected.type);
   const actualSpatial = SPATIAL_RELATIONS.has(actual.type);
   if (expectedSpatial !== actualSpatial) return false;
-  // Any confidently observed replacement spatial relation is contradictory evidence that
-  // the entity's checkpoint placement changed. A total lack of current spatial evidence,
-  // by contrast, remains UNKNOWN rather than becoming a false MOVED result.
+
+  // Explicit directional/state opposites on the same target (or both targetless) are real
+  // contradictory evidence. Example LEFT_OF vs RIGHT_OF, OPEN vs CLOSED.
+  if (OPPOSITE_RELATIONS.get(expected.type) === actual.type) {
+    if (!expected.target && !actual.target) return true;
+    return sameTarget(expected, actual);
+  }
+
+  // Support/container/attachment relations are single-placement facts for this MVP.
+  // Seeing the same exclusive relation to another target is evidence of movement.
+  if (
+    expected.type === actual.type &&
+    EXCLUSIVE_TARGET_RELATIONS.has(expected.type) &&
+    expected.target && actual.target && expected.target !== actual.target
+  ) {
+    return true;
+  }
+
+  // NEAR and directional relations can coexist with many other true relations. A model
+  // returning LEFT_OF instead of NEAR, for example, does not prove NEAR became false.
+  return false;
+}
+
+function comparableReplacement(
+  expected: PhysicalRelation,
+  actual: PhysicalRelation,
+  evidenceMode: ComparisonEvidenceMode,
+): boolean {
+  const expectedSpatial = SPATIAL_RELATIONS.has(expected.type);
+  const actualSpatial = SPATIAL_RELATIONS.has(actual.type);
+  if (expectedSpatial !== actualSpatial) return false;
+  if (evidenceMode === "vision") return visionContradiction(expected, actual);
+  // Strict mode is reserved for deterministic semantic states/fixtures where omission noise
+  // is not present and a replacement relation really represents changed state.
   if (expectedSpatial) return actualSpatial;
   return expected.type === actual.type;
 }
@@ -61,12 +126,16 @@ interface RelationComparison {
 }
 
 /**
- * A missing relation by itself is not enough to claim physical movement because a vision
- * model can omit a relation it cannot confidently see. A movement requires contradictory
- * current spatial evidence. This keeps deterministic comparison conservative without
- * weakening confirmed changes.
+ * A missing relation by itself is not enough to claim physical movement in vision mode.
+ * Nova can omit a valid relation or emit another coexisting relation. A visual movement must
+ * therefore have genuinely contradictory current evidence. Strict mode preserves the
+ * deterministic fixture behavior used by the controlled demo.
  */
-function compareRelations(expected: PhysicalEntity, actual: PhysicalEntity): RelationComparison {
+function compareRelations(
+  expected: PhysicalEntity,
+  actual: PhysicalEntity,
+  evidenceMode: ComparisonEvidenceMode,
+): RelationComparison {
   const expectedRelations = expected.relations ?? [];
   const actualRelations = actual.relations ?? [];
   const usedActual = new Set<number>();
@@ -77,7 +146,7 @@ function compareRelations(expected: PhysicalEntity, actual: PhysicalEntity): Rel
   for (const expectedRelation of expectedRelations) {
     if (actualRelations.some(actualRelation => sameRelation(expectedRelation, actualRelation))) continue;
     const replacementIndex = actualRelations.findIndex((actualRelation, index) =>
-      !usedActual.has(index) && comparableReplacement(expectedRelation, actualRelation),
+      !usedActual.has(index) && comparableReplacement(expectedRelation, actualRelation, evidenceMode),
     );
     if (replacementIndex >= 0) {
       expectedChanged.push(expectedRelation);
@@ -131,9 +200,14 @@ function sameCategory(expected: PhysicalEntity, actual: PhysicalEntity): boolean
   return expected.category === actual.category;
 }
 
-export function compareStates(checkpointInput: PhysicalState | unknown, currentInput: PhysicalState | unknown): PhysicalDiff[] {
+export function compareStates(
+  checkpointInput: PhysicalState | unknown,
+  currentInput: PhysicalState | unknown,
+  options: CompareStatesOptions = {},
+): PhysicalDiff[] {
   const checkpoint = normalizeState(checkpointInput);
   const current = normalizeState(currentInput);
+  const evidenceMode = options.evidenceMode ?? "strict";
   if (checkpoint.spaceId !== current.spaceId) {
     throw new Error(`Cannot compare different spaces: ${checkpoint.spaceId} vs ${current.spaceId}.`);
   }
@@ -148,13 +222,16 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
     const actual = actualByKey.get(key);
 
     if (!expected && actual) {
+      const threshold = evidenceMode === "vision" ? VISION_ADDED_CONFIDENCE : UNKNOWN_CONFIDENCE;
       diffs.push({
-        type: actual.confidence < UNKNOWN_CONFIDENCE ? "UNKNOWN" : "ADDED",
+        type: actual.confidence < threshold ? "UNKNOWN" : "ADDED",
         entity: key,
         category: actual.category,
         actual: { entity: actual },
         confidence: actual.confidence,
-        reason: actual.confidence < UNKNOWN_CONFIDENCE ? "Observed entity confidence is below the trusted threshold." : "A clearly observed extra entity exists in the current state but not the checkpoint.",
+        reason: actual.confidence < threshold
+          ? "Extra visual entity is not confident enough to become a restoration change."
+          : "A clearly observed extra entity exists in the current state but not the checkpoint.",
       });
       continue;
     }
@@ -187,7 +264,7 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
       continue;
     }
 
-    const relations = compareRelations(expected, actual);
+    const relations = compareRelations(expected, actual, evidenceMode);
     const attributes = compareAttributes(expected, actual);
     let emittedConfirmed = false;
 

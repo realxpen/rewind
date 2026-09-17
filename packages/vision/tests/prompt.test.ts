@@ -15,7 +15,17 @@ const prompt = buildNovaObservationPrompt({
         clear: "boolean describing whether the visible work surface is clear",
       },
     },
-    { key: "tripod.camera", category: "tripod" },
+    {
+      key: "tripod.camera",
+      category: "tripod",
+      observableRelations: [
+        {
+          type: "NEAR",
+          target: "cabinet.main",
+          description: "Re-check whether tripod.camera is still NEAR cabinet.main.",
+        },
+      ],
+    },
     {
       key: "lamp.left",
       category: "lamp",
@@ -23,6 +33,7 @@ const prompt = buildNovaObservationPrompt({
         powered: "boolean describing whether the lamp is visibly illuminated",
       },
     },
+    { key: "cabinet.main", category: "cabinet" },
   ],
 });
 
@@ -37,6 +48,9 @@ assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /below 0\.60/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Every entity key.*MUST be unique/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /identity contract/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Never split one tracked object/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /QUESTION TO RE-CHECK/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /explicitly inspect whether that exact relation is still visually true/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /emit the exact same relation type and target/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /lamp\.bedside/);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /plant\.desk/);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /at most 20 entities/i);
@@ -45,6 +59,10 @@ assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /COMPLETE JSON object/i);
 assert.match(prompt, /desk\.main/);
 assert.match(prompt, /attribute "clear"/i);
 assert.match(prompt, /attribute "powered"/i);
+assert.match(prompt, /checkpoint relation NEAR -> "cabinet\.main"/i);
+assert.match(prompt, /Re-check whether tripod\.camera is still NEAR cabinet\.main/i);
+assert.match(prompt, /Every supplied checkpoint relation must be explicitly re-evaluated/i);
+assert.match(prompt, /do not replace ON with NEAR/i);
 assert.match(prompt, /exact supplied attribute key/i);
 assert.match(prompt, /clearly absent/i);
 assert.match(prompt, /confidence below 0\.60/i);
@@ -67,5 +85,5 @@ assert.match(prompt, /NEAR/);
 assert.match(prompt, /spaceId: "studio"/);
 
 console.log(
-  "PASS vision prompt: observation-only + tracked attributes + stable identity contract + bounded complete JSON",
+  "PASS vision prompt: observation-only + tracked attributes + checkpoint relation rechecks + stable identity contract",
 );

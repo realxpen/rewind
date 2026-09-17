@@ -59,6 +59,13 @@ function assertTrackedCheckpointVocabulary(request: VisionObservationRequest | u
     if (saved.attributes && Object.keys(saved.attributes).length > 0) {
       assert.deepEqual(Object.keys(entity.observableAttributes ?? {}).sort(), Object.keys(saved.attributes).sort());
     }
+    if (saved.relations?.length) {
+      assert.deepEqual(
+        (entity.observableRelations ?? []).map(relation => [relation.type, relation.target ?? ""]),
+        saved.relations.map(relation => [relation.type, relation.target ?? ""]),
+        `Expected tracked checkpoint relations for ${saved.key}.`,
+      );
+    }
   }
 }
 
@@ -67,7 +74,7 @@ try {
 
   // The first consumer "Rewind a space" observation happens before a Rewind
   // session exists. The selected checkpoint ID must therefore anchor Nova's
-  // vocabulary before the initial deterministic compare.
+  // vocabulary and checkpoint relations before the initial deterministic compare.
   const initialObservedResponse = await post("observe", {
     image: frame,
     spaceId,
@@ -107,7 +114,7 @@ try {
   assert.equal(activeObservedResponse.status, 200);
   assertTrackedCheckpointVocabulary(observedRequest);
 
-  console.log("PASS Rewind observation identity anchor: selected and active checkpoint keys are supplied to Nova");
+  console.log("PASS Rewind observation identity anchor: selected and active checkpoint keys + relations are supplied to Nova");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();

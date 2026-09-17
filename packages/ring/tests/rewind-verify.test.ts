@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createPreviewServer } from "../src/preview-server.js";
-import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
-import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
+import { demoReady } from "../../physical-state-protocol/fixtures/studio.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 
 const checkpoint: Checkpoint = {
@@ -15,17 +14,11 @@ const checkpoint: Checkpoint = {
   createdAt: "2026-09-09T12:00:00.000Z",
 };
 
-let currentState: PhysicalState = messy;
 const preview = createPreviewServer({
   devices: async () => [],
   start: async () => { throw new Error("unused"); },
   stop: async () => {},
-  observe: async request => ({
-    state: { ...currentState, spaceId: request.context.spaceId, capturedAt: request.context.capturedAt },
-    rawText: "private",
-    modelId: "test-model",
-    latencyMs: 1,
-  }),
+  observe: async () => { throw new Error("Phase 6 deterministic fixture test must use controlled demo observation."); },
   getCheckpoint: async (spaceId, checkpointId) => spaceId === checkpoint.spaceId && checkpointId === checkpoint.id ? checkpoint : undefined,
 }, { html: "<!doctype html><title>REWIND</title>", js: "" });
 
@@ -39,18 +32,15 @@ const post = (path: string, data: unknown) => fetch(`${base}/api/${path}`, {
   headers: { Origin: base, "Content-Type": "application/json" },
   body: JSON.stringify(data),
 });
-async function observe(capturedAt: string) {
-  const response = await post("observe", {
-    image: Buffer.from([255, 216, 255, 217]).toString("base64"),
-    spaceId: "studio",
-    capturedAt,
-  });
+async function observeScenario(scenario: "messy" | "partial" | "restored") {
+  const response = await post("demo/observe", { scenario, spaceId: "studio" });
   assert.equal(response.status, 200);
-  return response.json() as Promise<{ observationId: string }>;
+  return response.json() as Promise<{ observationId: string; observationBasis: string }>;
 }
 
 try {
-  const first = await observe("2026-09-09T13:00:00.000Z");
+  const first = await observeScenario("messy");
+  assert.equal(first.observationBasis, "controlled-demo");
   const start = await post("rewind", {
     spaceId: "studio",
     observationId: first.observationId,
@@ -67,8 +57,7 @@ try {
   assert.equal(started.plan.actions.length, 6);
   assert(started.plan.actions.every(action => action.status === "PENDING"));
 
-  currentState = partial;
-  const second = await observe("2026-09-09T13:05:00.000Z");
+  const second = await observeScenario("partial");
   const progressResponse = await post("rewind/verify", {
     spaceId: "studio",
     observationId: second.observationId,
@@ -85,8 +74,7 @@ try {
   assert(progressed.progress.actions.some(action => action.status === "VERIFIED"));
   assert(progressed.progress.actions.some(action => action.status === "PENDING"));
 
-  currentState = restored;
-  const third = await observe("2026-09-09T13:10:00.000Z");
+  const third = await observeScenario("restored");
   const restoredResponse = await post("rewind/verify", {
     spaceId: "studio",
     observationId: third.observationId,
@@ -113,7 +101,7 @@ try {
   });
   assert.equal(missingSession.status, 404);
 
-  console.log("PASS Phase 6 REWIND verify: messy -> partial -> restored reaches deterministic 100% RESTORED");
+  console.log("PASS Phase 6 REWIND verify: controlled messy -> partial -> restored reaches deterministic 100% RESTORED");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();

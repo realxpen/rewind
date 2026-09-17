@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createPreviewServer } from "../src/preview-server.js";
-import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
+import { demoReady } from "../../physical-state-protocol/fixtures/studio.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 
 const checkpoint: Checkpoint = {
@@ -18,12 +18,7 @@ const preview = createPreviewServer({
   devices: async () => [],
   start: async () => { throw new Error("unused"); },
   stop: async () => {},
-  observe: async request => ({
-    state: { ...messy, spaceId: request.context.spaceId, capturedAt: request.context.capturedAt },
-    rawText: "private",
-    modelId: "test-model",
-    latencyMs: 1,
-  }),
+  observe: async () => { throw new Error("Phase 6 deterministic fixture test must use controlled demo observation."); },
   getCheckpoint: async (spaceId, checkpointId) => spaceId === checkpoint.spaceId && checkpointId === checkpoint.id ? checkpoint : undefined,
 }, { html: "<!doctype html><title>REWIND</title>", js: "" });
 
@@ -39,14 +34,10 @@ const post = (path: string, data: unknown) => fetch(`${base}/api/${path}`, {
 });
 
 try {
-  const frame = {
-    image: Buffer.from([255, 216, 255, 217]).toString("base64"),
-    spaceId: "studio",
-    capturedAt: "2026-09-09T13:00:00.000Z",
-  };
-  const observed = await post("observe", frame);
+  const observed = await post("demo/observe", { scenario: "messy", spaceId: "studio" });
   assert.equal(observed.status, 200);
-  const observation = await observed.json() as { observationId: string };
+  const observation = await observed.json() as { observationId: string; observationBasis: string };
+  assert.equal(observation.observationBasis, "controlled-demo");
 
   const response = await post("rewind", {
     spaceId: "studio",
@@ -81,7 +72,7 @@ try {
   });
   assert.equal(missing.status, 404);
 
-  console.log("PASS Phase 6 REWIND: changed scene -> deterministic human restoration plan with six pending actions");
+  console.log("PASS Phase 6 REWIND: controlled messy scene -> deterministic six-action restoration plan");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();
