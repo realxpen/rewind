@@ -84,6 +84,8 @@ async function main() {
   const assets = resolve("packages/ring/public");
   const previewJs = await readFile(resolve(assets, "preview.js"), "utf8");
   const mcpBridgeJs = await readFile(resolve(assets, "mcp-bridge.js"), "utf8");
+  const verifyJs = await readFile(resolve(assets, "verify.js"), "utf8");
+  const consumerJs = await readFile(resolve(assets, "consumer.js"), "utf8");
   const preview = createPreviewServer({
     devices: () => listRingDevices(client, config.devicesPath),
     start: (id, offer) => startWhepSession(client, id, offer),
@@ -108,7 +110,7 @@ async function main() {
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: `${previewJs}\n${mcpBridgeJs}`,
-    verifyJs: await readFile(resolve(assets, "verify.js"), "utf8"),
+    verifyJs: `${verifyJs}\n${consumerJs}`,
   });
 
   preview.server.on("error", () => {
