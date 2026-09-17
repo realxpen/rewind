@@ -47,9 +47,10 @@ function comparableReplacement(expected: PhysicalRelation, actual: PhysicalRelat
   const expectedSpatial = SPATIAL_RELATIONS.has(expected.type);
   const actualSpatial = SPATIAL_RELATIONS.has(actual.type);
   if (expectedSpatial !== actualSpatial) return false;
-  if (expectedSpatial) {
-    return expected.type === actual.type || Boolean(expected.target && expected.target === actual.target);
-  }
+  // Any confidently observed replacement spatial relation is contradictory evidence that
+  // the entity's checkpoint placement changed. A total lack of current spatial evidence,
+  // by contrast, remains UNKNOWN rather than becoming a false MOVED result.
+  if (expectedSpatial) return actualSpatial;
   return expected.type === actual.type;
 }
 
@@ -62,8 +63,7 @@ interface RelationComparison {
 /**
  * A missing relation by itself is not enough to claim physical movement because a vision
  * model can omit a relation it cannot confidently see. A movement requires contradictory
- * current evidence: the same relation type points somewhere else, or the same target has a
- * different spatial relation. This keeps deterministic comparison conservative without
+ * current spatial evidence. This keeps deterministic comparison conservative without
  * weakening confirmed changes.
  */
 function compareRelations(expected: PhysicalEntity, actual: PhysicalEntity): RelationComparison {
