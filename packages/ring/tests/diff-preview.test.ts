@@ -66,14 +66,14 @@ try {
   assert.equal(result.changeCount, 6);
   assert.equal(result.match.restored, false);
   assert(result.match.percentage < 100);
-  assert.equal(result.match.unknown, 2, "Ambiguous spatial replacements from vision must remain uncertain instead of becoming fake moves.");
+  assert.equal(result.match.unknown, 3, "Ambiguous relations and omitted vision entities must remain uncertain instead of becoming fake moves/removals.");
   assert.deepEqual(result.changes.map(change => `${change.entity}:${change.type}`).sort(), [
     "backpack.black:UNKNOWN",
     "chair.main:UNKNOWN",
     "desk.main:ATTRIBUTE_CHANGED",
     "headphones.main:MOVED",
     "lamp.left:ATTRIBUTE_CHANGED",
-    "tripod.camera:REMOVED",
+    "tripod.camera:UNKNOWN",
   ].sort());
 
   const missing = await post("diff", {
