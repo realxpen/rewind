@@ -26,11 +26,12 @@ export interface MatchResult {
   /** Confirmed changed entities plus uncertain entities. */
   unresolved: number;
   unknown: number;
-  confirmedChanges: number;
+  /** Added by the reliability scorer; optional for legacy fixtures/callers. */
+  confirmedChanges?: number;
   /** Unique semantic entities considered, not raw diff rows. */
   total: number;
-  /** Percentage of entities that were confidently comparable. */
-  coveragePercentage: number;
+  /** Added by the reliability scorer; optional for legacy fixtures/callers. */
+  coveragePercentage?: number;
   /** True only when every entity is confidently resolved and unchanged. */
   restored: boolean;
 }
