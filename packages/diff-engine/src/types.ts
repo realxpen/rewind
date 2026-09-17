@@ -20,10 +20,17 @@ export interface PhysicalDiff {
 }
 
 export interface MatchResult {
+  /** Percentage of confidently comparable entities that match the checkpoint. */
   percentage: number;
   matched: number;
+  /** Confirmed changed entities plus uncertain entities. */
   unresolved: number;
   unknown: number;
+  confirmedChanges: number;
+  /** Unique semantic entities considered, not raw diff rows. */
   total: number;
+  /** Percentage of entities that were confidently comparable. */
+  coveragePercentage: number;
+  /** True only when every entity is confidently resolved and unchanged. */
   restored: boolean;
 }
