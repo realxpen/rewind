@@ -7,6 +7,12 @@ export interface Checkpoint {
   observationId: string;
   state: PhysicalState;
   stateHash: string;
+  /**
+   * SHA-256 of the normalized JPEG used to create this checkpoint.
+   * This is non-reversible evidence that allows REWIND to prove an exact
+   * re-upload without retaining the photo itself.
+   */
+  sourceImageHash?: string;
   createdAt: string;
 }
 
@@ -15,6 +21,7 @@ export interface SaveCheckpointInput {
   name: string;
   observationId: string;
   state: PhysicalState;
+  sourceImageHash?: string;
 }
 
 export interface CheckpointSummary {
@@ -25,6 +32,7 @@ export interface CheckpointSummary {
   stateHash: string;
   createdAt: string;
   entityCount: number;
+  exactImageVerificationAvailable: boolean;
 }
 
 export interface CheckpointStore {
