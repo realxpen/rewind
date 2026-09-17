@@ -31,7 +31,7 @@ export function buildNovaConverseInput(
       },
     ],
     inferenceConfig: {
-      maxTokens: 2400,
+      maxTokens: 3200,
       temperature: 0,
       topP: 0.1,
     },
