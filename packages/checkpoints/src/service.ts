@@ -13,6 +13,10 @@ function assertCheckpointName(value: string) {
   }
 }
 
+function assertImageHash(value: string) {
+  if (!/^[a-f0-9]{64}$/.test(value)) throw new Error("Source image hash is invalid.");
+}
+
 export function hashPhysicalState(state: SaveCheckpointInput["state"]): string {
   return createHash("sha256").update(JSON.stringify(state)).digest("hex");
 }
@@ -22,6 +26,7 @@ export function buildCheckpoint(input: SaveCheckpointInput, now = new Date()): C
   assertCheckpointName(input.name.trim());
   if (!input.observationId || input.observationId.length > 120) throw new Error("Observation ID is invalid.");
   if (input.state.spaceId !== input.spaceId) throw new Error("Observation does not belong to this space.");
+  if (input.sourceImageHash !== undefined) assertImageHash(input.sourceImageHash);
 
   return {
     id: randomUUID(),
@@ -30,6 +35,7 @@ export function buildCheckpoint(input: SaveCheckpointInput, now = new Date()): C
     observationId: input.observationId,
     state: input.state,
     stateHash: hashPhysicalState(input.state),
+    ...(input.sourceImageHash ? { sourceImageHash: input.sourceImageHash } : {}),
     createdAt: now.toISOString(),
   };
 }
@@ -43,6 +49,7 @@ export function summarizeCheckpoint(checkpoint: Checkpoint): CheckpointSummary {
     stateHash: checkpoint.stateHash,
     createdAt: checkpoint.createdAt,
     entityCount: checkpoint.state.entities.length,
+    exactImageVerificationAvailable: Boolean(checkpoint.sourceImageHash),
   };
 }
 
