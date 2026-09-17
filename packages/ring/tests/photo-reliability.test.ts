@@ -17,7 +17,7 @@ const referenceState: PhysicalState = {
       key: "chair.main",
       category: "chair",
       confidence: 0.97,
-      relations: [{ type: "NEAR", target: "desk.main", confidence: 0.95 }],
+      relations: [{ type: "LEFT_OF", target: "desk.main", confidence: 0.95 }],
     },
   ],
 };
@@ -30,7 +30,7 @@ const changedState: PhysicalState = {
       key: "chair.main",
       category: "chair",
       confidence: 0.97,
-      relations: [{ type: "LEFT_OF", target: "desk.main", confidence: 0.95 }],
+      relations: [{ type: "RIGHT_OF", target: "desk.main", confidence: 0.95 }],
     },
   ],
 };
@@ -142,6 +142,11 @@ try {
     latestTrackedRequest?.context.trackedEntities?.map(entity => entity.key),
     referenceState.entities.map(entity => entity.key),
   );
+  assert.deepEqual(
+    latestTrackedRequest?.context.trackedEntities?.find(entity => entity.key === "chair.main")?.observableRelations?.map(relation => [relation.type, relation.target]),
+    [["LEFT_OF", "desk.main"]],
+    "Tracked photo comparison must ask Nova to explicitly re-check the checkpoint relation.",
+  );
 
   const changedDiff = await post("diff", {
     spaceId,
@@ -152,7 +157,7 @@ try {
   assert.equal(changedDiff.result.match.restored, false);
   assert(changedDiff.result.changes.some((change: { entity: string; type: string }) => change.entity === "chair.main" && change.type === "MOVED"));
 
-  console.log("PASS photo reliability: exact re-upload = deterministic 100%; changed photo = tracked Nova + real diff");
+  console.log("PASS photo reliability: exact re-upload = deterministic 100%; fresh tracked photo rechecks relations; explicit physical contradiction = real diff");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();
