@@ -86,7 +86,7 @@
     .consumer-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:16px 0 14px;border:1px solid var(--line);border-radius:13px;background:#0b1119}.consumer-mode{border:0;background:transparent;color:var(--muted);box-shadow:none}.consumer-mode.active{background:#17251f;color:var(--mint);border:1px solid rgba(140,244,199,.34)}
     .consumer-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end}.consumer-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.consumer-field{display:grid;gap:5px;color:var(--muted);font-size:10px}.consumer-field input,.consumer-field select{width:100%}.consumer-capture{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .consumer-preview{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#0a1018}.consumer-preview img{display:block;width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.consumer-preview-copy{align-self:center}.consumer-preview-copy strong{display:block;margin:4px 0}.consumer-preview-copy p{margin:0 0 9px;color:var(--muted);font-size:11px}.consumer-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .consumer-foot{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;color:var(--muted);font-size:10px}.consumer-foot .ghost{padding:7px 9px;font-size:10px}.consumer-demo-details{margin:0 0 12px}.consumer-demo-details>#demoToolbarMount{padding:0 10px 10px}.consumer-setup #focusCard{display:none}.consumer-photo-flow[data-busy="true"]{opacity:.78}.consumer-photo-flow[data-busy="true"] button{pointer-events:none}
+    .consumer-foot{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;color:var(--muted);font-size:10px}.consumer-foot .ghost{padding:7px 9px;font-size:10px}.consumer-demo-details{margin:0 0 12px}.consumer-demo-details>#demoToolbarMount{padding:0 10px 10px}.consumer-setup:not(.consumer-rewind-active) #focusCard{display:none}.consumer-photo-flow[data-busy="true"]{opacity:.78}.consumer-photo-flow[data-busy="true"] button{pointer-events:none}
     @media(max-width:760px){.consumer-grid{grid-template-columns:1fr}.consumer-fields{grid-template-columns:1fr}.consumer-capture{justify-content:stretch}.consumer-capture button{flex:1}.consumer-preview{grid-template-columns:1fr}.consumer-preview img{height:220px}.consumer-head{display:block}.consumer-head>.chip{margin-top:10px}.consumer-foot{align-items:flex-start;flex-direction:column}}
   `;
   document.head.append(style);
@@ -145,6 +145,10 @@
     analyzePhoto.disabled = !selectedFile;
   }
 
+  function syncConsumerRewindState() {
+    document.body.classList.toggle('consumer-rewind-active', Boolean(activeRewindSessionId));
+  }
+
   function selectPhoto(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -163,6 +167,7 @@
     clearObservation();
     flowStatus.textContent = 'Photo ready. Analyze it to extract physical state.';
     document.body.dataset.observationSource = 'photo';
+    syncConsumerRewindState();
     document.body.classList.add('consumer-setup');
   }
 
@@ -222,6 +227,7 @@
     mode = next;
     document.body.dataset.consumerIntent = next;
     document.body.dataset.observationSource = 'photo';
+    syncConsumerRewindState();
     document.body.classList.add('consumer-setup');
     section.querySelectorAll('[data-consumer-mode]').forEach(button => button.classList.toggle('active', button.dataset.consumerMode === next));
     stateNameField.hidden = next !== 'remember';
@@ -248,6 +254,7 @@
   spaceName.addEventListener('change', () => {
     syncSpace();
     clearObservation();
+    syncConsumerRewindState();
     void loadSavedStates();
   });
 
@@ -265,8 +272,10 @@
       consumerObservationId = observation.observationId;
       analyzePhoto.hidden = true;
       if (activeRewindSessionId) {
+        syncConsumerRewindState();
         photoStatus.textContent = 'Fresh state ready. Use Check Again in the REWIND card to verify your progress.';
         flowStatus.textContent = 'Fresh photo analyzed. Deterministic verification is ready.';
+        requestAnimationFrame(() => focusCard.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       } else if (mode === 'remember') {
         saveState.hidden = false;
         photoStatus.textContent = 'Semantic state ready. Save this as the reference you want REWIND to remember.';
@@ -316,6 +325,7 @@
       latestObservationId = consumerObservationId;
       await compareCheckpoint(savedState.value);
       document.body.classList.remove('consumer-setup');
+      document.body.classList.remove('consumer-rewind-active');
       focusCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       flowStatus.textContent = 'Comparison ready. Follow the REWIND card below.';
     } catch (error) {
@@ -327,19 +337,19 @@
 
   connectRing.addEventListener('click', () => {
     document.body.dataset.observationSource = 'ring';
-    document.body.classList.remove('consumer-setup');
+    document.body.classList.remove('consumer-setup', 'consumer-rewind-active');
     if (liveDetails) liveDetails.open = true;
     liveDetails?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   tryDemo.addEventListener('click', () => {
-    document.body.classList.remove('consumer-setup');
+    document.body.classList.remove('consumer-setup', 'consumer-rewind-active');
     demoDetails.open = true;
     demoDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   document.querySelectorAll('[data-source]').forEach(button => button.addEventListener('click', () => {
-    if (button.dataset.source !== 'ring') document.body.classList.remove('consumer-setup');
+    if (button.dataset.source !== 'ring') document.body.classList.remove('consumer-setup', 'consumer-rewind-active');
   }));
 
   if (advancedDetails) advancedDetails.open = false;
@@ -347,6 +357,7 @@
   demoDetails.open = false;
   document.body.dataset.observationSource = 'photo';
   document.body.dataset.consumerIntent = mode;
+  syncConsumerRewindState();
   document.body.classList.add('consumer-setup');
   syncSpace();
   void loadSavedStates();
