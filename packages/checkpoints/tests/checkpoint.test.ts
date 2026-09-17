@@ -17,18 +17,22 @@ const state = {
 };
 
 const service = new CheckpointService(new MemoryStore());
+const sourceImageHash = "a".repeat(64);
 const checkpoint = await service.save({
   spaceId: "studio",
   name: "Demo Ready",
   observationId: "obs-1",
   state,
+  sourceImageHash,
 });
 
 assert.equal(checkpoint.name, "Demo Ready");
 assert.equal(checkpoint.stateHash, hashPhysicalState(state));
+assert.equal(checkpoint.sourceImageHash, sourceImageHash);
 assert.equal((await service.list("studio")).length, 1);
 assert.equal((await service.get("studio", checkpoint.id))?.id, checkpoint.id);
 assert.equal(summarizeCheckpoint(checkpoint).entityCount, 1);
+assert.equal(summarizeCheckpoint(checkpoint).exactImageVerificationAvailable, true);
 
 const controlled = await service.save({
   spaceId: "studio",
@@ -37,8 +41,16 @@ const controlled = await service.save({
   state,
 });
 assert.equal(controlled.name, "Demo Ready (Controlled)");
+assert.equal(summarizeCheckpoint(controlled).exactImageVerificationAvailable, false);
 assert.equal((await service.list("studio")).length, 2);
 
 await assert.rejects(() => service.save({ ...checkpoint, name: "<>" }));
+await assert.rejects(() => service.save({
+  spaceId: "studio",
+  name: "Bad Fingerprint",
+  observationId: "obs-3",
+  state,
+  sourceImageHash: "not-a-sha256",
+}));
 
-console.log("PASS checkpoints: save + list + get + stable state hash + descriptive names");
+console.log("PASS checkpoints: save + list + get + state hash + optional photo fingerprint + descriptive names");

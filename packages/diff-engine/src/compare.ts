@@ -14,12 +14,7 @@ const SPATIAL_RELATIONS = new Set<RelationType>([
 
 /**
  * Appearance/identity descriptors help perception identify an entity, but they are not
- * restoration state for the MVP. Nova can vary wording for these between observations
- * (for example `red` vs `red_and_black`, or an unknown bird species becoming `cardinal`).
- * Treating that as a restore action would tell the user to physically alter identity,
- * appearance, or species, which is unsafe/nonsensical guidance.
- *
- * Mutable state attributes such as `powered` and `clear` remain comparable.
+ * restoration state for the MVP. Nova can vary wording for these between observations.
  */
 const DESCRIPTIVE_ATTRIBUTES = new Set([
   "color",
@@ -44,37 +39,92 @@ function relationKey(relation: PhysicalRelation): string {
   return `${relation.type}:${relation.target ?? ""}`;
 }
 
-function relationSet(entity: PhysicalEntity): Set<string> {
-  return new Set((entity.relations ?? []).map(relationKey));
+function sameRelation(left: PhysicalRelation, right: PhysicalRelation): boolean {
+  return relationKey(left) === relationKey(right);
 }
 
-function changedRelations(expected: PhysicalEntity, actual: PhysicalEntity): { expected: PhysicalRelation[]; actual: PhysicalRelation[] } {
-  const expectedSet = relationSet(expected);
-  const actualSet = relationSet(actual);
-  return {
-    expected: (expected.relations ?? []).filter((relation) => !actualSet.has(relationKey(relation))),
-    actual: (actual.relations ?? []).filter((relation) => !expectedSet.has(relationKey(relation))),
-  };
+function comparableReplacement(expected: PhysicalRelation, actual: PhysicalRelation): boolean {
+  const expectedSpatial = SPATIAL_RELATIONS.has(expected.type);
+  const actualSpatial = SPATIAL_RELATIONS.has(actual.type);
+  if (expectedSpatial !== actualSpatial) return false;
+  // Any confidently observed replacement spatial relation is contradictory evidence that
+  // the entity's checkpoint placement changed. A total lack of current spatial evidence,
+  // by contrast, remains UNKNOWN rather than becoming a false MOVED result.
+  if (expectedSpatial) return actualSpatial;
+  return expected.type === actual.type;
 }
 
-function changedAttributes(expected: PhysicalEntity, actual: PhysicalEntity): { expected: Record<string, AttributeValue>; actual: Record<string, AttributeValue> } {
-  const keys = new Set([...Object.keys(expected.attributes ?? {}), ...Object.keys(actual.attributes ?? {})]);
+interface RelationComparison {
+  expectedChanged: PhysicalRelation[];
+  actualChanged: PhysicalRelation[];
+  uncertainExpected: PhysicalRelation[];
+}
+
+/**
+ * A missing relation by itself is not enough to claim physical movement because a vision
+ * model can omit a relation it cannot confidently see. A movement requires contradictory
+ * current spatial evidence. This keeps deterministic comparison conservative without
+ * weakening confirmed changes.
+ */
+function compareRelations(expected: PhysicalEntity, actual: PhysicalEntity): RelationComparison {
+  const expectedRelations = expected.relations ?? [];
+  const actualRelations = actual.relations ?? [];
+  const usedActual = new Set<number>();
+  const expectedChanged: PhysicalRelation[] = [];
+  const actualChanged: PhysicalRelation[] = [];
+  const uncertainExpected: PhysicalRelation[] = [];
+
+  for (const expectedRelation of expectedRelations) {
+    if (actualRelations.some(actualRelation => sameRelation(expectedRelation, actualRelation))) continue;
+    const replacementIndex = actualRelations.findIndex((actualRelation, index) =>
+      !usedActual.has(index) && comparableReplacement(expectedRelation, actualRelation),
+    );
+    if (replacementIndex >= 0) {
+      expectedChanged.push(expectedRelation);
+      actualChanged.push(actualRelations[replacementIndex]!);
+      usedActual.add(replacementIndex);
+    } else {
+      uncertainExpected.push(expectedRelation);
+    }
+  }
+
+  return { expectedChanged, actualChanged, uncertainExpected };
+}
+
+interface AttributeComparison {
+  expectedChanged: Record<string, AttributeValue>;
+  actualChanged: Record<string, AttributeValue>;
+  uncertainKeys: string[];
+}
+
+/**
+ * Only checkpoint attributes are restoration truth. New descriptive keys from a later
+ * observation are ignored. If Nova cannot see a checkpoint attribute and omits it, that is
+ * uncertainty rather than a physical change; only two observed, differing values become a
+ * confirmed ATTRIBUTE_CHANGED result.
+ */
+function compareAttributes(expected: PhysicalEntity, actual: PhysicalEntity): AttributeComparison {
+  const expectedAttributes = expected.attributes ?? {};
+  const actualAttributes = actual.attributes ?? {};
   const expectedChanged: Record<string, AttributeValue> = {};
   const actualChanged: Record<string, AttributeValue> = {};
-  for (const key of [...keys].sort()) {
+  const uncertainKeys: string[] = [];
+
+  for (const key of Object.keys(expectedAttributes).sort()) {
     if (DESCRIPTIVE_ATTRIBUTES.has(key.toLowerCase())) continue;
-    const expectedValue = expected.attributes?.[key] ?? null;
-    const actualValue = actual.attributes?.[key] ?? null;
+    if (!Object.hasOwn(actualAttributes, key)) {
+      uncertainKeys.push(key);
+      continue;
+    }
+    const expectedValue = expectedAttributes[key]!;
+    const actualValue = actualAttributes[key]!;
     if (expectedValue !== actualValue) {
       expectedChanged[key] = expectedValue;
       actualChanged[key] = actualValue;
     }
   }
-  return { expected: expectedChanged, actual: actualChanged };
-}
 
-function hasSpatialRelation(relations: PhysicalRelation[]): boolean {
-  return relations.some((relation) => SPATIAL_RELATIONS.has(relation.type));
+  return { expectedChanged, actualChanged, uncertainKeys };
 }
 
 function sameCategory(expected: PhysicalEntity, actual: PhysicalEntity): boolean {
@@ -104,7 +154,7 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
         category: actual.category,
         actual: { entity: actual },
         confidence: actual.confidence,
-        reason: actual.confidence < UNKNOWN_CONFIDENCE ? "Observed entity confidence is below the trusted threshold." : "Entity exists in current state but not checkpoint.",
+        reason: actual.confidence < UNKNOWN_CONFIDENCE ? "Observed entity confidence is below the trusted threshold." : "A clearly observed extra entity exists in the current state but not the checkpoint.",
       });
       continue;
     }
@@ -116,7 +166,7 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
         category: expected.category,
         expected: { entity: expected },
         confidence: expected.confidence,
-        reason: expected.confidence < UNKNOWN_CONFIDENCE ? "Checkpoint entity confidence is below the trusted threshold." : "Checkpoint entity is missing from current state.",
+        reason: expected.confidence < UNKNOWN_CONFIDENCE ? "Checkpoint entity confidence is below the trusted threshold." : "The tracked checkpoint entity is absent from the current observation.",
       });
       continue;
     }
@@ -137,50 +187,73 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
       continue;
     }
 
-    const relations = changedRelations(expected, actual);
-    const attributes = changedAttributes(expected, actual);
-    let emitted = false;
+    const relations = compareRelations(expected, actual);
+    const attributes = compareAttributes(expected, actual);
+    let emittedConfirmed = false;
 
-    if (hasSpatialRelation(relations.expected) || hasSpatialRelation(relations.actual)) {
+    const spatialExpected = relations.expectedChanged.filter(relation => SPATIAL_RELATIONS.has(relation.type));
+    const spatialActual = relations.actualChanged.filter(relation => SPATIAL_RELATIONS.has(relation.type));
+    if (spatialExpected.length || spatialActual.length) {
       const relationConfidence = minConfidence(
-        ...relations.expected.map((relation) => relation.confidence),
-        ...relations.actual.map((relation) => relation.confidence),
+        ...spatialExpected.map(relation => relation.confidence),
+        ...spatialActual.map(relation => relation.confidence),
         confidence,
       );
       diffs.push({
         type: relationConfidence < UNKNOWN_CONFIDENCE ? "UNKNOWN" : "MOVED",
         entity: key,
         category: expected.category,
-        expected: { relations: relations.expected },
-        actual: { relations: relations.actual },
+        expected: { relations: spatialExpected },
+        actual: { relations: spatialActual },
         confidence: relationConfidence,
-        reason: relationConfidence < UNKNOWN_CONFIDENCE ? "Spatial relation confidence is below the trusted threshold." : "Semantic spatial relations differ from checkpoint.",
+        reason: relationConfidence < UNKNOWN_CONFIDENCE
+          ? "Contradictory spatial evidence is below the trusted threshold."
+          : "Current spatial evidence contradicts the checkpoint relation.",
       });
-      emitted = true;
+      emittedConfirmed = relationConfidence >= UNKNOWN_CONFIDENCE;
     }
 
-    const stateRelationsExpected = relations.expected.filter((relation) => !SPATIAL_RELATIONS.has(relation.type));
-    const stateRelationsActual = relations.actual.filter((relation) => !SPATIAL_RELATIONS.has(relation.type));
-    const hasAttributeChanges = Object.keys(attributes.expected).length > 0;
-    if (hasAttributeChanges || stateRelationsExpected.length > 0 || stateRelationsActual.length > 0) {
+    const stateExpected = relations.expectedChanged.filter(relation => !SPATIAL_RELATIONS.has(relation.type));
+    const stateActual = relations.actualChanged.filter(relation => !SPATIAL_RELATIONS.has(relation.type));
+    const hasAttributeChanges = Object.keys(attributes.expectedChanged).length > 0;
+    if (hasAttributeChanges || stateExpected.length || stateActual.length) {
       const attributeConfidence = minConfidence(
-        ...stateRelationsExpected.map((relation) => relation.confidence),
-        ...stateRelationsActual.map((relation) => relation.confidence),
+        ...stateExpected.map(relation => relation.confidence),
+        ...stateActual.map(relation => relation.confidence),
         confidence,
       );
       diffs.push({
         type: attributeConfidence < UNKNOWN_CONFIDENCE ? "UNKNOWN" : "ATTRIBUTE_CHANGED",
         entity: key,
         category: expected.category,
-        expected: { attributes: attributes.expected, relations: stateRelationsExpected },
-        actual: { attributes: attributes.actual, relations: stateRelationsActual },
+        expected: { attributes: attributes.expectedChanged, relations: stateExpected },
+        actual: { attributes: attributes.actualChanged, relations: stateActual },
         confidence: attributeConfidence,
-        reason: attributeConfidence < UNKNOWN_CONFIDENCE ? "Attribute/state confidence is below the trusted threshold." : "Entity attributes or non-spatial state relations differ from checkpoint.",
+        reason: attributeConfidence < UNKNOWN_CONFIDENCE
+          ? "Contradictory attribute/state evidence is below the trusted threshold."
+          : "A checkpoint attribute or non-spatial state relation has a confidently different current value.",
       });
-      emitted = true;
+      emittedConfirmed = emittedConfirmed || attributeConfidence >= UNKNOWN_CONFIDENCE;
     }
 
-    if (!emitted) {
+    const uncertainRelations = relations.uncertainExpected.filter(relation => (relation.confidence ?? confidence) >= UNKNOWN_CONFIDENCE);
+    if (!emittedConfirmed && (uncertainRelations.length > 0 || attributes.uncertainKeys.length > 0)) {
+      diffs.push({
+        type: "UNKNOWN",
+        entity: key,
+        category: expected.category,
+        expected: { relations: uncertainRelations },
+        actual: {},
+        confidence,
+        reason: [
+          uncertainRelations.length ? `${uncertainRelations.length} checkpoint relation(s) were not confidently re-observed.` : "",
+          attributes.uncertainKeys.length ? `Checkpoint attribute(s) ${attributes.uncertainKeys.join(", ")} were not visibly resolved.` : "",
+        ].filter(Boolean).join(" "),
+      });
+      continue;
+    }
+
+    if (!emittedConfirmed && !diffs.some(diff => diff.entity === key)) {
       diffs.push({
         type: "UNCHANGED",
         entity: key,
@@ -188,7 +261,7 @@ export function compareStates(checkpointInput: PhysicalState | unknown, currentI
         expected: { entity: expected },
         actual: { entity: actual },
         confidence,
-        reason: "Entity matches checkpoint.",
+        reason: "Entity matches all confidently comparable checkpoint state.",
       });
     }
   }

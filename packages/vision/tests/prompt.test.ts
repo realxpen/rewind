@@ -35,9 +35,12 @@ assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /observe only/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /do NOT compare/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /below 0\.60/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Every entity key.*MUST be unique/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /identity contract/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Never split one tracked object/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /lamp\.bedside/);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /plant\.desk/);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /at most 20 entities/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /no more than 3 clearly useful untracked extras/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /COMPLETE JSON object/i);
 assert.match(prompt, /desk\.main/);
 assert.match(prompt, /attribute "clear"/i);
@@ -49,10 +52,13 @@ assert.match(prompt, /Relations are written on the subject entity/i);
 assert.match(prompt, /never the reverse/i);
 assert.match(prompt, /tripod\.camera/);
 assert.match(prompt, /Every entity key MUST be unique/i);
+assert.match(prompt, /Never rename a supplied tracked key/i);
+assert.match(prompt, /Never split one supplied tracked entity/i);
+assert.match(prompt, /Never emit an untracked alias for a tracked entity/i);
 assert.match(prompt, /scan the complete entities array once for duplicate keys/i);
 assert.match(prompt, /final uniqueness check/i);
 assert.match(prompt, /final completeness check/i);
-assert.match(prompt, /at most 6 additional untracked entities/i);
+assert.match(prompt, /at most 3 genuinely additional untracked entities/i);
 assert.match(untrackedPrompt, /conservative, unique semantic keys/i);
 assert.match(untrackedPrompt, /at most 20 entities total/i);
 assert.match(untrackedPrompt, /role\/location qualifiers/i);
@@ -61,5 +67,5 @@ assert.match(prompt, /NEAR/);
 assert.match(prompt, /spaceId: "studio"/);
 
 console.log(
-  "PASS vision prompt: observation-only + tracked attributes + stable unique keys + bounded complete JSON",
+  "PASS vision prompt: observation-only + tracked attributes + stable identity contract + bounded complete JSON",
 );

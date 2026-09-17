@@ -20,13 +20,18 @@ Hard rules:
 - When more than one visible object shares a category, distinguish each untracked object with a stable semantic role/location key such as "lamp.bedside", "lamp.desk", "plant.window", or "plant.desk". Never reuse the same key for two objects.
 - Prefer role/location-based keys over arbitrary numbering when the image supports that distinction. If no semantic distinction is visible, use deterministic suffixes such as ".1", ".2" rather than duplicate keys.
 - For every supplied tracked entity, actively check whether it is visible in the image.
+- A supplied tracked key is an identity contract. If the corresponding visible object can be matched, use that exact key. Never replace it with a more descriptive alias.
+- Never split one tracked object into multiple entities. Never merge two supplied tracked keys into one entity.
+- Do not create an untracked replacement for a supplied tracked entity merely because another key feels more descriptive.
 - If a tracked entity is clearly visible, include it using the supplied key/category and report all supplied observable attributes that can be visually determined.
 - If a tracked entity is clearly absent from the fixed-view scene, omit it.
 - If presence or identity is genuinely uncertain because of ambiguity, occlusion, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes.
 - Never use low confidence merely because a visible object's state differs from an expected checkpoint. You are observing the current image only.
-- For untracked extra objects, only add an entity when it is visually clear and useful to the physical-state task.
+- When tracked vocabulary is supplied, relations on tracked entities should target supplied tracked keys whenever possible. Do not create a new alias solely to serve as a relation target.
+- For untracked extra objects, only add an entity when it is visually clear, genuinely additional, and useful to the physical-state task.
+- If a tracked category already accounts for all clearly visible instances of that category, do not create another untracked entity of that category.
 - If no tracked vocabulary is supplied, return at most 20 entities. Prioritize movable/restorable objects and stable room anchors needed for relations.
-- If tracked vocabulary is supplied, prioritize those tracked entities and add no more than 6 clearly useful untracked extras.
+- If tracked vocabulary is supplied, prioritize those tracked entities and add no more than 3 clearly useful untracked extras.
 - Confidence must be between 0 and 1.
 - Never identify or name people.`;
 
@@ -56,6 +61,7 @@ function trackedVocabulary(context: ObservationContext): string {
 }
 
 export function buildNovaObservationPrompt(context: ObservationContext): string {
+  const trackedMode = Boolean(context.trackedEntities?.length);
   return `Observe the supplied image and return a PSP ${PSP_SCHEMA_VERSION} JSON object.
 
 Use these exact top-level values:
@@ -69,18 +75,24 @@ ${RELATION_TYPES.join(", ")}
 Tracked entity vocabulary:
 ${trackedVocabulary(context)}
 
+Observation mode:
+- ${trackedMode ? "TRACKED COMPARISON. Identity stability is more important than inventing additional detail." : "OPEN OBSERVATION. Create a conservative semantic inventory."}
+
 Entity identity rules:
 - Every entity key MUST be unique within this JSON document.
 - Never output the same key twice, even for two objects of the same category.
 - Preserve exact supplied tracked keys when a tracked object can be matched.
+- Never rename a supplied tracked key to a more descriptive key.
+- Never split one supplied tracked entity into several role/location variants.
+- Never emit an untracked alias for a tracked entity. Example: if "candle" is tracked and the visible candle matches it, do not also emit "candle.bedside".
 - For untracked repeated objects, create distinct role/location-based keys that are likely to remain stable across later photos. Examples: "lamp.bedside" versus "lamp.desk", "plant.window" versus "plant.desk".
-- Before returning JSON, scan the complete entities array once for duplicate keys. If any duplicate exists, rename only the untracked duplicate using a visible semantic qualifier.
+- Before returning JSON, scan the complete entities array once for duplicate keys and tracked-category aliases. Rename only genuine untracked duplicates; remove accidental aliases of tracked objects.
 
 Output-size rules:
 - Return one complete, parseable JSON object; never stop mid-object or mid-array.
 - Keep each entity concise: key, category, confidence, only useful primitive attributes, and only useful relations.
 - With no tracked vocabulary, include at most 20 entities total.
-- With tracked vocabulary, prioritize tracked entities and include at most 6 additional untracked entities.
+- With tracked vocabulary, prioritize tracked entities and include at most 3 genuinely additional untracked entities.
 - Prefer omission of minor decorative objects over risking an incomplete JSON response.
 
 Observable attribute rules:
@@ -89,7 +101,14 @@ Observable attribute rules:
 - Emit a boolean/string/number/null value only when the value is visually supported.
 - Do not invent alternate attribute names.
 - If an attribute cannot be visually determined, omit that attribute rather than guessing.
-- When a tracked object's intended reference object is supplied by another tracked key, preserve relation direction from the observed subject toward the target object.
+- Do not emit extra descriptive attributes on tracked entities unless they are necessary to represent current physical state.
+
+Relation rules for tracked comparison:
+- Preserve relation direction from the observed subject toward the target object.
+- Prefer relations whose targets are supplied tracked keys.
+- Do not invent a new relation target alias for an existing tracked entity.
+- If a spatial relation is not visually clear, omit it instead of guessing.
+- Do not report a different relation merely to fill the schema.
 
 Required JSON shape:
 {
@@ -124,7 +143,8 @@ Observation guidance:
 8. Relations are written on the subject entity. For example, if headphones are ON a desk, put {"type":"ON","target":"desk.main"} on headphones.main, never the reverse.
 9. For ON, UNDER, INSIDE, BEHIND, LEFT_OF, RIGHT_OF, IN_FRONT_OF, NEAR, and ATTACHED_TO, always make the entity owning the relation the subject and target the referenced object.
 10. Do not create inverse relations merely because two objects are visible near each other.
-11. Perform a final uniqueness check over all entity keys before responding.
-12. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
-13. Return JSON only.`;
+11. In tracked mode, do a second identity pass: every visible tracked object must use its supplied key and must not also appear under an alias.
+12. Perform a final uniqueness check over all entity keys before responding.
+13. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
+14. Return JSON only.`;
 }
