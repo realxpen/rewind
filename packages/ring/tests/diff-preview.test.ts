@@ -58,7 +58,7 @@ try {
   const result = await diffResponse.json() as {
     checkpoint: { name: string };
     changeCount: number;
-    match: { restored: boolean; percentage: number };
+    match: { restored: boolean; percentage: number; unknown: number };
     changes: Array<{ type: string; entity: string }>;
   };
 
@@ -66,9 +66,10 @@ try {
   assert.equal(result.changeCount, 6);
   assert.equal(result.match.restored, false);
   assert(result.match.percentage < 100);
+  assert.equal(result.match.unknown, 2, "Ambiguous spatial replacements from vision must remain uncertain instead of becoming fake moves.");
   assert.deepEqual(result.changes.map(change => `${change.entity}:${change.type}`).sort(), [
-    "backpack.black:MOVED",
-    "chair.main:MOVED",
+    "backpack.black:UNKNOWN",
+    "chair.main:UNKNOWN",
     "desk.main:ATTRIBUTE_CHANGED",
     "headphones.main:MOVED",
     "lamp.left:ATTRIBUTE_CHANGED",
@@ -89,7 +90,7 @@ try {
   });
   assert.equal(staleObservation.status, 400);
 
-  console.log("PASS Phase 5 diff preview: checkpoint + current observation -> six semantic changes + no false RESTORED");
+  console.log("PASS Phase 5 diff preview: vision evidence stays conservative while confirmed changes remain actionable");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();
