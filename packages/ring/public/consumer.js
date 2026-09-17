@@ -267,7 +267,9 @@
     try {
       const blob = await imageBlob(selectedFile);
       const image = await base64Blob(blob);
-      const observation = await api('observe', { image, capturedAt: new Date().toISOString(), spaceId: space.value });
+      const observeInput = { image, capturedAt: new Date().toISOString(), spaceId: space.value };
+      if (mode === 'rewind' && savedState.value) observeInput.checkpointId = savedState.value;
+      const observation = await api('observe', observeInput);
       latestObservationId = observation.observationId;
       consumerObservationId = observation.observationId;
       analyzePhoto.hidden = true;

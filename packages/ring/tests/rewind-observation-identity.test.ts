@@ -45,28 +45,9 @@ const post = (path: string, data: unknown) => fetch(`${base}/api/${path}`, {
   body: JSON.stringify(data),
 });
 
-try {
-  const currentResponse = await post("demo/observe", { scenario: "messy", spaceId });
-  assert.equal(currentResponse.status, 200);
-  const current = await currentResponse.json() as { observationId: string };
-
-  const rewindResponse = await post("rewind", {
-    spaceId,
-    observationId: current.observationId,
-    checkpointId: checkpoint.id,
-  });
-  assert.equal(rewindResponse.status, 200);
-
-  const frame = Buffer.from([255, 216, 255, 217]).toString("base64");
-  const observedResponse = await post("observe", {
-    image: frame,
-    spaceId,
-    capturedAt: new Date().toISOString(),
-  });
-  assert.equal(observedResponse.status, 200);
-
-  const tracked = observedRequest?.context.trackedEntities;
-  assert(tracked && tracked.length > 0, "Active Rewind observations must receive checkpoint identity hints.");
+function assertTrackedCheckpointVocabulary(request: VisionObservationRequest | undefined) {
+  const tracked = request?.context.trackedEntities;
+  assert(tracked && tracked.length > 0, "Checkpoint-anchored observations must receive identity hints.");
   assert.deepEqual(
     tracked.map(entity => [entity.key, entity.category]),
     checkpoint.state.entities.map(entity => [entity.key, entity.category]),
@@ -79,8 +60,54 @@ try {
       assert.deepEqual(Object.keys(entity.observableAttributes ?? {}).sort(), Object.keys(saved.attributes).sort());
     }
   }
+}
 
-  console.log("PASS active Rewind observation identity anchor: server-owned checkpoint keys are supplied to Nova");
+try {
+  const frame = Buffer.from([255, 216, 255, 217]).toString("base64");
+
+  // The first consumer "Rewind a space" observation happens before a Rewind
+  // session exists. The selected checkpoint ID must therefore anchor Nova's
+  // vocabulary before the initial deterministic compare.
+  const initialObservedResponse = await post("observe", {
+    image: frame,
+    spaceId,
+    capturedAt: new Date().toISOString(),
+    checkpointId: checkpoint.id,
+  });
+  assert.equal(initialObservedResponse.status, 200);
+  assertTrackedCheckpointVocabulary(observedRequest);
+
+  observedRequest = undefined;
+  const missingCheckpointResponse = await post("observe", {
+    image: frame,
+    spaceId,
+    capturedAt: new Date().toISOString(),
+    checkpointId: "missing-checkpoint",
+  });
+  assert.equal(missingCheckpointResponse.status, 400);
+  assert.equal(observedRequest, undefined, "Nova must not run when the selected checkpoint cannot be resolved server-side.");
+
+  const currentResponse = await post("demo/observe", { scenario: "messy", spaceId });
+  assert.equal(currentResponse.status, 200);
+  const current = await currentResponse.json() as { observationId: string };
+
+  const rewindResponse = await post("rewind", {
+    spaceId,
+    observationId: current.observationId,
+    checkpointId: checkpoint.id,
+  });
+  assert.equal(rewindResponse.status, 200);
+
+  observedRequest = undefined;
+  const activeObservedResponse = await post("observe", {
+    image: frame,
+    spaceId,
+    capturedAt: new Date().toISOString(),
+  });
+  assert.equal(activeObservedResponse.status, 200);
+  assertTrackedCheckpointVocabulary(observedRequest);
+
+  console.log("PASS Rewind observation identity anchor: selected and active checkpoint keys are supplied to Nova");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();
