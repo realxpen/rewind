@@ -113,6 +113,14 @@ assert.match(consumer, /activeRewindSessionId/);
 assert.match(consumer, /uploaded image is not persisted by REWIND/);
 assert.doesNotMatch(consumer, /api\('demo\/observe'/, "Phone photo mode must not use Controlled Demo fixtures.");
 
+// During an active consumer Rewind session, selecting/analyzing a fresh photo must keep
+// the focused REWIND card visible so Check Again is reachable without opening Advanced details.
+assert.match(consumer, /consumer-setup:not\(\.consumer-rewind-active\) #focusCard\{display:none\}/);
+assert.match(consumer, /function syncConsumerRewindState\(\)/);
+assert.match(consumer, /classList\.toggle\('consumer-rewind-active', Boolean\(activeRewindSessionId\)\)/);
+assert.match(consumer, /Fresh state ready\. Use Check Again in the REWIND card/);
+assert.match(consumer, /focusCard\.scrollIntoView/);
+
 // The experience observer watches matchScore, so writes back to matchScore must be
 // idempotent. Otherwise a same-value textContent write can recursively schedule the
 // observer forever and starve the browser's first paint/reload.
