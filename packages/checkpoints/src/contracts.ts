@@ -32,7 +32,8 @@ export interface CheckpointSummary {
   stateHash: string;
   createdAt: string;
   entityCount: number;
-  exactImageVerificationAvailable: boolean;
+  /** Present on summaries produced by photo-aware checkpoint services. */
+  exactImageVerificationAvailable?: boolean;
 }
 
 export interface CheckpointStore {
