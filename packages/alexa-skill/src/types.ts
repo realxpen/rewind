@@ -1,7 +1,5 @@
-import type {
-  CheckpointSummary,
-  RewindToolResult,
-} from "../../agent-tools/src/contracts.js";
+import type { CheckpointSummary } from "../../checkpoints/src/contracts.js";
+import type { RewindToolResult } from "../../agent-tools/src/contracts.js";
 
 export interface AlexaRewindTools {
   inspectSpace(input: { spaceId: string }): Promise<unknown>;
