@@ -16,7 +16,7 @@
     "test:ring": "npm run build && npm run test:ring:compiled",
     "test:ring:compiled": "node dist/packages/ring/tests/config.test.js && node dist/packages/ring/tests/events.test.js && node dist/packages/ring/tests/client.test.js && node dist/packages/ring/tests/whep.test.js && node dist/packages/ring/tests/preview.test.js && node dist/packages/ring/tests/ice.test.js && node dist/packages/ring/tests/observation-bridge.test.js && node dist/packages/ring/tests/experience.test.js && node dist/packages/ring/tests/rewind-observation-identity.test.js && node dist/packages/ring/tests/photo-reliability.test.js",
     "test:phase4": "npm run build && npm run test:phase4:compiled",
-    "test:phase4:compiled": "node dist/packages/checkpoints/tests/checkpoint.test.js",
+    "test:phase4:compiled": "node dist/packages/checkpoints/tests/checkpoint.test.js && node dist/packages/checkpoints/tests/view-match.test.js",
     "test:phase5": "npm run build && npm run test:phase5:compiled",
     "test:phase5:compiled": "node dist/packages/ring/tests/diff-preview.test.js",
     "test:phase6": "npm run build && npm run test:phase6:compiled",
