@@ -1,4 +1,5 @@
-import type { CheckpointSummary, RewindToolResult } from "../../agent-tools/src/contracts.js";
+import type { CheckpointSummary } from "../../checkpoints/src/contracts.js";
+import type { RewindToolResult } from "../../agent-tools/src/contracts.js";
 import type {
   AlexaRequestEnvelope,
   AlexaResponseEnvelope,
@@ -108,7 +109,7 @@ export class RewindAlexaSkill {
   private readonly users = new Map<string, UserVoiceState>();
   private readonly tools: AlexaRewindTools;
   private readonly defaultSpaceId: string;
-  private readonly skillId?: string;
+  private readonly skillId: string | undefined;
   private readonly now: () => number;
 
   constructor(options: RewindAlexaSkillOptions) {
