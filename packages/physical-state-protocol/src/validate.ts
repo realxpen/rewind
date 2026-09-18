@@ -155,7 +155,7 @@ export function validatePhysicalState(input: unknown): ValidationResult<Physical
           };
           if (typeof relationRaw.target === "string") relation.target = relationRaw.target;
           if (typeof relationRaw.confidence === "number") relation.confidence = relationRaw.confidence;
-          relations.push(relation);
+          relations?.push(relation);
         });
       }
     }
@@ -171,11 +171,11 @@ export function validatePhysicalState(input: unknown): ValidationResult<Physical
       if (attributes !== undefined) entity.attributes = attributes;
       if (relations !== undefined) entity.relations = relations;
       if (typeof raw.role === "string" && entityRoleSet.has(raw.role)) {
-        entity.role = raw.role as PhysicalEntity["role"];
+        entity.role = raw.role as NonNullable<PhysicalEntity["role"]>;
       }
       if (typeof raw.zone === "string" && raw.zone.trim() !== "") entity.zone = raw.zone;
       if (typeof raw.importance === "string" && entityImportanceSet.has(raw.importance)) {
-        entity.importance = raw.importance as PhysicalEntity["importance"];
+        entity.importance = raw.importance as NonNullable<PhysicalEntity["importance"]>;
       }
       entities.push(entity);
     }
@@ -245,7 +245,7 @@ export function validatePhysicalState(input: unknown): ValidationResult<Physical
                   message: "Unknown zone clutter level.",
                 });
               } else {
-                state.clutterLevel = raw.state.clutterLevel as PhysicalZoneState["clutterLevel"];
+                state.clutterLevel = raw.state.clutterLevel as NonNullable<PhysicalZoneState["clutterLevel"]>;
               }
             }
           }
