@@ -57,14 +57,14 @@ export interface CheckpointSummary {
   stateHash: string;
   createdAt: string;
   entityCount: number;
-  viewCount: number;
+  viewCount?: number;
   /** Present on summaries produced by photo-aware checkpoint services. */
   exactImageVerificationAvailable?: boolean;
 }
 
 export interface CheckpointStore {
   save(checkpoint: Checkpoint): Promise<void>;
-  update(checkpoint: Checkpoint): Promise<void>;
+  update?(checkpoint: Checkpoint): Promise<void>;
   list(spaceId: string): Promise<Checkpoint[]>;
   get(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
 }
