@@ -22,6 +22,14 @@ export class DynamoCheckpointStore implements CheckpointStore {
     }));
   }
 
+  async update(checkpoint: Checkpoint): Promise<void> {
+    await this.client.send(new PutCommand({
+      TableName: this.tableName,
+      Item: checkpoint,
+      ConditionExpression: "attribute_exists(spaceId) AND attribute_exists(id)",
+    }));
+  }
+
   async list(spaceId: string): Promise<Checkpoint[]> {
     const result = await this.client.send(new QueryCommand({
       TableName: this.tableName,

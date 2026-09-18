@@ -3,8 +3,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
 import type { VisionObservationRequest, VisionObservation } from "../../vision/src/contracts.js";
-import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
-import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
+import type { AddCheckpointViewInput, Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
+import { checkpointViews, summarizeCheckpoint } from "../../checkpoints/src/service.js";
+import { findCheckpointViewByImageHash, selectBestCheckpointView } from "../../checkpoints/src/view-match.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress, type RestorePlan } from "../../restore-engine/src/index.js";
 import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
@@ -35,7 +36,10 @@ export interface PreviewServices {
   start(deviceId: string, offer: string): Promise<RingWhepSession>;
   stop(url: string): Promise<void>;
   observe(request: VisionObservationRequest): Promise<VisionObservation>;
+  /** Optional perception call used only for multi-view view selection; it should not publish intermediate state externally. */
+  observeUnpublished?(request: VisionObservationRequest): Promise<VisionObservation>;
   saveCheckpoint?(input: SaveCheckpointInput): Promise<Checkpoint>;
+  addCheckpointView?(input: AddCheckpointViewInput): Promise<Checkpoint>;
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
@@ -46,6 +50,7 @@ interface RewindSession {
   id: string;
   spaceId: string;
   checkpointId: string;
+  checkpointViewId?: string;
   plan: RestorePlan;
   touched: number;
 }
@@ -59,6 +64,8 @@ interface StoredObservation {
   latencyMs?: number;
   sourceImageHash?: string;
   basis?: ObservationBasis;
+  checkpointViewId?: string;
+  viewSelectionScore?: number;
   receivedAt: number;
 }
 
@@ -112,8 +119,8 @@ function createControlledDemoObservation(scenario: ControlledDemoScenario, space
     latencyMs: 0,
   };
 }
-function createExactImageObservation(checkpoint: Checkpoint, capturedAt: string): VisionObservation {
-  const state = structuredClone(checkpoint.state);
+function createExactImageObservation(stateInput: VisionObservation["state"], capturedAt: string): VisionObservation {
+  const state = structuredClone(stateInput);
   state.capturedAt = capturedAt;
   return {
     state,
@@ -128,8 +135,8 @@ function safeAgentError(error: unknown): string {
   }
   return "REWIND agent request failed. Check AWS credentials, AgentCore Memory, and Bedrock access, then retry.";
 }
-function trackedEntitiesFromCheckpoint(checkpoint: Checkpoint): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
-  return checkpoint.state.entities.map(entity => {
+function trackedEntitiesFromState(state: VisionObservation["state"]): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
+  return state.entities.map(entity => {
     const hint: NonNullable<VisionObservationRequest["context"]["trackedEntities"]>[number] = {
       key: entity.key,
       category: entity.category,
@@ -178,6 +185,8 @@ export function createPreviewServer(
     result: VisionObservation,
     sourceImageHash?: string,
     basis?: ObservationBasis,
+    checkpointViewId?: string,
+    viewSelectionScore?: number,
   ) {
     const id = randomUUID();
     const row: StoredObservation = {
@@ -189,6 +198,8 @@ export function createPreviewServer(
     if (result.latencyMs !== undefined) row.latencyMs = result.latencyMs;
     if (sourceImageHash !== undefined) row.sourceImageHash = sourceImageHash;
     if (basis !== undefined) row.basis = basis;
+    if (checkpointViewId !== undefined) row.checkpointViewId = checkpointViewId;
+    if (viewSelectionScore !== undefined) row.viewSelectionScore = viewSelectionScore;
     observations.set(id, row);
     while (observations.size > 20) {
       const oldest = observations.keys().next().value as string | undefined;
@@ -197,11 +208,17 @@ export function createPreviewServer(
     }
     return id;
   }
-  function rememberRewindSession(spaceId: string, checkpointId: string, plan: RestorePlan) {
+  function rememberRewindSession(
+    spaceId: string,
+    checkpointId: string,
+    plan: RestorePlan,
+    checkpointViewId?: string,
+  ) {
     const session: RewindSession = {
       id: randomUUID(),
       spaceId,
       checkpointId,
+      ...(checkpointViewId ? { checkpointViewId } : {}),
       plan,
       touched: Date.now(),
     };
@@ -218,6 +235,10 @@ export function createPreviewServer(
     const checkpoint = await services.getCheckpoint(spaceId, checkpointId);
     if (!checkpoint) throw new InputError("Checkpoint not found.");
     return checkpoint;
+  }
+  function stateForCheckpointView(checkpoint: Checkpoint, checkpointViewId?: string) {
+    if (!checkpointViewId) return checkpoint.state;
+    return checkpointViews(checkpoint).find(view => view.id === checkpointViewId)?.state ?? checkpoint.state;
   }
   async function checkpointForActiveRewind(spaceId: string) {
     const session = [...rewindSessions.values()]
@@ -274,6 +295,7 @@ export function createPreviewServer(
         "/api/demo/observe",
         "/api/agent",
         "/api/checkpoints",
+        "/api/checkpoints/view",
         "/api/diff",
         "/api/rewind",
         "/api/rewind/verify",
@@ -320,20 +342,70 @@ export function createPreviewServer(
           const checkpoint = validOpaqueId(data.checkpointId)
             ? await checkpointForId(data.spaceId, data.checkpointId)
             : await checkpointForActiveRewind(data.spaceId);
-          const exactImageMatch = Boolean(checkpoint?.sourceImageHash && checkpoint.sourceImageHash === sourceImageHash);
-          const basis: ObservationBasis = exactImageMatch ? "exact-image" : checkpoint ? "nova-tracked" : "nova-open";
-          const result = exactImageMatch && checkpoint
-            ? createExactImageObservation(checkpoint, data.capturedAt)
-            : await services.observe({
+
+          const exactView = checkpoint
+            ? findCheckpointViewByImageHash(checkpoint, sourceImageHash)
+            : undefined;
+          const exactImageMatch = Boolean(exactView);
+
+          let result: VisionObservation;
+          let basis: ObservationBasis;
+          let checkpointViewId: string | undefined;
+          let viewSelectionScore: number | undefined;
+
+          if (checkpoint && exactView) {
+            checkpointViewId = exactView.id;
+            basis = "exact-image";
+            result = createExactImageObservation(exactView.state, data.capturedAt);
+          } else if (checkpoint) {
+            const views = checkpointViews(checkpoint);
+            let selectedView = views[0]!;
+
+            if (views.length > 1) {
+              const scan = await (services.observeUnpublished ?? services.observe)({
                 imageBytes: bytes,
                 format: "jpeg",
                 context: {
                   spaceId: data.spaceId,
                   capturedAt: data.capturedAt,
-                  ...(checkpoint ? { trackedEntities: trackedEntitiesFromCheckpoint(checkpoint) } : {}),
                 },
               });
-          const observationId = rememberObservation(data.spaceId, result, sourceImageHash, basis);
+              const selected = selectBestCheckpointView(checkpoint, scan.state);
+              selectedView = selected.view;
+              viewSelectionScore = selected.score;
+            }
+
+            checkpointViewId = selectedView.id;
+            basis = "nova-tracked";
+            result = await services.observe({
+              imageBytes: bytes,
+              format: "jpeg",
+              context: {
+                spaceId: data.spaceId,
+                capturedAt: data.capturedAt,
+                trackedEntities: trackedEntitiesFromState(selectedView.state),
+              },
+            });
+          } else {
+            basis = "nova-open";
+            result = await services.observe({
+              imageBytes: bytes,
+              format: "jpeg",
+              context: {
+                spaceId: data.spaceId,
+                capturedAt: data.capturedAt,
+              },
+            });
+          }
+
+          const observationId = rememberObservation(
+            data.spaceId,
+            result,
+            sourceImageHash,
+            basis,
+            checkpointViewId,
+            viewSelectionScore,
+          );
           send(res, 200, {
             observationId,
             state: result.state,
@@ -341,6 +413,8 @@ export function createPreviewServer(
             latencyMs: result.latencyMs,
             observationBasis: basis,
             exactImageMatch,
+            ...(checkpointViewId ? { checkpointViewId } : {}),
+            ...(viewSelectionScore !== undefined ? { viewSelectionScore } : {}),
           });
         } finally { observing = false; }
         return;
@@ -388,6 +462,24 @@ export function createPreviewServer(
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
       }
+      if (path === "/api/checkpoints/view") {
+        if (!services.addCheckpointView) { send(res, 503, { error: "Multi-view checkpoint persistence is not configured." }); return; }
+        if (!validSpaceId(data.spaceId) || !validOpaqueId(data.checkpointId) || !validOpaqueId(data.observationId)) {
+          throw new InputError("Space, saved checkpoint, and observed view are required.");
+        }
+        const observation = observations.get(data.observationId);
+        if (!observation || observation.spaceId !== data.spaceId) {
+          throw new InputError("Observe this additional view before adding it to the checkpoint.");
+        }
+        const checkpoint = await services.addCheckpointView({
+          spaceId: data.spaceId,
+          checkpointId: data.checkpointId,
+          observationId: data.observationId,
+          state: observation.state,
+          ...(observation.sourceImageHash ? { sourceImageHash: observation.sourceImageHash } : {}),
+        });
+        send(res, 200, summarizeCheckpoint(checkpoint)); return;
+      }
       if (path === "/api/rewind/verify") {
         if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
         if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.rewindSessionId)) {
@@ -401,7 +493,8 @@ export function createPreviewServer(
         }
         const checkpoint = await services.getCheckpoint(session.spaceId, session.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const checkpointState = stateForCheckpointView(checkpoint, session.checkpointViewId);
+        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const progress = updateRestoreProgress(session.plan, diffs);
         const blockedUnknowns = diffs.filter(diff => diff.type === "UNKNOWN").map(diff => diff.entity);
@@ -425,6 +518,7 @@ export function createPreviewServer(
           changes,
           observationBasis: observation.basis,
           exactImageMatch: observation.basis === "exact-image",
+          ...(session.checkpointViewId ? { checkpointViewId: session.checkpointViewId } : {}),
         });
         return;
       }
@@ -437,7 +531,8 @@ export function createPreviewServer(
         if (!observation || observation.spaceId !== data.spaceId) throw new InputError("Observe this space again before comparing it.");
         const checkpoint = await services.getCheckpoint(data.spaceId, data.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const checkpointState = stateForCheckpointView(checkpoint, observation.checkpointViewId);
+        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
         if (path === "/api/diff") {
@@ -448,6 +543,8 @@ export function createPreviewServer(
             changes,
             observationBasis: observation.basis,
             exactImageMatch: observation.basis === "exact-image",
+            ...(observation.checkpointViewId ? { checkpointViewId: observation.checkpointViewId } : {}),
+            ...(observation.viewSelectionScore !== undefined ? { viewSelectionScore: observation.viewSelectionScore } : {}),
           });
           return;
         }
@@ -457,7 +554,12 @@ export function createPreviewServer(
           : plan.actions.length === 0 && plan.blockedUnknowns.length > 0
             ? "LOW_CONFIDENCE"
             : "GUIDING";
-        const rewindSession = rememberRewindSession(data.spaceId, data.checkpointId, plan);
+        const rewindSession = rememberRewindSession(
+          data.spaceId,
+          data.checkpointId,
+          plan,
+          observation.checkpointViewId,
+        );
         send(res, 200, {
           rewindSessionId: rewindSession.id,
           checkpoint: summarizeCheckpoint(checkpoint),
@@ -466,6 +568,8 @@ export function createPreviewServer(
           plan,
           observationBasis: observation.basis,
           exactImageMatch: observation.basis === "exact-image",
+          ...(observation.checkpointViewId ? { checkpointViewId: observation.checkpointViewId } : {}),
+          ...(observation.viewSelectionScore !== undefined ? { viewSelectionScore: observation.viewSelectionScore } : {}),
         });
         return;
       }
@@ -495,7 +599,7 @@ export function createPreviewServer(
         ? observationErrorMessage(error)
         : path === "/api/agent"
           ? safeAgentError(error)
-          : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
+          : path === "/api/checkpoints" || path === "/api/checkpoints/view" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
             ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
             : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
