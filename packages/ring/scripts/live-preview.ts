@@ -24,6 +24,10 @@ import {
   type SessionContinuityStore,
 } from "../../agent-orchestrator/src/index.js";
 import { createRewindMcpHttpApp } from "../../mcp-server/src/http.js";
+import {
+  createAlexaSkillHttpServer,
+  RewindAlexaSkill,
+} from "../../alexa-skill/src/index.js";
 
 function loadLocalEnvironment(): void {
   const path = resolve(".env");
@@ -57,9 +61,12 @@ async function main() {
   const port = Number(process.env.RING_PREVIEW_PORT ?? 3002);
   const webhookPort = Number(process.env.RING_WEBHOOK_PORT ?? 3003);
   const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
+  const alexaPort = Number(process.env.REWIND_ALEXA_PORT ?? 3005);
+  const alexaSkillId = process.env.REWIND_ALEXA_SKILL_ID?.trim();
   if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
   if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
   if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
+  if (!validPort(alexaPort) || [port, webhookPort, mcpPort].includes(alexaPort)) throw new Error("REWIND_ALEXA_PORT must be a unique integer between 1024 and 65535.");
 
   const bridge = new RingObservationBridge(Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 30_000));
   const checkpointAccess: AgentCheckpointAccess = {
@@ -140,6 +147,28 @@ async function main() {
     console.log("MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.");
   });
 
+  const alexaSkill = alexaSkillId
+    ? new RewindAlexaSkill({
+        tools: mcpToolService,
+        defaultSpaceId,
+        skillId: alexaSkillId,
+      })
+    : undefined;
+  const alexaHttp = alexaSkill ? createAlexaSkillHttpServer(alexaSkill) : undefined;
+  if (alexaHttp) {
+    alexaHttp.on("error", () => {
+      console.error(`Alexa skill endpoint could not start. Check whether port ${alexaPort} is in use.`);
+      process.exitCode = 1;
+    });
+    alexaHttp.listen(alexaPort, "127.0.0.1", () => {
+      console.log(`REWIND Alexa Custom Skill endpoint: http://127.0.0.1:${alexaPort}/alexa`);
+      console.log("Alexa requests are signature + timestamp verified. Expose this port through HTTPS before configuring the skill endpoint.");
+      console.log("Alexa scan operations run asynchronously so the skill stays inside Alexa's response timeout.");
+    });
+  } else {
+    console.log("Alexa Custom Skill disabled: set REWIND_ALEXA_SKILL_ID to enable the verified /alexa endpoint.");
+  }
+
   const signingKey = process.env.RING_HMAC_SECRET?.trim();
   const ringClientId = process.env.RING_CLIENT_ID?.trim();
   const ringClientSecret = process.env.RING_CLIENT_SECRET?.trim();
@@ -193,6 +222,7 @@ async function main() {
     preview.server.close();
     webhook?.server.close();
     mcpHttp.close();
+    alexaHttp?.close();
     const deadline = setTimeout(() => process.exit(1), 10_000);
     try { await preview.cleanup(); }
     catch {
@@ -203,6 +233,7 @@ async function main() {
     preview.server.closeAllConnections();
     webhook?.server.closeAllConnections();
     mcpHttp.closeAllConnections();
+    alexaHttp?.closeAllConnections();
   };
   process.on("SIGINT", () => void stop());
   process.on("SIGTERM", () => void stop());
@@ -217,6 +248,7 @@ function safeStartupMessage(error: unknown): string {
     "RING_PREVIEW_PORT must be an integer between 1024 and 65535.",
     "RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.",
     "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
+    "REWIND_ALEXA_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_MCP_PUBLIC_HOST must be a hostname only.",
   ];
   return allowed.includes(message)
