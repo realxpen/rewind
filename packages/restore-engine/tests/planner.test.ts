@@ -13,6 +13,20 @@ assert(plan.actions.some((action) => action.instruction === "Move chair main beh
 assert(plan.actions.some((action) => action.instruction === "Turn on lamp left."), "Expected lamp power restore instruction.");
 assert(plan.actions.some((action) => action.instruction === "Clear desk main."), "Expected desk clear restore instruction.");
 
+const selfRelationPlan = buildRestorePlan([{
+  type: "MOVED",
+  entity: "table.coffee",
+  category: "table",
+  expected: { relations: [{ type: "ON", target: "table.coffee", confidence: 0.95 }] },
+  actual: { relations: [{ type: "NEAR", target: "sofa.main", confidence: 0.95 }] },
+  confidence: 0.95,
+  reason: "regression",
+}]);
+assert(
+  selfRelationPlan.actions[0]?.instruction === "Return table coffee to its checkpoint position.",
+  "Self-relations must never generate Move X on X guidance.",
+);
+
 const partialProgress = updateRestoreProgress(plan, compareStates(demoReady, partial));
 assert(partialProgress.percentage > 0 && partialProgress.percentage < 100, "Partial fixture should produce intermediate progress.");
 assert(!partialProgress.restored, "Partial fixture must not be restored.");
