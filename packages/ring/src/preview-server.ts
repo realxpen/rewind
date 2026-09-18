@@ -3,8 +3,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
 import type { VisionObservationRequest, VisionObservation } from "../../vision/src/contracts.js";
-import type { Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
-import { summarizeCheckpoint } from "../../checkpoints/src/service.js";
+import type { AddCheckpointViewInput, Checkpoint, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
+import { checkpointViews, summarizeCheckpoint } from "../../checkpoints/src/service.js";
+import { findCheckpointViewByImageHash, selectBestCheckpointView } from "../../checkpoints/src/view-match.js";
 import { calculateMatch, compareStates } from "../../diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress, type RestorePlan } from "../../restore-engine/src/index.js";
 import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
@@ -35,7 +36,10 @@ export interface PreviewServices {
   start(deviceId: string, offer: string): Promise<RingWhepSession>;
   stop(url: string): Promise<void>;
   observe(request: VisionObservationRequest): Promise<VisionObservation>;
+  /** Optional perception call used only for multi-view view selection; it should not publish intermediate state externally. */
+  observeUnpublished?(request: VisionObservationRequest): Promise<VisionObservation>;
   saveCheckpoint?(input: SaveCheckpointInput): Promise<Checkpoint>;
+  addCheckpointView?(input: AddCheckpointViewInput): Promise<Checkpoint>;
   listCheckpoints?(spaceId: string): Promise<Checkpoint[]>;
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
@@ -46,6 +50,7 @@ interface RewindSession {
   id: string;
   spaceId: string;
   checkpointId: string;
+  checkpointViewId?: string;
   plan: RestorePlan;
   touched: number;
 }
@@ -59,6 +64,8 @@ interface StoredObservation {
   latencyMs?: number;
   sourceImageHash?: string;
   basis?: ObservationBasis;
+  checkpointViewId?: string;
+  viewSelectionScore?: number;
   receivedAt: number;
 }
 
@@ -112,8 +119,8 @@ function createControlledDemoObservation(scenario: ControlledDemoScenario, space
     latencyMs: 0,
   };
 }
-function createExactImageObservation(checkpoint: Checkpoint, capturedAt: string): VisionObservation {
-  const state = structuredClone(checkpoint.state);
+function createExactImageObservation(stateInput: VisionObservation["state"], capturedAt: string): VisionObservation {
+  const state = structuredClone(stateInput);
   state.capturedAt = capturedAt;
   return {
     state,
@@ -128,8 +135,8 @@ function safeAgentError(error: unknown): string {
   }
   return "REWIND agent request failed. Check AWS credentials, AgentCore Memory, and Bedrock access, then retry.";
 }
-function trackedEntitiesFromCheckpoint(checkpoint: Checkpoint): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
-  return checkpoint.state.entities.map(entity => {
+function trackedEntitiesFromState(state: VisionObservation["state"]): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
+  return state.entities.map(entity => {
     const hint: NonNullable<VisionObservationRequest["context"]["trackedEntities"]>[number] = {
       key: entity.key,
       category: entity.category,
@@ -178,6 +185,8 @@ export function createPreviewServer(
     result: VisionObservation,
     sourceImageHash?: string,
     basis?: ObservationBasis,
+    checkpointViewId?: string,
+    viewSelectionScore?: number,
   ) {
     const id = randomUUID();
     const row: StoredObservation = {
@@ -189,6 +198,8 @@ export function createPreviewServer(
     if (result.latencyMs !== undefined) row.latencyMs = result.latencyMs;
     if (sourceImageHash !== undefined) row.sourceImageHash = sourceImageHash;
     if (basis !== undefined) row.basis = basis;
+    if (checkpointViewId !== undefined) row.checkpointViewId = checkpointViewId;
+    if (viewSelectionScore !== undefined) row.viewSelectionScore = viewSelectionScore;
     observations.set(id, row);
     while (observations.size > 20) {
       const oldest = observations.keys().next().value as string | undefined;
@@ -197,11 +208,17 @@ export function createPreviewServer(
     }
     return id;
   }
-  function rememberRewindSession(spaceId: string, checkpointId: string, plan: RestorePlan) {
+  function rememberRewindSession(
+    spaceId: string,
+    checkpointId: string,
+    plan: RestorePlan,
+    checkpointViewId?: string,
+  ) {
     const session: RewindSession = {
       id: randomUUID(),
       spaceId,
       checkpointId,
+      ...(checkpointViewId ? { checkpointViewId } : {}),
       plan,
       touched: Date.now(),
     };
@@ -218,6 +235,10 @@ export function createPreviewServer(
     const checkpoint = await services.getCheckpoint(spaceId, checkpointId);
     if (!checkpoint) throw new InputError("Checkpoint not found.");
     return checkpoint;
+  }
+  function stateForCheckpointView(checkpoint: Checkpoint, checkpointViewId?: string) {
+    if (!checkpointViewId) return checkpoint.state;
+    return checkpointViews(checkpoint).find(view => view.id === checkpointViewId)?.state ?? checkpoint.state;
   }
   async function checkpointForActiveRewind(spaceId: string) {
     const session = [...rewindSessions.values()]
@@ -274,6 +295,7 @@ export function createPreviewServer(
         "/api/demo/observe",
         "/api/agent",
         "/api/checkpoints",
+        "/api/checkpoints/view",
         "/api/diff",
         "/api/rewind",
         "/api/rewind/verify",
