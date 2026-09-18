@@ -49,6 +49,19 @@ const DESCRIPTIVE_ATTRIBUTES = new Set([
 
 const UNKNOWN_CONFIDENCE = 0.6;
 const VISION_ADDED_CONFIDENCE = 0.85;
+const VISION_ACTIONABLE_EXTRA_TERMS = new Set([
+  "backpack", "bag", "handbag", "clothing", "clothes", "garment", "jacket", "shirt", "pants", "trousers",
+  "sock", "socks", "shoe", "shoes", "sneaker", "sneakers", "footwear", "remote", "controller", "gamepad",
+  "cup", "mug", "glass", "bottle", "dish", "plate", "bowl", "paper", "papers", "document", "documents",
+  "toy", "toys", "cable", "charger", "trash", "rubbish", "laundry", "blanket", "throw", "pillow", "cushion",
+  "tripod", "box", "basket", "stool", "chair", "phone", "towel",
+]);
+
+function isActionableVisionExtra(category: string): boolean {
+  const normalized = category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!normalized) return false;
+  return normalized.split(/\s+/).some(token => VISION_ACTIONABLE_EXTRA_TERMS.has(token));
+}
 
 export type ComparisonEvidenceMode = "strict" | "vision";
 export interface CompareStatesOptions {
@@ -222,6 +235,12 @@ export function compareStates(
     const actual = actualByKey.get(key);
 
     if (!expected && actual) {
+      if (evidenceMode === "vision" && !isActionableVisionExtra(actual.category)) {
+        // The checkpoint is intentionally a compact semantic memory. Do not turn later
+        // decorative/background observations into fake restoration work merely because the
+        // open checkpoint inventory omitted them.
+        continue;
+      }
       const threshold = evidenceMode === "vision" ? VISION_ADDED_CONFIDENCE : UNKNOWN_CONFIDENCE;
       diffs.push({
         type: actual.confidence < threshold ? "UNKNOWN" : "ADDED",
@@ -231,7 +250,9 @@ export function compareStates(
         confidence: actual.confidence,
         reason: actual.confidence < threshold
           ? "Extra visual entity is not confident enough to become a restoration change."
-          : "A clearly observed extra entity exists in the current state but not the checkpoint.",
+          : evidenceMode === "vision"
+            ? "A high-confidence loose or movable extra is visible in the current scene but was not part of the saved checkpoint."
+            : "A clearly observed extra entity exists in the current state but not the checkpoint.",
       });
       continue;
     }

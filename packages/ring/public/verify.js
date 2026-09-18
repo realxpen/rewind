@@ -320,10 +320,11 @@ void pollMotionEvents();
     if (diffPanel && !diffPanel.hidden) {
       const changes = diffItems();
       const pct = Number.isFinite(currentPercentage) ? currentPercentage : 0;
+      const coverage = Number(el('matchScore')?.dataset.coverage || 100);
       setText(focusStage, 'DIFF');
       setText(focusTitle, `${changes.length} ${changes.length === 1 ? 'thing' : 'things'} changed`);
-      setText(focusMetric, `${pct}% MATCH`);
-      setText(focusSummary, 'The saved checkpoint and current physical state differ. These results come from deterministic comparison.');
+      setText(focusMetric, coverage < 100 ? `${pct}% MATCH · ${coverage}% COVERED` : `${pct}% MATCH`);
+      setText(focusSummary, el('diffSummary')?.textContent || 'The saved checkpoint and current physical state differ. These results come from deterministic comparison.');
       setItems(changes);
       const startRewind = el('startRewind');
       setPrimary('Start Rewind', 'rewind', Boolean(startRewind?.disabled || startRewind?.hidden));
