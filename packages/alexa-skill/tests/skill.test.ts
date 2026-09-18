@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { RewindAlexaSkill } from "../src/skill.js";
 import type { AlexaRequestEnvelope, AlexaRewindTools } from "../src/types.js";
-import type { CheckpointSummary, RewindToolResult } from "../../agent-tools/src/contracts.js";
+import type { CheckpointSummary } from "../../checkpoints/src/contracts.js";
+import type { RewindToolResult } from "../../agent-tools/src/contracts.js";
 
 const checkpoint: CheckpointSummary = {
   id: "checkpoint-clean",
