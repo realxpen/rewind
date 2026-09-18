@@ -32,6 +32,12 @@ const changedState: PhysicalState = {
       confidence: 0.97,
       relations: [{ type: "RIGHT_OF", target: "desk.main", confidence: 0.95 }],
     },
+    {
+      key: "shoe.floor",
+      category: "shoe",
+      confidence: 0.94,
+      relations: [{ type: "NEAR", target: "desk.main", confidence: 0.9 }],
+    },
   ],
 };
 
@@ -156,8 +162,9 @@ try {
   assert.equal(changedDiff.response.status, 200);
   assert.equal(changedDiff.result.match.restored, false);
   assert(changedDiff.result.changes.some((change: { entity: string; type: string }) => change.entity === "chair.main" && change.type === "MOVED"));
+  assert(changedDiff.result.changes.some((change: { entity: string; type: string }) => change.entity === "shoe.floor" && change.type === "ADDED"), "Tracked photo comparison must still detect high-confidence actionable clutter.");
 
-  console.log("PASS photo reliability: exact re-upload = deterministic 100%; fresh tracked photo rechecks relations; explicit physical contradiction = real diff");
+  console.log("PASS photo reliability: exact re-upload = deterministic 100%; tracked photos recheck relations and still detect real clutter");
 } finally {
   preview.server.close();
   preview.server.closeAllConnections();
