@@ -462,6 +462,24 @@ export function createPreviewServer(
         });
         send(res, 201, summarizeCheckpoint(checkpoint)); return;
       }
+      if (path === "/api/checkpoints/view") {
+        if (!services.addCheckpointView) { send(res, 503, { error: "Multi-view checkpoint persistence is not configured." }); return; }
+        if (!validSpaceId(data.spaceId) || !validOpaqueId(data.checkpointId) || !validOpaqueId(data.observationId)) {
+          throw new InputError("Space, saved checkpoint, and observed view are required.");
+        }
+        const observation = observations.get(data.observationId);
+        if (!observation || observation.spaceId !== data.spaceId) {
+          throw new InputError("Observe this additional view before adding it to the checkpoint.");
+        }
+        const checkpoint = await services.addCheckpointView({
+          spaceId: data.spaceId,
+          checkpointId: data.checkpointId,
+          observationId: data.observationId,
+          state: observation.state,
+          ...(observation.sourceImageHash ? { sourceImageHash: observation.sourceImageHash } : {}),
+        });
+        send(res, 200, summarizeCheckpoint(checkpoint)); return;
+      }
       if (path === "/api/rewind/verify") {
         if (!services.getCheckpoint) { send(res, 503, { error: "Checkpoint persistence is not configured." }); return; }
         if (!validSpaceId(data.spaceId) || !validOpaqueId(data.observationId) || !validOpaqueId(data.rewindSessionId)) {
