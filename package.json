@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled && npm run test:phase11:compiled",
+    "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled && npm run test:phase11:compiled && npm run test:alexa:compiled",
     "test:phase1": "npm run build && npm run test:phase1:compiled",
     "test:phase1:compiled": "node dist/packages/physical-state-protocol/tests/hardening.test.js && node dist/packages/diff-engine/tests/compare.test.js && node dist/packages/restore-engine/tests/planner.test.js",
     "test:phase2": "npm run build && npm run test:phase2:compiled",
@@ -40,7 +40,9 @@
     "mcp:live": "npm run build && node dist/packages/mcp-server/scripts/live-command.js",
     "checkpoints:ensure-table": "npm run build && node dist/packages/checkpoints/scripts/ensure-table.js",
     "eval:record": "npm run build && node dist/packages/evaluation/scripts/record.js",
-    "eval:summary": "npm run build && node dist/packages/evaluation/scripts/report.js"
+    "eval:summary": "npm run build && node dist/packages/evaluation/scripts/report.js",
+    "test:alexa": "npm run build && npm run test:alexa:compiled",
+    "test:alexa:compiled": "node dist/packages/alexa-skill/tests/skill.test.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
