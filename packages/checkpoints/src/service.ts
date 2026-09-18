@@ -43,7 +43,7 @@ export function hashPhysicalState(state: SaveCheckpointInput["state"]): string {
 export function buildCheckpointView(
   input: Pick<SaveCheckpointInput, "observationId" | "state" | "sourceImageHash">,
   now = new Date(),
-  id = randomUUID(),
+  id: string = randomUUID(),
 ): CheckpointView {
   const stateHash = hashPhysicalState(input.state);
   return {
@@ -131,6 +131,7 @@ export class CheckpointService {
       views: [...views, newView],
     };
 
+    if (!this.store.update) throw new Error("Checkpoint store does not support multi-view updates.");
     await this.store.update(updated);
     return updated;
   }
