@@ -32,13 +32,13 @@ REWIND therefore does not block the Alexa request while it waits for vision.
 
 Example:
 
-1. User: "Alexa, ask REWIND to rewind to Clean Setup."
+1. User: "Alexa, ask REWIND Memory to rewind to Clean Setup."
 2. Alexa: "I'm checking the room against Clean Setup. Ask me what's next in a moment."
 3. REWIND requests a fresh Ring observation in the background.
-4. User: "Alexa, ask REWIND what's next."
+4. User: "Alexa, ask REWIND Memory what's next."
 5. Alexa: "I found four important changes. First, move the backpack beside the desk."
 6. User changes the room.
-7. User: "Alexa, ask REWIND to check again."
+7. User: "Alexa, ask REWIND Memory to check again."
 8. REWIND captures fresh state again.
 9. User asks for status and Alexa reads the updated guidance.
 
@@ -90,7 +90,7 @@ The endpoint verifies Alexa request signatures and timestamps using Amazon's ASK
 ## Alexa Developer Console setup
 
 1. Create a Custom Skill named REWIND.
-2. Use invocation name `rewind`.
+2. Use invocation name `rewind memory`.
 3. Import/build the interaction model from `packages/alexa-skill/interaction-model/en-US.json`.
 4. Copy the Skill ID into `REWIND_ALEXA_SKILL_ID`.
 5. Expose local port 3005 through an HTTPS tunnel.
@@ -104,21 +104,21 @@ The endpoint verifies Alexa request signatures and timestamps using Amazon's ASK
 ## Demo phrases
 
 ```text
-Alexa, open REWIND.
+Alexa, open REWIND Memory.
 
-Alexa, ask REWIND to remember this room as Clean Setup.
+Alexa, ask REWIND Memory to remember this room as Clean Setup.
 
-Alexa, ask REWIND what's the status.
+Alexa, ask REWIND Memory what's the status.
 
-Alexa, ask REWIND to rewind to Clean Setup.
+Alexa, ask REWIND Memory to rewind to Clean Setup.
 
-Alexa, ask REWIND what's next.
+Alexa, ask REWIND Memory what's next.
 
-Alexa, ask REWIND for the next step.
+Alexa, ask REWIND Memory for the next step.
 
-Alexa, ask REWIND to check again.
+Alexa, ask REWIND Memory to check again.
 
-Alexa, ask REWIND what's the status.
+Alexa, ask REWIND Memory what's the status.
 ```
 
 ## Security / trust boundaries
