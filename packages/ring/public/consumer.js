@@ -12,6 +12,8 @@
   let selectedFile;
   let previewUrl;
   let consumerObservationId;
+  let rememberCheckpointId;
+  let rememberViewCount = 0;
   let savedStates = [];
   let busy = false;
 
@@ -208,7 +210,8 @@
         ? savedStates.map(checkpoint => {
             const option = document.createElement('option');
             option.value = checkpoint.id;
-            option.textContent = checkpoint.name;
+            const views = Number(checkpoint.viewCount || 1);
+            option.textContent = `${checkpoint.name} · ${views} ${views === 1 ? 'view' : 'views'}`;
             return option;
           })
         : [Object.assign(document.createElement('option'), { value: '', textContent: 'No saved states yet' })];
@@ -224,6 +227,11 @@
   }
 
   function setMode(next) {
+    if (mode !== next) {
+      rememberCheckpointId = undefined;
+      rememberViewCount = 0;
+      saveState.textContent = 'Save this state';
+    }
     mode = next;
     document.body.dataset.consumerIntent = next;
     document.body.dataset.observationSource = 'photo';
@@ -251,7 +259,18 @@
   photoInput.addEventListener('change', () => selectPhoto(photoInput.files?.[0]));
   savedState.addEventListener('change', () => { compareState.disabled = busy || !consumerObservationId || !savedState.value; });
 
+  stateName.addEventListener('input', () => {
+    if (!rememberCheckpointId) return;
+    rememberCheckpointId = undefined;
+    rememberViewCount = 0;
+    saveState.textContent = 'Save this state';
+    flowStatus.textContent = 'Checkpoint name changed. The next analyzed photo will start a new saved state.';
+  });
+
   spaceName.addEventListener('change', () => {
+    rememberCheckpointId = undefined;
+    rememberViewCount = 0;
+    saveState.textContent = 'Save this state';
     syncSpace();
     clearObservation();
     syncConsumerRewindState();
@@ -280,8 +299,13 @@
         requestAnimationFrame(() => focusCard.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       } else if (mode === 'remember') {
         saveState.hidden = false;
-        photoStatus.textContent = 'Semantic state ready. Save this as the reference you want REWIND to remember.';
-        flowStatus.textContent = 'Photo analyzed. Save the reference state.';
+        saveState.textContent = rememberCheckpointId ? 'Add this angle' : 'Save this state';
+        photoStatus.textContent = rememberCheckpointId
+          ? 'Semantic view ready. Add this angle to strengthen the saved checkpoint.'
+          : 'Semantic state ready. Save this as the reference you want REWIND to remember.';
+        flowStatus.textContent = rememberCheckpointId
+          ? `Photo analyzed. This will become view ${rememberViewCount + 1} of the same saved state.`
+          : 'Photo analyzed. Save the reference state.';
       } else {
         compareState.hidden = false;
         compareState.disabled = !savedState.value;
@@ -301,19 +325,34 @@
   saveState.addEventListener('click', async () => {
     if (!consumerObservationId || busy || !stateName.value.trim()) return;
     setBusy(true);
-    flowStatus.textContent = 'Saving semantic reference to DynamoDB…';
+    flowStatus.textContent = rememberCheckpointId
+      ? 'Adding this semantic angle to the saved checkpoint…'
+      : 'Saving semantic reference to DynamoDB…';
     try {
-      const checkpoint = await api('checkpoints', {
-        observationId: consumerObservationId,
-        spaceId: space.value,
-        name: stateName.value.trim(),
-      });
+      const checkpoint = rememberCheckpointId
+        ? await api('checkpoints/view', {
+            observationId: consumerObservationId,
+            spaceId: space.value,
+            checkpointId: rememberCheckpointId,
+          })
+        : await api('checkpoints', {
+            observationId: consumerObservationId,
+            spaceId: space.value,
+            name: stateName.value.trim(),
+          });
+
+      rememberCheckpointId = checkpoint.id;
+      rememberViewCount = Number(checkpoint.viewCount || 1);
+      saveState.textContent = 'Add this angle';
       await loadSavedStates(checkpoint.id);
-      flowStatus.textContent = `Saved “${checkpoint.name}”. When the space changes, choose Rewind a space and take another photo.`;
-      photoStatus.textContent = 'Reference saved. REWIND remembers the validated semantic state, not this photo.';
-      status(`${checkpoint.name} saved from a phone photo.`);
+
+      flowStatus.textContent = rememberViewCount < 3
+        ? `Saved “${checkpoint.name}” with ${rememberViewCount} ${rememberViewCount === 1 ? 'view' : 'views'}. Take another angle for stronger coverage, or switch to Rewind a space.`
+        : `Saved “${checkpoint.name}” with ${rememberViewCount} semantic views. This checkpoint is ready for cross-angle Rewind.`;
+      photoStatus.textContent = 'View saved. Raw photo discarded; REWIND keeps semantic memory and a non-reversible fingerprint.';
+      status(`${checkpoint.name}: ${rememberViewCount} semantic ${rememberViewCount === 1 ? 'view' : 'views'} saved.`);
     } catch (error) {
-      flowStatus.textContent = error.message || 'Could not save this state.';
+      flowStatus.textContent = error.message || 'Could not save this checkpoint view.';
     } finally {
       setBusy(false);
     }
