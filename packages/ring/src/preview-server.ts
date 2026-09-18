@@ -493,7 +493,8 @@ export function createPreviewServer(
         }
         const checkpoint = await services.getCheckpoint(session.spaceId, session.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const checkpointState = stateForCheckpointView(checkpoint, session.checkpointViewId);
+        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const progress = updateRestoreProgress(session.plan, diffs);
         const blockedUnknowns = diffs.filter(diff => diff.type === "UNKNOWN").map(diff => diff.entity);
@@ -517,6 +518,7 @@ export function createPreviewServer(
           changes,
           observationBasis: observation.basis,
           exactImageMatch: observation.basis === "exact-image",
+          ...(session.checkpointViewId ? { checkpointViewId: session.checkpointViewId } : {}),
         });
         return;
       }
@@ -529,7 +531,8 @@ export function createPreviewServer(
         if (!observation || observation.spaceId !== data.spaceId) throw new InputError("Observe this space again before comparing it.");
         const checkpoint = await services.getCheckpoint(data.spaceId, data.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
-        const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const checkpointState = stateForCheckpointView(checkpoint, observation.checkpointViewId);
+        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
         const match = calculateMatch(diffs);
         const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
         if (path === "/api/diff") {
@@ -540,6 +543,8 @@ export function createPreviewServer(
             changes,
             observationBasis: observation.basis,
             exactImageMatch: observation.basis === "exact-image",
+            ...(observation.checkpointViewId ? { checkpointViewId: observation.checkpointViewId } : {}),
+            ...(observation.viewSelectionScore !== undefined ? { viewSelectionScore: observation.viewSelectionScore } : {}),
           });
           return;
         }
@@ -549,7 +554,12 @@ export function createPreviewServer(
           : plan.actions.length === 0 && plan.blockedUnknowns.length > 0
             ? "LOW_CONFIDENCE"
             : "GUIDING";
-        const rewindSession = rememberRewindSession(data.spaceId, data.checkpointId, plan);
+        const rewindSession = rememberRewindSession(
+          data.spaceId,
+          data.checkpointId,
+          plan,
+          observation.checkpointViewId,
+        );
         send(res, 200, {
           rewindSessionId: rewindSession.id,
           checkpoint: summarizeCheckpoint(checkpoint),
@@ -558,6 +568,8 @@ export function createPreviewServer(
           plan,
           observationBasis: observation.basis,
           exactImageMatch: observation.basis === "exact-image",
+          ...(observation.checkpointViewId ? { checkpointViewId: observation.checkpointViewId } : {}),
+          ...(observation.viewSelectionScore !== undefined ? { viewSelectionScore: observation.viewSelectionScore } : {}),
         });
         return;
       }
@@ -587,7 +599,7 @@ export function createPreviewServer(
         ? observationErrorMessage(error)
         : path === "/api/agent"
           ? safeAgentError(error)
-          : path === "/api/checkpoints" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
+          : path === "/api/checkpoints" || path === "/api/checkpoints/view" || path === "/api/diff" || path === "/api/rewind" || path === "/api/rewind/verify"
             ? "Checkpoint operation failed. Check AWS credentials and the DynamoDB table, then retry."
             : "Ring request failed. Check your token; refresh it and restart the server if expired.";
       send(res, status, { error: message });
