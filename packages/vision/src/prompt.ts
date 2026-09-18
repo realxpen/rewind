@@ -35,14 +35,17 @@ Hard rules:
 - When tracked vocabulary is supplied, relations on tracked entities should target supplied tracked keys whenever possible. Do not create a new alias solely to serve as a relation target.
 - For untracked extra objects, only add an entity when it is visually clear, genuinely additional, and useful to the physical-state task.
 - If a tracked category already accounts for all clearly visible instances of that category, do not create another untracked entity of that category.
-- If no tracked vocabulary is supplied, return at most 20 entities. Prioritize movable/restorable objects and stable room anchors needed for relations.
-- If tracked vocabulary is supplied, prioritize those tracked entities and add no more than 3 clearly useful untracked extras.
+- If no tracked vocabulary is supplied, return at most 24 entities. Prioritize movable/restorable objects, major support surfaces, and stable room anchors needed for relations.
+- In open observation, when visually obvious, record a boolean "clear" attribute on major restorable support surfaces such as desks, coffee tables, sofas/seats, and floor zones; true means free of loose clutter, false means visibly cluttered.
+- If tracked vocabulary is supplied, first verify every tracked entity, then run a DELTA SCAN for obvious current clutter or movable objects not represented by the checkpoint. Add no more than 8 high-confidence, restoration-relevant untracked extras.
+- DELTA SCAN examples include clothing, shoes, bags/backpacks, remotes/controllers, cups/glasses/bottles, dishes, loose papers, toys, cables/chargers, boxes/baskets, blankets/throws, and other clearly misplaced loose objects.
+- Do not use the DELTA SCAN to add decorative plants, wall art, fixed lighting, or other background decor merely because the checkpoint inventory omitted them.
 - Confidence must be between 0 and 1.
 - Never identify or name people.`;
 
 function trackedVocabulary(context: ObservationContext): string {
   if (!context.trackedEntities || context.trackedEntities.length === 0) {
-    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. Return at most 20 entities total, prioritizing movable/restorable objects and stable anchors. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
+    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. Return at most 24 entities total, prioritizing movable/restorable objects, major support surfaces, and stable anchors. When visually obvious, include boolean clear on major support surfaces so later clutter can be compared. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
   }
 
   return context.trackedEntities
@@ -107,9 +110,10 @@ Entity identity rules:
 Output-size rules:
 - Return one complete, parseable JSON object; never stop mid-object or mid-array.
 - Keep each entity concise: key, category, confidence, only useful primitive attributes, and only useful relations.
-- With no tracked vocabulary, include at most 20 entities total.
-- With tracked vocabulary, prioritize tracked entities and include at most 3 genuinely additional untracked entities.
+- With no tracked vocabulary, include at most 24 entities total.
+- With tracked vocabulary, prioritize tracked entities and include at most 8 genuinely additional high-confidence restoration-relevant extras from the DELTA SCAN.
 - Prefer omission of minor decorative objects over risking an incomplete JSON response.
+- Keep DELTA SCAN extras concise: key, category, confidence, and at most one useful relation when it helps locate the object.
 
 Observable attribute rules:
 - For tracked entities that define observable attributes, explicitly inspect every listed attribute.
@@ -166,7 +170,8 @@ Observation guidance:
 10. For ON, UNDER, INSIDE, BEHIND, LEFT_OF, RIGHT_OF, IN_FRONT_OF, NEAR, and ATTACHED_TO, always make the entity owning the relation the subject and target the referenced object.
 11. Do not create inverse relations merely because two objects are visible near each other.
 12. In tracked mode, do a second identity-and-relation pass: every visible tracked object must use its supplied key, and every supplied checkpoint relation must either be re-emitted because it is visibly true, omitted because it is uncertain, or replaced only by visually clear contradictory evidence.
-13. Perform a final uniqueness check over all entity keys before responding.
-14. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
-15. Return JSON only.`;
+13. In tracked mode, do a final DELTA SCAN of the whole image for obvious high-confidence loose clutter or movable extras that are not represented by any supplied tracked key. Include up to 8 such extras and ignore background decor.
+14. Perform a final uniqueness check over all entity keys before responding.
+15. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
+16. Return JSON only.`;
 }
