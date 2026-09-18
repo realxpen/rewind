@@ -30,6 +30,26 @@ const withAdded: PhysicalState = {
 };
 assert(compareStates(demoReady, withAdded).some((diff) => diff.entity === "bottle.water" && diff.type === "ADDED"), "Expected added bottle to be ADDED.");
 
+
+const visionClutterCurrent: PhysicalState = {
+  ...demoReady,
+  capturedAt: "2026-09-18T09:00:00.000Z",
+  entities: [
+    ...demoReady.entities,
+    { key: "shoe.floor", category: "shoe", confidence: 0.94, relations: [{ type: "NEAR", target: "desk.main", confidence: 0.9 }] },
+    { key: "plant.decorative.extra", category: "plant", confidence: 0.97 },
+  ],
+};
+const visionClutterDiffs = compareStates(demoReady, visionClutterCurrent, { evidenceMode: "vision" });
+assert(
+  visionClutterDiffs.some(diff => diff.entity === "shoe.floor" && diff.type === "ADDED"),
+  "High-confidence actionable clutter must remain detectable in vision mode.",
+);
+assert(
+  !visionClutterDiffs.some(diff => diff.entity === "plant.decorative.extra"),
+  "Untracked decorative/background extras must not become fake restoration work in vision mode.",
+);
+
 const uncertain: PhysicalState = {
   ...demoReady,
   capturedAt: "2026-09-06T09:31:00.000Z",
@@ -178,4 +198,4 @@ const birdFeederCurrent: PhysicalState = {
 const birdFeederDiffs = compareStates(birdFeederCheckpoint, birdFeederCurrent);
 assert(birdFeederDiffs.length === 1 && birdFeederDiffs[0]?.entity === "bird_feeder_1" && birdFeederDiffs[0]?.type === "UNCHANGED", "Bird motion must not create a restore action while the feeder remains tracked.");
 
-console.log("PASS diff-engine: deterministic demo + conservative vision relations/removals + confirmed support moves + transient noise ignored");
+console.log("PASS diff-engine: deterministic demo + conservative vision relations/removals + actionable clutter + confirmed support moves + transient noise ignored");
