@@ -102,7 +102,9 @@ async function main() {
       });
       return result;
     },
+    observeUnpublished: request => nova.observe(request),
     saveCheckpoint: input => checkpoints.save(input),
+    addCheckpointView: input => checkpoints.addView(input),
     listCheckpoints: spaceId => checkpoints.list(spaceId),
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
     invokeAgent: input => liveAgent.invoke(input),
