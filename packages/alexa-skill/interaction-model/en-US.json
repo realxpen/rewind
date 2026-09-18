@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "rewind",
+      "invocationName": "rewind memory",
       "intents": [
         {
           "name": "SaveCheckpointIntent",
