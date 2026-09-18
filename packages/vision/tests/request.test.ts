@@ -14,7 +14,7 @@ const input = buildNovaConverseInput({
 });
 
 assert.equal(input.modelId, DEFAULT_NOVA_MODEL_ID);
-assert.equal(input.inferenceConfig?.maxTokens, 3200);
+assert.equal(input.inferenceConfig?.maxTokens, 4200);
 assert.equal(input.inferenceConfig?.temperature, 0);
 assert.equal(input.inferenceConfig?.topP, 0.1);
 assert.equal(input.messages?.length, 1);
