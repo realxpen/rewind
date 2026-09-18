@@ -97,7 +97,8 @@ export function normalizeState(input: PhysicalState | unknown): PhysicalState {
   };
 
   if (state.zones !== undefined) {
-    normalized.zones = sortZones(state.zones.map(normalizeZone));
+    const zones = sortZones(state.zones.map(normalizeZone));
+    if (zones !== undefined) normalized.zones = zones;
   }
   if (state.evidence !== undefined) {
     normalized.evidence = normalizeEvidence(state.evidence);
