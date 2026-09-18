@@ -1,0 +1,126 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "rewind",
+      "intents": [
+        {
+          "name": "SaveCheckpointIntent",
+          "slots": [
+            {
+              "name": "checkpointName",
+              "type": "CHECKPOINT_NAME"
+            }
+          ],
+          "samples": [
+            "remember this room as {checkpointName}",
+            "save this room as {checkpointName}",
+            "remember this setup as {checkpointName}",
+            "save this setup as {checkpointName}"
+          ]
+        },
+        {
+          "name": "StartRewindIntent",
+          "slots": [
+            {
+              "name": "checkpointName",
+              "type": "CHECKPOINT_NAME"
+            }
+          ],
+          "samples": [
+            "rewind to {checkpointName}",
+            "restore {checkpointName}",
+            "restore the room to {checkpointName}",
+            "take me back to {checkpointName}"
+          ]
+        },
+        {
+          "name": "CheckAgainIntent",
+          "samples": [
+            "check again",
+            "scan again",
+            "check my progress",
+            "look again",
+            "verify the room"
+          ]
+        },
+        {
+          "name": "NextStepIntent",
+          "samples": [
+            "what's next",
+            "next step",
+            "tell me the next step",
+            "what should I move next"
+          ]
+        },
+        {
+          "name": "RepeatStepIntent",
+          "samples": [
+            "repeat that",
+            "say that again",
+            "repeat the step"
+          ]
+        },
+        {
+          "name": "StatusIntent",
+          "samples": [
+            "what's the status",
+            "are you done",
+            "what did you find",
+            "how is the scan going",
+            "what's next now"
+          ]
+        },
+        {
+          "name": "ListCheckpointsIntent",
+          "samples": [
+            "list my saved states",
+            "what setups do I have",
+            "what have I saved",
+            "show my checkpoints"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "CHECKPOINT_NAME",
+          "values": [
+            {
+              "name": {
+                "value": "Clean Setup",
+                "synonyms": ["clean room", "clean setup"]
+              }
+            },
+            {
+              "name": {
+                "value": "Work Mode",
+                "synonyms": ["work setup", "desk setup"]
+              }
+            },
+            {
+              "name": {
+                "value": "Movie Night",
+                "synonyms": ["movie setup"]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
