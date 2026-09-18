@@ -342,20 +342,70 @@ export function createPreviewServer(
           const checkpoint = validOpaqueId(data.checkpointId)
             ? await checkpointForId(data.spaceId, data.checkpointId)
             : await checkpointForActiveRewind(data.spaceId);
-          const exactImageMatch = Boolean(checkpoint?.sourceImageHash && checkpoint.sourceImageHash === sourceImageHash);
-          const basis: ObservationBasis = exactImageMatch ? "exact-image" : checkpoint ? "nova-tracked" : "nova-open";
-          const result = exactImageMatch && checkpoint
-            ? createExactImageObservation(checkpoint, data.capturedAt)
-            : await services.observe({
+
+          const exactView = checkpoint
+            ? findCheckpointViewByImageHash(checkpoint, sourceImageHash)
+            : undefined;
+          const exactImageMatch = Boolean(exactView);
+
+          let result: VisionObservation;
+          let basis: ObservationBasis;
+          let checkpointViewId: string | undefined;
+          let viewSelectionScore: number | undefined;
+
+          if (checkpoint && exactView) {
+            checkpointViewId = exactView.id;
+            basis = "exact-image";
+            result = createExactImageObservation(exactView.state, data.capturedAt);
+          } else if (checkpoint) {
+            const views = checkpointViews(checkpoint);
+            let selectedView = views[0]!;
+
+            if (views.length > 1) {
+              const scan = await (services.observeUnpublished ?? services.observe)({
                 imageBytes: bytes,
                 format: "jpeg",
                 context: {
                   spaceId: data.spaceId,
                   capturedAt: data.capturedAt,
-                  ...(checkpoint ? { trackedEntities: trackedEntitiesFromCheckpoint(checkpoint) } : {}),
                 },
               });
-          const observationId = rememberObservation(data.spaceId, result, sourceImageHash, basis);
+              const selected = selectBestCheckpointView(checkpoint, scan.state);
+              selectedView = selected.view;
+              viewSelectionScore = selected.score;
+            }
+
+            checkpointViewId = selectedView.id;
+            basis = "nova-tracked";
+            result = await services.observe({
+              imageBytes: bytes,
+              format: "jpeg",
+              context: {
+                spaceId: data.spaceId,
+                capturedAt: data.capturedAt,
+                trackedEntities: trackedEntitiesFromState(selectedView.state),
+              },
+            });
+          } else {
+            basis = "nova-open";
+            result = await services.observe({
+              imageBytes: bytes,
+              format: "jpeg",
+              context: {
+                spaceId: data.spaceId,
+                capturedAt: data.capturedAt,
+              },
+            });
+          }
+
+          const observationId = rememberObservation(
+            data.spaceId,
+            result,
+            sourceImageHash,
+            basis,
+            checkpointViewId,
+            viewSelectionScore,
+          );
           send(res, 200, {
             observationId,
             state: result.state,
@@ -363,6 +413,8 @@ export function createPreviewServer(
             latencyMs: result.latencyMs,
             observationBasis: basis,
             exactImageMatch,
+            ...(checkpointViewId ? { checkpointViewId } : {}),
+            ...(viewSelectionScore !== undefined ? { viewSelectionScore } : {}),
           });
         } finally { observing = false; }
         return;
