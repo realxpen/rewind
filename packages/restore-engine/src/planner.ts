@@ -23,7 +23,9 @@ function expectedRelation(diff: PhysicalDiff): PhysicalRelation | undefined {
 }
 
 function relationInstruction(entity: string, relation: PhysicalRelation | undefined): string {
-  if (!relation) return `Return ${humanEntity(entity)} to its checkpoint position.`;
+  if (!relation || relation.target === entity) {
+    return `Return ${humanEntity(entity)} to its checkpoint position.`;
+  }
   const phrase = relationPhrase[relation.type] ?? relation.type.toLowerCase();
   return relation.target
     ? `Move ${humanEntity(entity)} ${phrase} ${humanEntity(relation.target)}.`
