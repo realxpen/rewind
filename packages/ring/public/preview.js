@@ -45,10 +45,14 @@ function describeSnapshot(snapshot) {
 function renderDiff(result) {
   latestDiffCheckpointId = result.checkpoint.id;
   byId('diffTitle').textContent = `Compared with ${result.checkpoint.name}`;
+  const evidenceCoverage = Number.isFinite(result.match.coveragePercentage) ? result.match.coveragePercentage : 100;
   byId('matchScore').textContent = `${result.match.percentage}%`;
-  byId('diffSummary').textContent = result.changeCount === 0
+  byId('matchScore').dataset.coverage = String(evidenceCoverage);
+  byId('diffSummary').textContent = result.match.restored
     ? 'No meaningful differences remain. This scene matches the checkpoint.'
-    : `${result.changeCount} meaningful ${result.changeCount === 1 ? 'change' : 'changes'} detected. ${result.match.unknown ? `${result.match.unknown} uncertain.` : ''}`;
+    : result.changeCount === 0
+      ? `No confirmed differences, but evidence coverage is ${evidenceCoverage}%. Re-observe uncertain items before declaring restoration complete.`
+      : `${result.changeCount} meaningful ${result.changeCount === 1 ? 'difference' : 'differences'} found. ${result.match.unknown ? `${result.match.unknown} uncertain. ` : ''}${evidenceCoverage < 100 ? `Evidence coverage: ${evidenceCoverage}%.` : ''}`;
   const items = result.changes.map(change => {
     const item = document.createElement('li');
     if (change.type === 'UNKNOWN') item.className = 'unknown';
