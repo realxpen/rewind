@@ -150,6 +150,17 @@ export function validatePhysicalState(input: unknown): ValidationResult<Physical
             });
           }
 
+          // Legacy Nova output can occasionally emit impossible self-relations such as
+          // table.coffee ON table.coffee. Ignore them instead of turning them into
+          // restoration truth or invalidating an older saved checkpoint.
+          if (
+            typeof key === "string" &&
+            typeof relationRaw.target === "string" &&
+            relationRaw.target.trim() === key.trim()
+          ) {
+            return;
+          }
+
           const relation: PhysicalRelation = {
             type: relationRaw.type as PhysicalRelation["type"],
           };
