@@ -39,6 +39,7 @@ function normalizeEntity(entity: PhysicalEntity): PhysicalEntity {
   const relations = entity.relations
     ? [...entity.relations]
         .map(normalizeRelation)
+        .filter(relation => relation.target === undefined || relation.target !== entity.key.trim())
         .sort((a, b) => relationKey(a).localeCompare(relationKey(b)))
     : undefined;
 
