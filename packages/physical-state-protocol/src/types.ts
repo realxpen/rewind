@@ -18,7 +18,49 @@ export const RELATION_TYPES = [
   "OCCUPIED",
 ] as const;
 
+export const ENTITY_ROLES = [
+  "ANCHOR",
+  "SURFACE",
+  "MOVABLE",
+  "CLUTTER",
+  "DECOR",
+] as const;
+
+export const ENTITY_IMPORTANCE_LEVELS = [
+  "critical",
+  "normal",
+  "low",
+] as const;
+
+export const ZONE_KINDS = [
+  "FLOOR",
+  "DESK",
+  "TABLE",
+  "BED",
+  "SOFA",
+  "SHELF",
+  "COUNTER",
+  "GENERAL",
+] as const;
+
+export const ZONE_CLUTTER_LEVELS = [
+  "clear",
+  "light",
+  "cluttered",
+] as const;
+
+export const OBSERVATION_SOURCES = [
+  "nova",
+  "exact-image",
+  "controlled",
+] as const;
+
 export type RelationType = (typeof RELATION_TYPES)[number];
+export type EntityRole = (typeof ENTITY_ROLES)[number];
+export type EntityImportance = (typeof ENTITY_IMPORTANCE_LEVELS)[number];
+export type ZoneKind = (typeof ZONE_KINDS)[number];
+export type ZoneClutterLevel = (typeof ZONE_CLUTTER_LEVELS)[number];
+export type ObservationSource = (typeof OBSERVATION_SOURCES)[number];
 export type AttributeValue = string | number | boolean | null;
 
 export interface PhysicalRelation {
@@ -33,6 +75,37 @@ export interface PhysicalEntity {
   confidence: number;
   attributes?: Record<string, AttributeValue>;
   relations?: PhysicalRelation[];
+
+  /**
+   * Optional hardening metadata. These fields are intentionally optional so every
+   * existing PSP 0.1 checkpoint remains valid without migration.
+   */
+  role?: EntityRole;
+  zone?: string;
+  importance?: EntityImportance;
+}
+
+export interface PhysicalZoneState {
+  clear?: boolean;
+  occupied?: boolean;
+  clutterLevel?: ZoneClutterLevel;
+}
+
+export interface PhysicalZone {
+  key: string;
+  kind: ZoneKind;
+  confidence: number;
+  state?: PhysicalZoneState;
+}
+
+export interface ObservationEvidence {
+  /** Fraction of checkpoint-relevant state confidently observed, from 0 to 1. */
+  coverage: number;
+  /** Overall capture/perception quality for this observation, from 0 to 1. */
+  quality: number;
+  source: ObservationSource;
+  /** Optional semantic view identifier for future multi-view checkpoint matching. */
+  viewId?: string;
 }
 
 export interface PhysicalState {
@@ -40,6 +113,13 @@ export interface PhysicalState {
   spaceId: string;
   capturedAt: string;
   entities: PhysicalEntity[];
+
+  /**
+   * Optional H1 hardening fields. Existing callers can continue producing the original
+   * PSP shape; later hardening passes can progressively populate these fields.
+   */
+  zones?: PhysicalZone[];
+  evidence?: ObservationEvidence;
 }
 
 export interface ValidationIssue {
