@@ -134,7 +134,9 @@ export class RewindAgentToolService {
   }> {
     const observation = this.latest(spaceId);
     const checkpoint = await this.checkpoint(spaceId, checkpointId);
-    const diffs = compareStates(checkpoint.state, observation.state);
+    const diffs = compareStates(checkpoint.state, observation.state, {
+      evidenceMode: observation.evidenceMode ?? "strict",
+    });
     return { checkpoint, diffs, match: calculateMatch(diffs) };
   }
 
@@ -225,7 +227,9 @@ export class RewindAgentToolService {
     await this.inspectSpace({ spaceId: input.spaceId });
     const checkpoint = await this.checkpoint(session.spaceId, session.checkpointId);
     const observation = this.latest(session.spaceId);
-    const diffs = compareStates(checkpoint.state, observation.state);
+    const diffs = compareStates(checkpoint.state, observation.state, {
+      evidenceMode: observation.evidenceMode ?? "strict",
+    });
     const match = calculateMatch(diffs);
 
     // Rebuild guidance from the latest deterministic diff on every verification.
