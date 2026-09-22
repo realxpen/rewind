@@ -56,6 +56,24 @@ const rewindResult: RewindToolResult = {
   changes: [],
 };
 
+const lowConfidenceResult: RewindToolResult = {
+  ...rewindResult,
+  state: "LOW_CONFIDENCE",
+  match: {
+    percentage: 100,
+    matched: 2,
+    unresolved: 3,
+    unknown: 3,
+    confirmedChanges: 0,
+    total: 5,
+    coveragePercentage: 40,
+    restored: false,
+  },
+  plan: { actions: [], blockedUnknowns: ["birdfeeder.left", "birdfeeder.right", "branch.main"] },
+  changeCount: 3,
+  changes: [],
+};
+
 const restoredResult: RewindToolResult = {
   ...rewindResult,
   state: "RESTORED",
@@ -183,6 +201,28 @@ const restored = await skill.handle(envelope("IntentRequest", "StatusIntent"));
 assert.match(restored.response.outputSpeech?.text ?? "", /important visible parts of Clean Setup are restored/i);
 assert.match(restored.response.outputSpeech?.text ?? "", /perfect pixel match/i);
 assert.equal(verifyCalls, 1);
+
+const lowConfidenceTools: AlexaRewindTools = {
+  ...tools,
+  async startRewind() {
+    return structuredClone(lowConfidenceResult);
+  },
+  async getRewindStatus() {
+    return structuredClone(lowConfidenceResult);
+  },
+};
+const lowConfidenceSkill = new RewindAlexaSkill({
+  tools: lowConfidenceTools,
+  defaultSpaceId: "ring-playground",
+  skillId: "amzn1.ask.skill.rewind-test",
+});
+const lowConfidenceRequest = envelope("IntentRequest", "StartRewindIntent", "clean setup");
+await lowConfidenceSkill.handle(lowConfidenceRequest);
+await lowConfidenceSkill.whenIdle(lowConfidenceRequest);
+const lowConfidenceStatus = await lowConfidenceSkill.handle(envelope("IntentRequest", "StatusIntent"));
+assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /restored enough/i);
+assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /3 items weren't clear enough/i);
+assert.doesNotMatch(lowConfidenceStatus.response.outputSpeech?.text ?? "", /confirmed restore steps/i);
 
 const wrongSkill = new RewindAlexaSkill({
   tools,
