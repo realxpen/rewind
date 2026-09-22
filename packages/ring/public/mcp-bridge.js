@@ -1,29 +1,43 @@
 (() => {
-  let lastRequestId;
+  let completedRequestId;
+  let activeRequestId;
   let answering = false;
 
   async function poll() {
     if (answering) return;
     const video = document.getElementById('video');
     const space = document.getElementById('space');
-    if (!video || !space || video.readyState < 2 || !video.videoWidth || !space.value) return;
+    if (!video || !space || !space.value) return;
 
     try {
       const url = `/api/mcp-observation-request?spaceId=${encodeURIComponent(space.value)}`;
       const response = await fetch(url, { method: 'GET', cache: 'no-store' });
       if (!response.ok) return;
       const request = await response.json();
-      if (!request.requested || !request.requestId || request.requestId === lastRequestId) return;
+      if (!request.requested || !request.requestId) return;
+      if (request.requestId === completedRequestId || request.requestId === activeRequestId) return;
 
-      lastRequestId = request.requestId;
+      activeRequestId = request.requestId;
       answering = true;
       const status = document.getElementById('status');
-      if (status) status.textContent = 'MCP requested a fresh Ring observation…';
+      if (status) status.textContent = 'Alexa/agent requested a fresh Ring observation…';
+
+      if (video.readyState < 2 || !video.videoWidth) {
+        if (typeof window.ensureLiveViewForObservation !== 'function') {
+          throw new Error('Ring live view is not ready.');
+        }
+        if (status) status.textContent = 'Fresh observation requested. Reconnecting Ring live view automatically…';
+        await window.ensureLiveViewForObservation();
+      }
+
       await captureFreshAgentObservation();
-      if (status) status.textContent = 'Fresh Ring → Nova observation delivered to the MCP tool.';
-    } catch {
-      // Keep polling. The MCP caller owns timeout/error reporting.
+      completedRequestId = request.requestId;
+      if (status) status.textContent = 'Fresh Ring → Nova observation delivered to the requesting tool.';
+    } catch (error) {
+      const status = document.getElementById('status');
+      if (status) status.textContent = `Fresh Ring observation failed; retrying while the request is active. ${error?.message || ''}`.trim();
     } finally {
+      activeRequestId = undefined;
       answering = false;
     }
   }
