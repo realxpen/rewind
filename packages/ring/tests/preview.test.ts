@@ -2,6 +2,8 @@ import { observationErrorMessage } from "../src/observation-error.js";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { createPreviewServer, type PreviewAgentInput } from "../src/preview-server.js";
 import type { VisionObservationRequest } from "../../vision/src/contracts.js";
 import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
@@ -168,3 +170,14 @@ assert.doesNotMatch(observationErrorMessage({ name: "VisionContractError", code:
 assert.match(observationErrorMessage({ name: "toString" }), /unclassified/);
 assert.match(observationErrorMessage(null), /unclassified/);
 console.log("PASS Nova diagnostics: credentials + access + request configuration + response validation + secret redaction");
+
+
+const previewClientSource = await readFile(resolve("packages/ring/public/preview.js"), "utf8");
+const mcpBridgeSource = await readFile(resolve("packages/ring/public/mcp-bridge.js"), "utf8");
+assert.doesNotThrow(() => new Function(previewClientSource), "preview.js must remain valid browser JavaScript.");
+assert.doesNotThrow(() => new Function(mcpBridgeSource), "mcp-bridge.js must remain valid browser JavaScript.");
+assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must expose automatic live-view recovery for fresh observation requests.");
+assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
+assert.match(mcpBridgeSource, /Reconnecting Ring live view automatically/, "Fresh observation bridge must reconnect Ring before capture.");
+assert.match(mcpBridgeSource, /completedRequestId = request\.requestId/, "A request is completed only after a fresh observation succeeds.");
+console.log("PASS Ring preview client: automatic live-view recovery + retry contract.");
