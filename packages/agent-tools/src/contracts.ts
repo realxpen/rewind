@@ -1,5 +1,5 @@
 import type { Checkpoint, CheckpointSummary, SaveCheckpointInput } from "../../checkpoints/src/contracts.js";
-import type { MatchResult, PhysicalDiff } from "../../diff-engine/src/index.js";
+import type { ComparisonEvidenceMode, MatchResult, PhysicalDiff } from "../../diff-engine/src/index.js";
 import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
 import type {
   RestorePlan,
@@ -29,6 +29,8 @@ export interface AgentObservation {
   state: PhysicalState;
   modelId?: string;
   latencyMs?: number;
+  /** Comparison semantics chosen by the trusted observation provider. Ring/Nova uses vision mode. */
+  evidenceMode?: ComparisonEvidenceMode;
 }
 
 export interface SpaceObserver {
