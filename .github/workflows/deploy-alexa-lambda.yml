@@ -1,0 +1,74 @@
+name: Deploy Alexa Lambda Relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/alexa-skill/lambda/**"
+      - ".github/workflows/deploy-alexa-lambda.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::707859598737:role/rewind-github-alexa-deploy
+          aws-region: us-east-1
+
+      - name: Build Lambda package
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rewind-alexa-lambda
+          cp packages/alexa-skill/lambda/index.mjs /tmp/rewind-alexa-lambda/index.mjs
+          cd /tmp/rewind-alexa-lambda
+          zip -q function.zip index.mjs
+
+      - name: Deploy Lambda
+        env:
+          FUNCTION_NAME: rewind-alexa-relay
+          EXECUTION_ROLE_ARN: arn:aws:iam::707859598737:role/rewind-alexa-lambda-role
+          SKILL_ID: amzn1.ask.skill.ed4d68b4-0177-4107-b07d-1730db88da2a
+          RELAY_URL: https://holophrastic-bendwise-sherman.ngrok-free.dev/alexa-relay
+        run: |
+          set -euo pipefail
+
+          if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            RELAY_SECRET="$(aws lambda get-function-configuration               --function-name "$FUNCTION_NAME"               --query 'Environment.Variables.REWIND_RELAY_SECRET'               --output text)"
+            if [ -z "$RELAY_SECRET" ] || [ "$RELAY_SECRET" = "None" ]; then
+              RELAY_SECRET="$(openssl rand -hex 32)"
+            fi
+
+            aws lambda update-function-code               --function-name "$FUNCTION_NAME"               --zip-file fileb:///tmp/rewind-alexa-lambda/function.zip               >/dev/null
+
+            aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          else
+            RELAY_SECRET="$(openssl rand -hex 32)"
+
+            jq -n               --arg url "$RELAY_URL"               --arg secret "$RELAY_SECRET"               --arg skill "$SKILL_ID"               '{Variables:{REWIND_RELAY_URL:$url,REWIND_RELAY_SECRET:$secret,REWIND_ALEXA_SKILL_ID:$skill}}'               > /tmp/rewind-alexa-lambda/env.json
+
+            aws lambda create-function               --function-name "$FUNCTION_NAME"               --runtime nodejs22.x               --role "$EXECUTION_ROLE_ARN"               --handler index.handler               --zip-file fileb:///tmp/rewind-alexa-lambda/function.zip               --timeout 8               --memory-size 128               --description "REWIND Alexa Custom Skill transport to authenticated local relay"               --environment file:///tmp/rewind-alexa-lambda/env.json               >/dev/null
+
+            aws lambda wait function-active --function-name "$FUNCTION_NAME"
+          fi
+
+          jq -n             --arg url "$RELAY_URL"             --arg secret "$RELAY_SECRET"             --arg skill "$SKILL_ID"             '{Variables:{REWIND_RELAY_URL:$url,REWIND_RELAY_SECRET:$secret,REWIND_ALEXA_SKILL_ID:$skill}}'             > /tmp/rewind-alexa-lambda/env.json
+
+          aws lambda update-function-configuration             --function-name "$FUNCTION_NAME"             --runtime nodejs22.x             --handler index.handler             --role "$EXECUTION_ROLE_ARN"             --timeout 8             --memory-size 128             --environment file:///tmp/rewind-alexa-lambda/env.json             >/dev/null
+
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+
+          aws lambda remove-permission             --function-name "$FUNCTION_NAME"             --statement-id AlexaSkillsKitInvoke             >/dev/null 2>&1 || true
+
+          aws lambda add-permission             --function-name "$FUNCTION_NAME"             --statement-id AlexaSkillsKitInvoke             --action lambda:InvokeFunction             --principal alexa-appkit.amazon.com             --event-source-token "$SKILL_ID"             >/dev/null
+
+          aws lambda get-function-configuration             --function-name "$FUNCTION_NAME"             --query '{FunctionArn:FunctionArn,Runtime:Runtime,State:State,LastUpdateStatus:LastUpdateStatus}'             --output json
