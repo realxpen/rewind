@@ -71,6 +71,7 @@ export class RingObservationBridge implements SpaceObserver {
     const observation: AgentObservation = {
       observationId: input.observationId,
       state: structuredClone(input.state),
+      evidenceMode: "vision",
     };
     if (input.modelId !== undefined) observation.modelId = input.modelId;
     if (input.latencyMs !== undefined) observation.latencyMs = input.latencyMs;
