@@ -1,7 +1,37 @@
 const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
+const AUTO_LIVE_KEY = 'rewind.live.auto';
 let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
+let liveConnectPromise, reconnectTimer, heartbeatFailures = 0, reconnectAttempts = 0;
+let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
+
+function videoReady() {
+  return Boolean(peer && sessionId && video.readyState >= 2 && video.videoWidth);
+}
+function setAutoLiveWanted(value) {
+  autoLiveWanted = value;
+  if (value) localStorage.setItem(AUTO_LIVE_KEY, '1');
+  else localStorage.removeItem(AUTO_LIVE_KEY);
+}
+function clearReconnectTimer() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+}
+function scheduleLiveReconnect(delay = 800) {
+  if (!autoLiveWanted || reconnectTimer || liveConnectPromise || reconnectAttempts >= 6) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = undefined;
+    reconnectAttempts += 1;
+    void stop({ notifyServer: false })
+      .catch(() => {})
+      .then(() => connectLiveView({ automatic: true }))
+      .catch(() => {
+        if (reconnectAttempts < 6) scheduleLiveReconnect(1_500);
+        else status('Ring live view needs attention. Click Start live view to retry.');
+      });
+  }, delay);
+}
 
 async function api(path, data) {
   const response = await fetch(`/api/${path}`, data === undefined ? {} : {
@@ -174,17 +204,31 @@ async function discover() {
     }));
     status(devices.length ? 'Camera ready. Start live view.' : 'No Ring devices found.');
     await refreshCheckpoints();
+    if (devices.length && autoLiveWanted) scheduleLiveReconnect(250);
   } catch (error) { status(error.message); }
   finally { pending = false; controls(); }
 }
-async function stop() {
+async function stop({ notifyServer = true } = {}) {
   clearInterval(heartbeat);
-  if (peer) { peer.onconnectionstatechange = null; peer.close(); peer = undefined; }
-  video.srcObject = null;
-  if (sessionId) {
-    await api('stop', { id: sessionId });
-    sessionId = undefined;
+  heartbeat = undefined;
+  heartbeatFailures = 0;
+  const currentPeer = peer;
+  peer = undefined;
+  if (currentPeer) {
+    currentPeer.onconnectionstatechange = null;
+    currentPeer.close();
   }
+  video.srcObject = null;
+  const currentSessionId = sessionId;
+  sessionId = undefined;
+  if (notifyServer && currentSessionId) {
+    try {
+      await api('stop', { id: currentSessionId });
+    } catch (error) {
+      if (!/Session not found/i.test(error?.message || '')) throw error;
+    }
+  }
+  controls();
 }
 function gatherIce(pc) {
   return new Promise(resolve => {
@@ -226,33 +270,92 @@ async function captureFreshAgentObservation() {
   latestObservationId = result.observationId;
   return result;
 }
-byId('start').onclick = async () => {
-  pending = true; controls(); status('Connecting to Ring…');
-  try {
-    peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
-    const stream = new MediaStream(); video.srcObject = stream;
-    peer.ontrack = event => { stream.addTrack(event.track); video.play().catch(() => {}); };
-    peer.addTransceiver('audio', { direction: 'sendrecv' });
-    peer.addTransceiver('video', { direction: 'recvonly' });
-    await peer.setLocalDescription(await peer.createOffer());
-    await gatherIce(peer);
-    const session = await api('start', { deviceId: byId('devices').value, offer: peer.localDescription.sdp });
-    sessionId = session.id;
-    heartbeat = setInterval(() => api('heartbeat', { id: sessionId }).catch(() => status('Session contact lost. Stop and reconnect.')), 15_000);
-    await peer.setRemoteDescription({ type: 'answer', sdp: session.answer });
-    await waitForVideo();
-    peer.onconnectionstatechange = () => {
-      if (peer?.connectionState === 'failed') {
-        void stop().then(() => status('Connection lost. Start again.')).catch(() => status('Connection lost; click Stop to retry cleanup.')).finally(controls);
+async function connectLiveView({ automatic = false } = {}) {
+  if (videoReady()) return;
+  if (liveConnectPromise) return liveConnectPromise;
+
+  liveConnectPromise = (async () => {
+    pending = true; controls();
+    status(automatic ? 'Reconnecting Ring live view…' : 'Connecting to Ring…');
+    try {
+      clearReconnectTimer();
+      if (!byId('devices').value) throw new Error('No Ring device is selected.');
+      if (peer || sessionId) {
+        try { await stop(); }
+        catch { await stop({ notifyServer: false }); }
       }
-    };
-    status('Live video connected. You can ask REWIND or capture a frame manually.');
-  } catch (error) {
-    try { await stop(); status(error.message); }
-    catch { status(`${error.message} Session cleanup failed; click Stop to retry.`); }
-  } finally { pending = false; controls(); }
+
+      peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
+      const stream = new MediaStream(); video.srcObject = stream;
+      peer.ontrack = event => { stream.addTrack(event.track); video.play().catch(() => {}); };
+      peer.addTransceiver('audio', { direction: 'sendrecv' });
+      peer.addTransceiver('video', { direction: 'recvonly' });
+      await peer.setLocalDescription(await peer.createOffer());
+      await gatherIce(peer);
+      const session = await api('start', { deviceId: byId('devices').value, offer: peer.localDescription.sdp });
+      sessionId = session.id;
+      heartbeatFailures = 0;
+      heartbeat = setInterval(() => {
+        const id = sessionId;
+        if (!id) return;
+        void api('heartbeat', { id }).then(() => {
+          heartbeatFailures = 0;
+        }).catch(() => {
+          heartbeatFailures += 1;
+          if (heartbeatFailures === 1) {
+            status('REWIND restarted or lost the Ring session. Reconnecting live view…');
+            scheduleLiveReconnect(250);
+          }
+        });
+      }, 5_000);
+      await peer.setRemoteDescription({ type: 'answer', sdp: session.answer });
+      await waitForVideo();
+      peer.onconnectionstatechange = () => {
+        if (peer?.connectionState === 'failed') {
+          status('Ring connection was lost. Reconnecting live view…');
+          scheduleLiveReconnect(250);
+        }
+      };
+      reconnectAttempts = 0;
+      setAutoLiveWanted(true);
+      status('Live video connected. You can ask REWIND or capture a frame manually.');
+    } catch (error) {
+      await stop({ notifyServer: false }).catch(() => {});
+      status(error?.message || 'Could not connect to Ring.');
+      throw error;
+    } finally {
+      pending = false; controls();
+    }
+  })();
+
+  try {
+    await liveConnectPromise;
+  } finally {
+    liveConnectPromise = undefined;
+  }
+}
+
+async function ensureLiveViewForObservation() {
+  if (videoReady()) return;
+  setAutoLiveWanted(true);
+  reconnectAttempts = 0;
+  if (!byId('devices').value) await discover();
+  if (!videoReady()) {
+    await stop({ notifyServer: false }).catch(() => {});
+    await connectLiveView({ automatic: true });
+  }
+  await waitForVideo();
+}
+window.ensureLiveViewForObservation = ensureLiveViewForObservation;
+
+byId('start').onclick = () => {
+  setAutoLiveWanted(true);
+  reconnectAttempts = 0;
+  void connectLiveView().catch(() => {});
 };
 byId('stop').onclick = async () => {
+  setAutoLiveWanted(false);
+  clearReconnectTimer();
   pending = true; controls();
   try { await stop(); status('Stream stopped.'); }
   catch (error) { status(error.message + ' Click Stop to retry cleanup.'); }

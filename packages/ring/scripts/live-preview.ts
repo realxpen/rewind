@@ -69,7 +69,8 @@ async function main() {
   if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
   if (!validPort(alexaPort) || [port, webhookPort, mcpPort].includes(alexaPort)) throw new Error("REWIND_ALEXA_PORT must be a unique integer between 1024 and 65535.");
 
-  const bridge = new RingObservationBridge(Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 30_000));
+  const configuredObservationTimeout = Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 50_000);
+  const bridge = new RingObservationBridge(Math.max(50_000, configuredObservationTimeout));
   const checkpointAccess: AgentCheckpointAccess = {
     save: input => checkpoints.save(input),
     list: spaceId => checkpoints.list(spaceId),
