@@ -38,7 +38,10 @@ class MemoryCheckpointStore implements CheckpointStore {
 class SequenceObserver implements SpaceObserver {
   private index = 0;
 
-  constructor(private readonly states: PhysicalState[]) {
+  constructor(
+    private readonly states: PhysicalState[],
+    private readonly evidenceMode?: AgentObservation["evidenceMode"],
+  ) {
     if (states.length === 0) throw new Error("At least one observation state is required.");
   }
 
@@ -51,6 +54,7 @@ class SequenceObserver implements SpaceObserver {
       state: structuredClone(state),
       modelId: "test-nova",
       latencyMs: 1,
+      ...(this.evidenceMode ? { evidenceMode: this.evidenceMode } : {}),
     };
   }
 }
@@ -176,5 +180,35 @@ const cancelled = await guarded.cancelRewind({
   rewindSessionId: guardedStart.rewindSessionId,
 });
 assert.equal(cancelled.state, "CANCELLED");
+
+// Live Ring/Nova observations are perception evidence, not strict fixture truth.
+// A later frame may detect fixed/background objects that the checkpoint omitted.
+// Those must not become fake Alexa removal instructions.
+const noisyLiveFrame: PhysicalState = {
+  ...structuredClone(demoReady),
+  capturedAt: "2026-09-22T12:00:00.000Z",
+  entities: [
+    ...structuredClone(demoReady.entities),
+    { key: "birdfeeder.left", category: "birdfeeder", confidence: 0.99 },
+    { key: "birdfeeder.right", category: "birdfeeder", confidence: 0.99 },
+  ],
+};
+const liveVisionStore = new MemoryCheckpointStore();
+const liveVisionTools = new RewindAgentToolService(
+  new SequenceObserver([demoReady, noisyLiveFrame], "vision"),
+  new CheckpointService(liveVisionStore),
+);
+await liveVisionTools.inspectSpace({ spaceId: "studio" });
+const liveVisionCheckpoint = await liveVisionTools.saveCheckpoint({ spaceId: "studio", name: "Live Stable" });
+await liveVisionTools.inspectSpace({ spaceId: "studio" });
+const liveVisionRewind = await liveVisionTools.startRewind({
+  spaceId: "studio",
+  checkpointId: liveVisionCheckpoint.id,
+});
+assert.equal(liveVisionRewind.plan.actions.length, 0, "Background Ring/Nova extras must not become restore actions.");
+assert(
+  !liveVisionRewind.changes.some(diff => diff.entity.startsWith("birdfeeder")),
+  "Fixed/background extras must be ignored in vision evidence mode.",
+);
 
 console.log("Phase 8 agent tool trust-boundary test passed.");

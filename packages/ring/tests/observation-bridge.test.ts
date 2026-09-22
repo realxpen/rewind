@@ -21,6 +21,7 @@ bridge.publish({
 const observation = await waiting;
 assert.equal(observation.observationId, "trusted-observation-1");
 assert.equal(observation.state.spaceId, "studio");
+assert.equal(observation.evidenceMode, "vision", "Ring/Nova observations must use conservative vision comparison semantics.");
 assert.equal(bridge.pendingRequest("studio"), undefined);
 
 const second = bridge.inspect("studio");
