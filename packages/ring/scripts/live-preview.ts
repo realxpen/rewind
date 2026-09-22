@@ -63,6 +63,7 @@ async function main() {
   const mcpPort = Number(process.env.REWIND_MCP_PORT ?? 3004);
   const alexaPort = Number(process.env.REWIND_ALEXA_PORT ?? 3005);
   const alexaSkillId = process.env.REWIND_ALEXA_SKILL_ID?.trim();
+  const alexaRelaySecret = process.env.REWIND_ALEXA_RELAY_SECRET?.trim();
   if (!validPort(port)) throw new Error("RING_PREVIEW_PORT must be an integer between 1024 and 65535.");
   if (!validPort(webhookPort) || webhookPort === port) throw new Error("RING_WEBHOOK_PORT must be a different integer between 1024 and 65535.");
   if (!validPort(mcpPort) || [port, webhookPort].includes(mcpPort)) throw new Error("REWIND_MCP_PORT must be a unique integer between 1024 and 65535.");
@@ -154,7 +155,11 @@ async function main() {
         skillId: alexaSkillId,
       })
     : undefined;
-  const alexaHttp = alexaSkill ? createAlexaSkillHttpServer(alexaSkill) : undefined;
+  const alexaHttp = alexaSkill
+    ? createAlexaSkillHttpServer(alexaSkill, {
+        ...(alexaRelaySecret ? { relaySecret: alexaRelaySecret } : {}),
+      })
+    : undefined;
   if (alexaHttp) {
     alexaHttp.on("error", () => {
       console.error(`Alexa skill endpoint could not start. Check whether port ${alexaPort} is in use.`);
@@ -162,7 +167,13 @@ async function main() {
     });
     alexaHttp.listen(alexaPort, "127.0.0.1", () => {
       console.log(`REWIND Alexa Custom Skill endpoint: http://127.0.0.1:${alexaPort}/alexa`);
-      console.log("Alexa requests are signature + timestamp verified. Expose this port through HTTPS before configuring the skill endpoint.");
+      if (alexaRelaySecret) {
+        console.log(`REWIND Alexa Lambda relay: http://127.0.0.1:${alexaPort}/alexa-relay`);
+        console.log("Lambda relay is protected by REWIND_ALEXA_RELAY_SECRET; expose port 3005 through HTTPS for Lambda only.");
+      } else {
+        console.log("Alexa Lambda relay disabled: set REWIND_ALEXA_RELAY_SECRET to enable /alexa-relay.");
+      }
+      console.log("Direct /alexa requests remain signature + timestamp verified.");
       console.log("Alexa scan operations run asynchronously so the skill stays inside Alexa's response timeout.");
     });
   } else {

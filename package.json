@@ -3,9 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && npm run test:phase1:compiled && npm run test:phase2:compiled && npm run test:ring:compiled && npm run test:phase4:compiled && npm run test:phase5:compiled && npm run test:phase6:compiled && npm run test:phase7:compiled && npm run test:phase8:compiled && npm run test:phase9:compiled && npm run test:phase11:compiled && npm run test:alexa:compiled",

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import {
   SkillRequestSignatureVerifier,
@@ -10,6 +11,8 @@ export interface AlexaSkillHttpOptions {
   path?: string;
   verifyRequests?: boolean;
   maxBodyBytes?: number;
+  relayPath?: string;
+  relaySecret?: string;
 }
 
 function sendJson(res: ServerResponse, status: number, value: unknown): void {
@@ -42,11 +45,20 @@ async function readBody(req: IncomingMessage, maxBytes: number): Promise<string>
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function secretMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function createAlexaSkillHttpServer(
   skill: RewindAlexaSkill,
   options: AlexaSkillHttpOptions = {},
 ) {
   const path = options.path ?? "/alexa";
+  const relayPath = options.relayPath ?? "/alexa-relay";
+  const relaySecret = options.relaySecret?.trim();
   const verifyRequests = options.verifyRequests ?? true;
   const maxBodyBytes = options.maxBodyBytes ?? 256_000;
   const signatureVerifier = new SkillRequestSignatureVerifier();
@@ -54,7 +66,10 @@ export function createAlexaSkillHttpServer(
 
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-    if (req.method !== "POST" || url.pathname !== path) {
+    const isAskEndpoint = req.method === "POST" && url.pathname === path;
+    const isRelayEndpoint = req.method === "POST" && url.pathname === relayPath && relaySecret;
+
+    if (!isAskEndpoint && !isRelayEndpoint) {
       sendJson(res, 404, { error: "Not found." });
       return;
     }
@@ -62,7 +77,14 @@ export function createAlexaSkillHttpServer(
     try {
       const rawBody = await readBody(req, maxBodyBytes);
 
-      if (verifyRequests) {
+      if (isRelayEndpoint) {
+        const supplied = req.headers["x-rewind-relay-secret"];
+        const value = Array.isArray(supplied) ? supplied[0] : supplied;
+        if (!secretMatches(value, relaySecret)) {
+          sendJson(res, 401, { error: "Unauthorized." });
+          return;
+        }
+      } else if (verifyRequests) {
         const headers = headerMap(req.headers);
         await signatureVerifier.verify(rawBody, headers);
         await timestampVerifier.verify(rawBody);
@@ -72,7 +94,6 @@ export function createAlexaSkillHttpServer(
       const result = await skill.handle(envelope);
       sendJson(res, 200, result);
     } catch {
-      // Do not expose verifier internals, request contents, tokens, or upstream errors.
       sendJson(res, 400, { error: "Invalid Alexa request." });
     }
   });
