@@ -99,7 +99,7 @@ function restoredSpeech(result: RewindToolResult, checkpointName?: string): stri
 
   if (result.state === "LOW_CONFIDENCE" || result.plan.blockedUnknowns.length > 0) {
     const count = result.plan.blockedUnknowns.length;
-    return `I don't see any confirmed restore steps for ${name}, but ${count || "some"} ${count === 1 ? "item needs" : "items need"} another look. You can ask me to check again for stronger verification.`;
+    return `I don't see any confirmed important changes from ${name}. It looks restored enough from what Ring can verify. ${count || "Some"} ${count === 1 ? "item wasn't" : "items weren't"} clear enough to confirm, so you can ask me to check again if you want stronger verification.`;
   }
 
   return `The important visible parts of ${name} are restored. I don't need a perfect pixel match to stop guiding you.`;
