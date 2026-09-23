@@ -12,3 +12,4 @@ export * from "./account-link-http.js";
 export * from "./live-agent.js";
 export * from "./observation-bridge.js";
 export * from "./snapshot-observer.js";
+export * from "./rtsp-observer.js";
