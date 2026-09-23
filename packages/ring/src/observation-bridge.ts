@@ -68,6 +68,7 @@ export class RingObservationBridge implements SpaceObserver {
 
     clearTimeout(request.timer);
     this.pending.delete(input.spaceId);
+    console.log(`Ring WHEP observation delivered for space ${input.spaceId}.`);
     const observation: AgentObservation = {
       observationId: input.observationId,
       state: structuredClone(input.state),
@@ -87,8 +88,10 @@ export class RingObservationBridge implements SpaceObserver {
     return new Promise<AgentObservation>((resolve, reject) => {
       const requestedAt = Date.now();
       const id = `obsreq-${++this.sequence}-${requestedAt}`;
+      console.log(`Ring WHEP observation requested for space ${spaceId}.`);
       const timer = setTimeout(() => {
         this.pending.delete(spaceId);
+        console.warn(`Ring WHEP observation timed out for space ${spaceId}.`);
         reject(new Error("Timed out waiting for the Ring preview to capture a fresh observation."));
       }, this.timeoutMs);
       this.pending.set(spaceId, { id, spaceId, requestedAt, resolve, reject, timer });
