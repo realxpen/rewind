@@ -142,7 +142,15 @@ export class RewindAgentToolService {
 
   async inspectSpace(input: InspectSpaceInput): Promise<InspectSpaceResult> {
     assertSpaceId(input.spaceId);
-    const observed = await this.observer.inspect(input.spaceId);
+    let referenceState;
+    if (input.checkpointId) {
+      assertOpaqueId(input.checkpointId, "Checkpoint ID");
+      referenceState = (await this.checkpoint(input.spaceId, input.checkpointId)).state;
+    }
+    const observed = await this.observer.inspect(
+      input.spaceId,
+      referenceState ? { referenceState } : undefined,
+    );
     if (observed.state.spaceId !== input.spaceId) {
       throw new Error("Observation does not belong to the requested space.");
     }
@@ -224,7 +232,7 @@ export class RewindAgentToolService {
     if (session.state === "CANCELLED") throw new Error("Rewind session is cancelled.");
 
     // Verification always takes a fresh trusted observation; the agent cannot provide one.
-    await this.inspectSpace({ spaceId: input.spaceId });
+    await this.inspectSpace({ spaceId: input.spaceId, checkpointId: session.checkpointId });
     const checkpoint = await this.checkpoint(session.spaceId, session.checkpointId);
     const observation = this.latest(session.spaceId);
     const diffs = compareStates(checkpoint.state, observation.state, {
