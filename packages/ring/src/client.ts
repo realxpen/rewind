@@ -51,4 +51,21 @@ export class RingClient {
     }
   }
 
+  /** Authenticated Ring request that exposes a media 303 without following credentials cross-origin. */
+  async requestMediaRedirect(path: string, init: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${this.config.accessToken}`);
+    if (!headers.has("Accept")) headers.set("Accept", "image/jpeg");
+    if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    try {
+      return await this.fetchImpl(this.resolveUrl(path), {
+        ...init,
+        headers,
+        redirect: "manual",
+      });
+    } catch {
+      throw new Error("Ring media request failed");
+    }
+  }
+
 }
