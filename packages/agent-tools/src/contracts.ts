@@ -33,8 +33,13 @@ export interface AgentObservation {
   evidenceMode?: ComparisonEvidenceMode;
 }
 
+export interface SpaceObservationContext {
+  /** Optional trusted checkpoint state used only to stabilize perception identity during comparison. */
+  referenceState?: PhysicalState;
+}
+
 export interface SpaceObserver {
-  inspect(spaceId: string): Promise<AgentObservation>;
+  inspect(spaceId: string, context?: SpaceObservationContext): Promise<AgentObservation>;
 }
 
 /** Narrow checkpoint dependency so DynamoDB remains canonical truth. */
@@ -52,6 +57,8 @@ export interface AgentEntitySummary {
 
 export interface InspectSpaceInput {
   spaceId: string;
+  /** Internal trusted checkpoint reference for tracked comparison; not exposed in agent tool schemas. */
+  checkpointId?: string;
 }
 
 export interface InspectSpaceResult {
