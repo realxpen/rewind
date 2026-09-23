@@ -287,7 +287,24 @@ async function connectLiveView({ automatic = false } = {}) {
 
       peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
       const stream = new MediaStream(); video.srcObject = stream;
-      peer.ontrack = event => { stream.addTrack(event.track); video.play().catch(() => {}); };
+      const replayEndedStream = message => {
+        if (!autoLiveWanted) return;
+        status(message);
+        scheduleLiveReconnect(250);
+      };
+      stream.addEventListener('inactive', () => {
+        replayEndedStream('Ring Playground stream ended. Replaying live view…');
+      });
+      peer.ontrack = event => {
+        const track = event.track;
+        stream.addTrack(track);
+        video.play().catch(() => {});
+        if (track.kind === 'video') {
+          track.onended = () => {
+            replayEndedStream('Ring Playground clip ended. Replaying live view…');
+          };
+        }
+      };
       peer.addTransceiver('audio', { direction: 'sendrecv' });
       peer.addTransceiver('video', { direction: 'recvonly' });
       await peer.setLocalDescription(await peer.createOffer());
