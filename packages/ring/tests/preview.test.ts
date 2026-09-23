@@ -57,9 +57,18 @@ try {
   const pendingResponse = await fetch(`${base}/api/mcp-observation-request?spaceId=unit-space`);
   assert.equal(pendingResponse.status, 200);
   assert.deepEqual(await pendingResponse.json(), { requested: true, requestId: "request-1", requestedAt: 123 });
+  const pendingWaitResponse = await fetch(`${base}/api/mcp-observation-wait?spaceId=unit-space&waitMs=20`);
+  assert.equal(pendingWaitResponse.status, 200);
+  assert.deepEqual(await pendingWaitResponse.json(), { requested: true, requestId: "request-1", requestedAt: 123 });
   const idleResponse = await fetch(`${base}/api/mcp-observation-request?spaceId=other-space`);
   assert.deepEqual(await idleResponse.json(), { requested: false });
+  const idleWaitStarted = Date.now();
+  const idleWaitResponse = await fetch(`${base}/api/mcp-observation-wait?spaceId=other-space&waitMs=20`);
+  assert.equal(idleWaitResponse.status, 200);
+  assert.deepEqual(await idleWaitResponse.json(), { requested: false });
+  assert(Date.now() - idleWaitStarted < 500, "Short long-poll timeout should return promptly.");
   assert.equal((await fetch(`${base}/api/mcp-observation-request?spaceId=`)).status, 400);
+  assert.equal((await fetch(`${base}/api/mcp-observation-wait?spaceId=unit-space&waitMs=1`)).status, 400);
 
   // Controlled Demo accepts only a named server-owned fixture. Client-supplied state is ignored.
   const controlledResponse = await post("demo/observe", {
@@ -180,6 +189,7 @@ assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must 
 assert.match(previewClientSource, /peer\.getStats\(\)/, "Fresh observation recovery must use WebRTC inbound stats so background tabs remain reliable.");
 assert.match(previewClientSource, /waitForFreshVideoFrame\(2_500\)/, "A healthy Ring stream must take the fast fresh-frame path.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
+assert.match(mcpBridgeSource, /mcp-observation-wait/, "Alexa observation bridge must long-poll so background tabs can wake without timer throttling.");
 assert.match(mcpBridgeSource, /Verifying an advancing Ring live view/, "Fresh observation bridge must verify/recover Ring before capture.");
 assert.match(mcpBridgeSource, /completedRequestId = request\.requestId/, "A request is completed only after a fresh observation succeeds.");
-console.log("PASS Ring preview client: automatic live-view recovery + advancing-frame fresh observation contract.");
+console.log("PASS Ring preview client: automatic live-view recovery + background-safe long-poll + advancing-frame fresh observation contract.");
