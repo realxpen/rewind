@@ -25,14 +25,18 @@ function scheduleLiveReconnect(delay = 800) {
     reconnectTimer = undefined;
     reconnectAttempts += 1;
     reconnecting = true;
+    let retry = false;
     void stop()
       .then(() => connectLiveView({ automatic: true }))
       .catch(error => {
         status(error?.message || 'Could not restart the Ring live view.');
-        if (reconnectAttempts < 6) scheduleLiveReconnect(1_500);
-        else status('Ring live view needs attention. Click Start live view to retry.');
+        retry = reconnectAttempts < 6;
+        if (!retry) status('Ring live view needs attention. Click Start live view to retry.');
       })
-      .finally(() => { reconnecting = false; });
+      .finally(() => {
+        reconnecting = false;
+        if (retry) scheduleLiveReconnect(1_500);
+      });
   }, delay);
 }
 function clearVideoWatchdog() {
