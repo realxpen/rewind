@@ -440,25 +440,20 @@ async function ensureLiveViewForObservation() {
   reconnectAttempts = 0;
   if (!byId('devices').value) await discover();
 
-  const reconnectDeadline = Date.now() + 10_000;
+  const reconnectDeadline = Date.now() + 8_000;
   while ((reconnecting || liveConnectPromise) && Date.now() < reconnectDeadline) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  const recentlyAdvancing = videoReady()
-    && lastVideoProgressAt > 0
-    && Date.now() - lastVideoProgressAt < 4_000;
-
-  if (recentlyAdvancing) {
-    await waitForFreshVideoFrame(2_500);
-    return;
-  }
+  // For truth-sensitive Alexa/MCP calls, a currently renderable WHEP frame is
+  // already fresh enough to capture at request time. Do not block on browser
+  // playback counters; those can be throttled or unreliable in background tabs.
+  if (videoReady()) return;
 
   try { await stop(); }
   catch { await stop({ notifyServer: false }).catch(() => {}); }
   await connectLiveView({ automatic: true });
   await waitForVideo();
-  await waitForFreshVideoFrame(4_000);
 }
 window.ensureLiveViewForObservation = ensureLiveViewForObservation;
 
