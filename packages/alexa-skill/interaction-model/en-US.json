@@ -30,7 +30,12 @@
             "rewind to {checkpointName}",
             "restore {checkpointName}",
             "restore the room to {checkpointName}",
-            "take me back to {checkpointName}"
+            "take me back to {checkpointName}",
+            "rewind my room to {checkpointName}",
+            "rewind this room to {checkpointName}",
+            "rewind the room to {checkpointName}",
+            "rewind my room back to {checkpointName}",
+            "rewind this room back to {checkpointName}"
           ]
         },
         {
@@ -103,19 +108,47 @@
             {
               "name": {
                 "value": "Clean Setup",
-                "synonyms": ["clean room", "clean setup"]
+                "synonyms": [
+                  "clean room",
+                  "clean setup"
+                ]
               }
             },
             {
               "name": {
                 "value": "Work Mode",
-                "synonyms": ["work setup", "desk setup"]
+                "synonyms": [
+                  "work setup",
+                  "desk setup"
+                ]
               }
             },
             {
               "name": {
                 "value": "Movie Night",
-                "synonyms": ["movie setup"]
+                "synonyms": [
+                  "movie setup"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "Live Room Test"
+              }
+            },
+            {
+              "name": {
+                "value": "Live Room Baseline"
+              }
+            },
+            {
+              "name": {
+                "value": "Buffered Clean Setup"
+              }
+            },
+            {
+              "name": {
+                "value": "Fresh Buffered Setup"
               }
             }
           ]
