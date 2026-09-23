@@ -97,6 +97,11 @@ function conciseError(error: unknown): string {
   if (/Ring snapshot unavailable \(425\)/i.test(message)) return "Ring says the latest recording is not ready yet. Try again shortly.";
   if (/Ring snapshot unavailable \((500|503)\)/i.test(message)) return "Ring's media service is temporarily unavailable. Try again shortly.";
   if (/Ring snapshot/i.test(message)) return "REWIND could not download a Ring snapshot for this device.";
+  if (/FFmpeg is required/i.test(message)) return "REWIND needs FFmpeg installed locally to read the Ring live stream.";
+  if (/Ring RTSP frame capture timed out/i.test(message)) return "Ring live video did not deliver a frame in time.";
+  if (/Ring RTSP frame capture failed/i.test(message) || /Ring RTSP client could not start/i.test(message)) return "REWIND could not capture the Ring live stream.";
+  if (/Ring RTSP did not produce a valid JPEG/i.test(message)) return "REWIND received Ring live video but could not turn it into a usable frame.";
+
   if (/timed out waiting for the ring preview/i.test(message) || /Ring video is not advancing yet/i.test(message)) {
     return "I couldn't get a fresh Ring view. Make sure the REWIND preview is open, then try again.";
   }
