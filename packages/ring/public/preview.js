@@ -3,8 +3,8 @@ const video = byId('video');
 const status = message => { byId('status').textContent = message; };
 const AUTO_LIVE_KEY = 'rewind.live.auto';
 let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
-let liveConnectPromise, reconnectTimer, videoWatchdog, videoFrameCallbackId, heartbeatFailures = 0, reconnectAttempts = 0;
-let reconnecting = false, lastVideoCurrentTime = 0, lastVideoProgressAt = 0;
+let liveConnectPromise, reconnectTimer, videoWatchdog, heartbeatFailures = 0, reconnectAttempts = 0;
+let reconnecting = false, videoWatchdogChecking = false, lastVideoProgress, lastVideoProgressAt = 0;
 let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
 
 function videoReady() {
@@ -42,45 +42,55 @@ function scheduleLiveReconnect(delay = 800) {
 function clearVideoWatchdog() {
   if (videoWatchdog) clearInterval(videoWatchdog);
   videoWatchdog = undefined;
-  if (videoFrameCallbackId !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
-    video.cancelVideoFrameCallback(videoFrameCallbackId);
-  }
-  videoFrameCallbackId = undefined;
-  lastVideoCurrentTime = 0;
+  videoWatchdogChecking = false;
+  lastVideoProgress = undefined;
   lastVideoProgressAt = 0;
+}
+async function readVideoProgress() {
+  if (peer && typeof peer.getStats === 'function') {
+    try {
+      const reports = await peer.getStats();
+      for (const report of reports.values()) {
+        if (report.type !== 'inbound-rtp') continue;
+        if (report.kind !== 'video' && report.mediaType !== 'video') continue;
+        if (Number.isFinite(report.framesDecoded)) return { metric: 'framesDecoded', value: report.framesDecoded };
+        if (Number.isFinite(report.packetsReceived)) return { metric: 'packetsReceived', value: report.packetsReceived };
+        if (Number.isFinite(report.bytesReceived)) return { metric: 'bytesReceived', value: report.bytesReceived };
+      }
+    } catch {}
+  }
+
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  return { metric: 'currentTime', value: currentTime };
+}
+function videoProgressed(previous, current) {
+  if (!previous || previous.metric !== current.metric) return true;
+  return current.value > previous.value;
 }
 function startVideoWatchdog() {
   clearVideoWatchdog();
-  lastVideoCurrentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
   lastVideoProgressAt = Date.now();
-
-  if (typeof video.requestVideoFrameCallback === 'function') {
-    const onFrame = () => {
-      lastVideoProgressAt = Date.now();
-      if (videoWatchdog && typeof video.requestVideoFrameCallback === 'function') {
-        videoFrameCallbackId = video.requestVideoFrameCallback(onFrame);
-      }
-    };
-    videoFrameCallbackId = video.requestVideoFrameCallback(onFrame);
-  }
+  void readVideoProgress().then(progress => { lastVideoProgress = progress; }).catch(() => {});
 
   videoWatchdog = setInterval(() => {
-    if (!autoLiveWanted || reconnecting || liveConnectPromise || !peer || !sessionId) return;
+    if (!autoLiveWanted || reconnecting || liveConnectPromise || !peer || !sessionId || videoWatchdogChecking) return;
     if (video.readyState < 2 || !video.videoWidth) return;
 
-    if (typeof video.requestVideoFrameCallback !== 'function') {
-      const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-      if (currentTime > lastVideoCurrentTime + 0.02) {
-        lastVideoCurrentTime = currentTime;
-        lastVideoProgressAt = Date.now();
-      }
-    }
-
-    if (Date.now() - lastVideoProgressAt >= 8_000) {
-      clearVideoWatchdog();
-      status('Ring Playground video stopped advancing. Replaying live view…');
-      scheduleLiveReconnect(250);
-    }
+    videoWatchdogChecking = true;
+    void readVideoProgress()
+      .then(progress => {
+        if (videoProgressed(lastVideoProgress, progress)) {
+          lastVideoProgress = progress;
+          lastVideoProgressAt = Date.now();
+          return;
+        }
+        if (Date.now() - lastVideoProgressAt >= 8_000) {
+          clearVideoWatchdog();
+          status('Ring Playground video stopped advancing. Replaying live view…');
+          scheduleLiveReconnect(250);
+        }
+      })
+      .finally(() => { videoWatchdogChecking = false; });
   }, 2_000);
 }
 
@@ -298,31 +308,21 @@ async function waitForVideo() {
   }
 }
 async function waitForFreshVideoFrame(timeoutMs = 3_000) {
-  if (typeof video.requestVideoFrameCallback === 'function') {
-    await new Promise((resolve, reject) => {
-      let callbackId;
-      const timer = setTimeout(() => {
-        if (callbackId !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
-          video.cancelVideoFrameCallback(callbackId);
-        }
-        reject(new Error('Ring video is not advancing yet.'));
-      }, timeoutMs);
-      callbackId = video.requestVideoFrameCallback(() => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
-    return;
-  }
-
   const deadline = Date.now() + timeoutMs;
-  let previousTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const baselineSessionId = sessionId;
+  let previous = await readVideoProgress();
+
   while (Date.now() <= deadline) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 120));
     if (video.readyState < 2 || !video.videoWidth || !sessionId) continue;
-    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    if (currentTime > previousTime + 0.02) return;
-    previousTime = currentTime;
+    if (sessionId !== baselineSessionId) return;
+    const current = await readVideoProgress();
+    if (videoProgressed(previous, current)) {
+      lastVideoProgress = current;
+      lastVideoProgressAt = Date.now();
+      return;
+    }
+    previous = current;
   }
   throw new Error('Ring video is not advancing yet.');
 }
