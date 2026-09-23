@@ -224,6 +224,39 @@ assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /restored en
 assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /3 items weren't clear enough/i);
 assert.doesNotMatch(lowConfidenceStatus.response.outputSpeech?.text ?? "", /confirmed restore steps/i);
 
+let retryInspectCalls = 0;
+let retrySaveCalls = 0;
+const retryTools: AlexaRewindTools = {
+  ...tools,
+  async inspectSpace() {
+    retryInspectCalls += 1;
+    if (retryInspectCalls === 1) {
+      throw new Error("Timed out waiting for the Ring preview to capture a fresh observation.");
+    }
+    return {};
+  },
+  async saveCheckpoint({ name }) {
+    retrySaveCalls += 1;
+    return { ...checkpoint, name };
+  },
+};
+const retrySkill = new RewindAlexaSkill({
+  tools: retryTools,
+  defaultSpaceId: "ring-playground",
+  skillId: "amzn1.ask.skill.rewind-test",
+});
+const retrySaveRequest = envelope("IntentRequest", "SaveCheckpointIntent", "Clean Setup");
+await retrySkill.handle(retrySaveRequest);
+await retrySkill.whenIdle(retrySaveRequest);
+const retryStatusStart = await retrySkill.handle(envelope("IntentRequest", "StatusIntent"));
+assert.match(retryStatusStart.response.outputSpeech?.text ?? "", /trying the fresh view again/i);
+assert.equal(retryStatusStart.response.shouldEndSession, true);
+await retrySkill.whenIdle(retrySaveRequest);
+const retryStatusDone = await retrySkill.handle(envelope("IntentRequest", "StatusIntent"));
+assert.match(retryStatusDone.response.outputSpeech?.text ?? "", /Saved Clean Setup/i);
+assert.equal(retryInspectCalls, 2);
+assert.equal(retrySaveCalls, 1);
+
 const wrongSkill = new RewindAlexaSkill({
   tools,
   defaultSpaceId: "ring-playground",
@@ -233,4 +266,4 @@ const rejected = await wrongSkill.handle(envelope("LaunchRequest"));
 assert.equal(rejected.response.shouldEndSession, true);
 assert.match(rejected.response.outputSpeech?.text ?? "", /not intended/i);
 
-console.log("PASS Alexa skill: async scan/save/rewind/check/status/step guidance + skill-id gate");
+console.log("PASS Alexa skill: async scan/save/rewind/check/status/step guidance + timed-out Ring retry + skill-id gate");
