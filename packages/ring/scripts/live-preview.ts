@@ -197,7 +197,7 @@ async function main() {
     listCheckpoints: spaceId => checkpoints.list(spaceId),
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
     invokeAgent: input => liveAgent.invoke(input),
-    pendingMcpObservationRequest: spaceId => bridge.pendingRequest(spaceId),
+    pendingMcpObservationRequest: spaceId => liveFrameObserver.pendingRequest(spaceId),
     publishLiveFrame: input => liveFrameObserver.publish(input),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
@@ -213,7 +213,7 @@ async function main() {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
     if (["auto", "browser"].includes(voiceObservationMode)) {
-      console.log(`MCP fresh-observation signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
+      console.log(`WHEP fresh-frame signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
     }
   });
 
