@@ -143,7 +143,7 @@ async function main() {
     pendingMcpObservationRequest: spaceId => bridge.pendingRequest(spaceId),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
-    js: `${previewJs}\n${mcpBridgeJs}`,
+    js: voiceObservationMode === "browser" ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
     verifyJs: `${verifyJs}\n${consumerJs}`,
   });
 
