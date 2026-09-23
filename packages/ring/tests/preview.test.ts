@@ -204,7 +204,8 @@ assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must 
 assert.match(previewClientSource, /peer\.getStats\(\)/, "Fresh observation recovery must use WebRTC inbound stats so background tabs remain reliable.");
 assert.match(previewClientSource, /if \(videoReady\(\)\) return;/, "A renderable WHEP frame must be captured without waiting on playback counters.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
-assert.match(mcpBridgeSource, /api\('live-frame'/, "WHEP preview must continuously buffer recent JPEG frames without running Nova.");
-assert.match(mcpBridgeSource, /setInterval\(\(\) => \{ void publishRecentLiveFrame\(\); \}, 2_000\)/, "WHEP frame buffer must refresh on a bounded cadence.");
-assert.doesNotMatch(mcpBridgeSource, /mcp-observation-wait/, "Buffered WHEP fallback must not depend on the old Alexa browser polling handshake.");
-console.log("PASS Ring preview client: automatic live-view recovery + ephemeral buffered WHEP frame contract.");
+assert.match(mcpBridgeSource, /api\('live-frame'/, "WHEP preview must buffer recent JPEG frames without running Nova.");
+assert.match(mcpBridgeSource, /mcp-observation-wait/, "Background preview must long-poll for an on-demand fresh-frame request.");
+assert.match(mcpBridgeSource, /publishRecentLiveFrame\(true\)/, "On-demand wake must force a fresh WHEP frame publish.");
+assert.match(mcpBridgeSource, /void wakeLoop\(\)/, "Fresh-frame wake loop must start when the preview loads.");
+console.log("PASS Ring preview client: buffered WHEP frames + background-safe on-demand freshness wake.");
