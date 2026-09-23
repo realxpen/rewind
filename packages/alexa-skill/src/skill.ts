@@ -14,6 +14,8 @@ interface VoiceJob {
   startedAt: number;
   checkpointName?: string;
   error?: string;
+  retryable?: boolean;
+  retry?: () => Promise<void>;
 }
 
 interface UserVoiceState {
@@ -78,9 +80,16 @@ function pendingActions(result: RewindToolResult | undefined) {
   return result?.plan.actions.filter(action => action.status === "PENDING") ?? [];
 }
 
+function retryableFreshRingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return /timed out waiting for the ring preview/i.test(message)
+    || /fresh Ring observation is already being requested/i.test(message)
+    || /Ring video is not advancing yet/i.test(message);
+}
+
 function conciseError(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
-  if (/timed out waiting for the ring preview/i.test(message)) {
+  if (/timed out waiting for the ring preview/i.test(message) || /Ring video is not advancing yet/i.test(message)) {
     return "I couldn't get a fresh Ring view. Make sure the REWIND preview is open, then try again.";
   }
   if (/checkpoint not found/i.test(message)) return "I couldn't find that saved state.";
@@ -159,13 +168,16 @@ export class RewindAlexaSkill {
     });
   }
 
-  private startJob(
+  private runJob(
     state: UserVoiceState,
     job: VoiceJob,
     work: () => Promise<void>,
-  ): boolean {
-    if (state.job?.status === "PENDING") return false;
-    state.job = job;
+  ): void {
+    job.status = "PENDING";
+    job.startedAt = this.now();
+    job.retry = work;
+    delete job.error;
+    delete job.retryable;
     void work()
       .then(() => {
         if (state.job === job) state.job.status = "SUCCEEDED";
@@ -174,8 +186,26 @@ export class RewindAlexaSkill {
         if (state.job === job) {
           state.job.status = "FAILED";
           state.job.error = conciseError(error);
+          state.job.retryable = retryableFreshRingError(error);
         }
       });
+  }
+
+  private startJob(
+    state: UserVoiceState,
+    job: VoiceJob,
+    work: () => Promise<void>,
+  ): boolean {
+    if (state.job?.status === "PENDING") return false;
+    state.job = job;
+    this.runJob(state, job, work);
+    return true;
+  }
+
+  private retryFailedJob(state: UserVoiceState): boolean {
+    const job = state.job;
+    if (!job || job.status !== "FAILED" || !job.retryable || !job.retry) return false;
+    this.runJob(state, job, job.retry);
     return true;
   }
 
@@ -350,6 +380,13 @@ export class RewindAlexaSkill {
     }
 
     if (intent === "StatusIntent") {
+      if (state.job?.status === "FAILED" && this.retryFailedJob(state)) {
+        return this.speak(
+          state,
+          "The last Ring scan timed out, so I'm trying the fresh view again now. Ask me for status in a moment.",
+          true,
+        );
+      }
       const jobSpeech = this.jobStatusSpeech(state);
       if (jobSpeech) return this.speak(state, jobSpeech, false);
       if (state.rewindSessionId) {
