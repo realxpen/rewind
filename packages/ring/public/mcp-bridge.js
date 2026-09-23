@@ -1,44 +1,102 @@
 (() => {
   let stopped = false;
-  let publishing = false;
+  let publishPromise;
   let lastPublishedAt = 0;
+  let completedRequestId;
 
   async function publishRecentLiveFrame(force = false) {
-    if (stopped || publishing) return;
+    if (stopped) return;
+
+    if (publishPromise) {
+      await publishPromise;
+      if (!force) return;
+    }
+
     const space = document.getElementById('space');
     if (!space?.value || typeof videoReady !== 'function' || !videoReady()) return;
 
     const now = Date.now();
     if (!force && now - lastPublishedAt < 1_500) return;
 
-    publishing = true;
+    publishPromise = (async () => {
+      try {
+        const blob = await videoBlob();
+        const image = await base64Blob(blob);
+        await api('live-frame', {
+          image,
+          capturedAt: new Date().toISOString(),
+          spaceId: space.value,
+        });
+        lastPublishedAt = Date.now();
+        window.__rewindLiveFrameError = undefined;
+      } catch (error) {
+        const message = error?.message || 'unknown live-frame publish error';
+        console.warn(`REWIND WHEP live-frame publish failed: ${message}`);
+        window.__rewindLiveFrameError = message;
+        throw error;
+      } finally {
+        publishPromise = undefined;
+      }
+    })();
+
+    return publishPromise;
+  }
+
+  async function waitForFreshFrameRequest() {
+    const space = document.getElementById('space');
+    if (!space?.value) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return undefined;
+    }
+
+    const url = `/api/mcp-observation-wait?spaceId=${encodeURIComponent(space.value)}&waitMs=15000`;
+    const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not wait for a fresh Ring frame request.');
+    return response.json();
+  }
+
+  async function answerFreshFrameRequest(request) {
+    if (!request?.requested || !request.requestId || request.requestId === completedRequestId) return;
+
+    const status = document.getElementById('status');
     try {
-      const blob = await videoBlob();
-      const image = await base64Blob(blob);
-      await api('live-frame', {
-        image,
-        capturedAt: new Date().toISOString(),
-        spaceId: space.value,
-      });
-      lastPublishedAt = Date.now();
+      if (status) status.textContent = 'Alexa/agent requested a fresh Ring frame…';
+      if (typeof window.ensureLiveViewForObservation !== 'function') {
+        throw new Error('Ring live view recovery is not available.');
+      }
+      await window.ensureLiveViewForObservation();
+      await publishRecentLiveFrame(true);
+      completedRequestId = request.requestId;
+      if (status) status.textContent = 'Fresh Ring frame delivered for REWIND analysis.';
     } catch (error) {
-      const message = error?.message || 'unknown live-frame publish error';
-      console.warn(`REWIND WHEP live-frame publish failed: ${message}`);
-      window.__rewindLiveFrameError = message;
-    } finally {
-      publishing = false;
+      if (status) status.textContent = `Fresh Ring frame failed. ${error?.message || ''}`.trim();
     }
   }
 
-  const timer = setInterval(() => { void publishRecentLiveFrame(); }, 2_000);
-  video?.addEventListener('playing', () => { void publishRecentLiveFrame(true); });
+  async function wakeLoop() {
+    while (!stopped) {
+      try {
+        const request = await waitForFreshFrameRequest();
+        await answerFreshFrameRequest(request);
+      } catch (error) {
+        const status = document.getElementById('status');
+        if (status) status.textContent = `Ring fresh-frame bridge reconnecting. ${error?.message || ''}`.trim();
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }
+
+  const timer = setInterval(() => { void publishRecentLiveFrame().catch(() => {}); }, 2_000);
+  video?.addEventListener('playing', () => { void publishRecentLiveFrame(true).catch(() => {}); });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void publishRecentLiveFrame(true);
+    if (!document.hidden) void publishRecentLiveFrame(true).catch(() => {});
   });
   window.addEventListener('beforeunload', () => {
     stopped = true;
     clearInterval(timer);
   }, { once: true });
+
+  void wakeLoop();
 })();
 
 /* Phase 10 experience layer. Observes existing deterministic UI state only. */
