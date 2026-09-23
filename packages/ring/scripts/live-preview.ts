@@ -7,6 +7,7 @@ import {
   RingAccountLinkService,
   RingClient,
   RingObservationBridge,
+  RingRtspObserver,
   RingSnapshotObserver,
   createLiveRingAgentRuntime,
   createRingWebhookServer,
@@ -78,24 +79,40 @@ async function main() {
     get: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
   };
 
-  const voiceObservationMode = (process.env.REWIND_RING_OBSERVER?.trim().toLowerCase() || "snapshot");
-  if (!["snapshot", "browser"].includes(voiceObservationMode)) {
-    throw new Error("REWIND_RING_OBSERVER must be snapshot or browser.");
+  const voiceObservationMode = (process.env.REWIND_RING_OBSERVER?.trim().toLowerCase() || "rtsp");
+  if (!["rtsp", "snapshot", "browser"].includes(voiceObservationMode)) {
+    throw new Error("REWIND_RING_OBSERVER must be rtsp, snapshot, or browser.");
   }
 
   let voiceObserver: SpaceObserver = bridge;
   let voiceDeviceId: string | undefined;
-  if (voiceObservationMode === "snapshot") {
+  if (voiceObservationMode !== "browser") {
     const devices = await listRingDevices(client, config.devicesPath);
     voiceDeviceId = process.env.REWIND_RING_DEVICE_ID?.trim() || devices[0]?.id;
     if (!voiceDeviceId) {
       throw new Error("No Ring device is available for server-side voice observations.");
     }
+  }
+
+  if (voiceObservationMode === "rtsp") {
+    voiceObserver = new RingRtspObserver({
+      nova,
+      deviceId: voiceDeviceId!,
+      accessToken: config.accessToken,
+      ...(process.env.REWIND_RING_COMPONENT_ID?.trim()
+        ? { componentId: process.env.REWIND_RING_COMPONENT_ID.trim() }
+        : {}),
+      ...(process.env.REWIND_FFMPEG_PATH?.trim()
+        ? { ffmpegPath: process.env.REWIND_FFMPEG_PATH.trim() }
+        : {}),
+      timeoutMs: Number(process.env.REWIND_RING_RTSP_TIMEOUT_MS ?? 18_000),
+    });
+  } else if (voiceObservationMode === "snapshot") {
     voiceObserver = new RingSnapshotObserver({
       client,
       nova,
-      deviceId: voiceDeviceId,
-      lookbackMs: Number(process.env.REWIND_RING_SNAPSHOT_LOOKBACK_MS ?? 60_000),
+      deviceId: voiceDeviceId!,
+      lookbackMs: Number(process.env.REWIND_RING_SNAPSHOT_LOOKBACK_MS ?? 900_000),
     });
   }
 
@@ -154,7 +171,9 @@ async function main() {
   preview.server.listen(port, "127.0.0.1", () => {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
-    console.log(`MCP fresh-observation signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
+    if (voiceObservationMode === "browser") {
+      console.log(`MCP fresh-observation signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
+    }
   });
 
   const mcpApp = createRewindMcpHttpApp({
@@ -169,11 +188,12 @@ async function main() {
   const mcpHttp = mcpApp.listen(mcpPort, "127.0.0.1", () => {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
     if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
-    console.log(
-      voiceObservationMode === "snapshot"
-        ? `Voice/MCP fresh-state rule: tool call → Ring snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
-        : "Voice/MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.",
-    );
+    const voiceRule = voiceObservationMode === "rtsp"
+      ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
+      : voiceObservationMode === "snapshot"
+        ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
+        : "Voice/MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.";
+    console.log(voiceRule);
   });
 
   const alexaSkill = alexaSkillId
@@ -289,7 +309,7 @@ function safeStartupMessage(error: unknown): string {
     "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_ALEXA_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_MCP_PUBLIC_HOST must be a hostname only.",
-    "REWIND_RING_OBSERVER must be snapshot or browser.",
+    "REWIND_RING_OBSERVER must be rtsp, snapshot, or browser.",
     "No Ring device is available for server-side voice observations.",
   ];
   return allowed.includes(message)
