@@ -9,6 +9,7 @@ interface BufferedFrame {
 }
 
 interface PendingFrameWait {
+  id: string;
   requestedAt: number;
   resolve: (frame: BufferedFrame) => void;
   reject: (error: Error) => void;
@@ -78,8 +79,11 @@ export class RingLiveFrameObserver implements SpaceObserver {
 
     const waits = this.pending.get(input.spaceId);
     if (!waits?.length) return;
-    this.pending.delete(input.spaceId);
-    for (const wait of waits) {
+    const resolved = waits.filter(wait => frame.receivedAt >= wait.requestedAt);
+    const remaining = waits.filter(wait => frame.receivedAt < wait.requestedAt);
+    if (remaining.length > 0) this.pending.set(input.spaceId, remaining);
+    else this.pending.delete(input.spaceId);
+    for (const wait of resolved) {
       clearTimeout(wait.timer);
       wait.resolve(frame);
     }
@@ -94,15 +98,26 @@ export class RingLiveFrameObserver implements SpaceObserver {
 
     return new Promise<BufferedFrame>((resolve, reject) => {
       const requestedAt = now;
+      const id = `whep-frame-${randomUUID()}`;
+      console.log(`Fresh Ring WHEP frame requested for space ${spaceId}.`);
       const timer = setTimeout(() => {
         const waits = this.pending.get(spaceId) ?? [];
-        this.pending.set(spaceId, waits.filter(wait => wait.requestedAt !== requestedAt));
+        const remaining = waits.filter(wait => wait.id !== id);
+        if (remaining.length > 0) this.pending.set(spaceId, remaining);
+        else this.pending.delete(spaceId);
         reject(new Error("Timed out waiting for a recent Ring WHEP live frame."));
       }, this.waitMs);
       const waits = this.pending.get(spaceId) ?? [];
-      waits.push({ requestedAt, resolve, reject, timer });
+      waits.push({ id, requestedAt, resolve, reject, timer });
       this.pending.set(spaceId, waits);
     });
+  }
+
+  pendingRequest(spaceId: string): { id: string; spaceId: string; requestedAt: number } | undefined {
+    assertSpaceId(spaceId);
+    const wait = this.pending.get(spaceId)?.[0];
+    if (!wait) return undefined;
+    return { id: wait.id, spaceId, requestedAt: wait.requestedAt };
   }
 
   async inspect(spaceId: string): Promise<AgentObservation> {
