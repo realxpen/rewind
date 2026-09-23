@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import type { AgentObservation, SpaceObserver } from "../../agent-tools/src/index.js";
+import type { AgentObservation, SpaceObservationContext, SpaceObserver } from "../../agent-tools/src/index.js";
 import type { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
+import { trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 
 export interface RingRtspFrame {
   imageBytes: Uint8Array;
@@ -158,7 +159,7 @@ export class RingRtspObserver implements SpaceObserver {
     this.now = options.now;
   }
 
-  async inspect(spaceId: string): Promise<AgentObservation> {
+  async inspect(spaceId: string, observationContext?: SpaceObservationContext): Promise<AgentObservation> {
     if (!/^[a-zA-Z0-9._-]{1,80}$/.test(spaceId)) throw new Error("Space ID is invalid.");
     const frame = await captureRingRtspJpeg({
       deviceId: this.deviceId,
@@ -174,6 +175,9 @@ export class RingRtspObserver implements SpaceObserver {
       context: {
         spaceId,
         capturedAt: frame.capturedAt,
+        ...(trackedEntitiesFromReferenceState(observationContext?.referenceState)
+          ? { trackedEntities: trackedEntitiesFromReferenceState(observationContext?.referenceState)! }
+          : {}),
       },
     });
     return {
