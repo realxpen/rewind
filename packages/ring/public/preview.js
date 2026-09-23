@@ -3,7 +3,8 @@ const video = byId('video');
 const status = message => { byId('status').textContent = message; };
 const AUTO_LIVE_KEY = 'rewind.live.auto';
 let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
-let liveConnectPromise, reconnectTimer, heartbeatFailures = 0, reconnectAttempts = 0;
+let liveConnectPromise, reconnectTimer, videoWatchdog, heartbeatFailures = 0, reconnectAttempts = 0;
+let reconnecting = false, lastVideoFrameCount, lastVideoCurrentTime = 0, lastVideoProgressAt = 0;
 let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
 
 function videoReady() {
@@ -19,18 +20,62 @@ function clearReconnectTimer() {
   reconnectTimer = undefined;
 }
 function scheduleLiveReconnect(delay = 800) {
-  if (!autoLiveWanted || reconnectTimer || liveConnectPromise || reconnectAttempts >= 6) return;
+  if (!autoLiveWanted || reconnectTimer || reconnecting || liveConnectPromise || reconnectAttempts >= 6) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
     reconnectAttempts += 1;
-    void stop({ notifyServer: false })
-      .catch(() => {})
+    reconnecting = true;
+    void stop()
       .then(() => connectLiveView({ automatic: true }))
-      .catch(() => {
+      .catch(error => {
+        status(error?.message || 'Could not restart the Ring live view.');
         if (reconnectAttempts < 6) scheduleLiveReconnect(1_500);
         else status('Ring live view needs attention. Click Start live view to retry.');
-      });
+      })
+      .finally(() => { reconnecting = false; });
   }, delay);
+}
+function clearVideoWatchdog() {
+  if (videoWatchdog) clearInterval(videoWatchdog);
+  videoWatchdog = undefined;
+  lastVideoFrameCount = undefined;
+  lastVideoCurrentTime = 0;
+  lastVideoProgressAt = 0;
+}
+function startVideoWatchdog() {
+  clearVideoWatchdog();
+  lastVideoFrameCount = typeof video.getVideoPlaybackQuality === 'function'
+    ? video.getVideoPlaybackQuality().totalVideoFrames
+    : undefined;
+  lastVideoCurrentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  lastVideoProgressAt = Date.now();
+  videoWatchdog = setInterval(() => {
+    if (!autoLiveWanted || reconnecting || liveConnectPromise || !peer || !sessionId) return;
+    if (video.readyState < 2 || !video.videoWidth) return;
+
+    const currentFrameCount = typeof video.getVideoPlaybackQuality === 'function'
+      ? video.getVideoPlaybackQuality().totalVideoFrames
+      : undefined;
+    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    const progressed = currentFrameCount !== undefined && lastVideoFrameCount !== undefined
+      ? currentFrameCount > lastVideoFrameCount
+      : currentTime > lastVideoCurrentTime + 0.05;
+
+    if (progressed) {
+      lastVideoProgressAt = Date.now();
+      lastVideoFrameCount = currentFrameCount;
+      lastVideoCurrentTime = currentTime;
+      return;
+    }
+
+    lastVideoFrameCount = currentFrameCount;
+    lastVideoCurrentTime = currentTime;
+    if (Date.now() - lastVideoProgressAt >= 8_000) {
+      clearVideoWatchdog();
+      status('Ring Playground video stopped advancing. Replaying live view…');
+      scheduleLiveReconnect(250);
+    }
+  }, 2_000);
 }
 
 async function api(path, data) {
@@ -210,6 +255,7 @@ async function discover() {
 }
 async function stop({ notifyServer = true } = {}) {
   clearInterval(heartbeat);
+  clearVideoWatchdog();
   heartbeat = undefined;
   heartbeatFailures = 0;
   const currentPeer = peer;
@@ -327,6 +373,7 @@ async function connectLiveView({ automatic = false } = {}) {
       }, 5_000);
       await peer.setRemoteDescription({ type: 'answer', sdp: session.answer });
       await waitForVideo();
+      startVideoWatchdog();
       peer.onconnectionstatechange = () => {
         if (peer?.connectionState === 'failed') {
           status('Ring connection was lost. Reconnecting live view…');
@@ -337,7 +384,8 @@ async function connectLiveView({ automatic = false } = {}) {
       setAutoLiveWanted(true);
       status('Live video connected. You can ask REWIND or capture a frame manually.');
     } catch (error) {
-      await stop({ notifyServer: false }).catch(() => {});
+      try { await stop(); }
+      catch { await stop({ notifyServer: false }).catch(() => {}); }
       status(error?.message || 'Could not connect to Ring.');
       throw error;
     } finally {
@@ -358,7 +406,8 @@ async function ensureLiveViewForObservation() {
   reconnectAttempts = 0;
   if (!byId('devices').value) await discover();
   if (!videoReady()) {
-    await stop({ notifyServer: false }).catch(() => {});
+    try { await stop(); }
+    catch { await stop({ notifyServer: false }).catch(() => {}); }
     await connectLiveView({ automatic: true });
   }
   await waitForVideo();
