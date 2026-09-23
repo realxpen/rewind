@@ -3,8 +3,8 @@ const video = byId('video');
 const status = message => { byId('status').textContent = message; };
 const AUTO_LIVE_KEY = 'rewind.live.auto';
 let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
-let liveConnectPromise, reconnectTimer, videoWatchdog, heartbeatFailures = 0, reconnectAttempts = 0;
-let reconnecting = false, lastVideoFrameCount, lastVideoCurrentTime = 0, lastVideoProgressAt = 0;
+let liveConnectPromise, reconnectTimer, videoWatchdog, videoFrameCallbackId, heartbeatFailures = 0, reconnectAttempts = 0;
+let reconnecting = false, lastVideoCurrentTime = 0, lastVideoProgressAt = 0;
 let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
 
 function videoReady() {
@@ -42,38 +42,40 @@ function scheduleLiveReconnect(delay = 800) {
 function clearVideoWatchdog() {
   if (videoWatchdog) clearInterval(videoWatchdog);
   videoWatchdog = undefined;
-  lastVideoFrameCount = undefined;
+  if (videoFrameCallbackId !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
+    video.cancelVideoFrameCallback(videoFrameCallbackId);
+  }
+  videoFrameCallbackId = undefined;
   lastVideoCurrentTime = 0;
   lastVideoProgressAt = 0;
 }
 function startVideoWatchdog() {
   clearVideoWatchdog();
-  lastVideoFrameCount = typeof video.getVideoPlaybackQuality === 'function'
-    ? video.getVideoPlaybackQuality().totalVideoFrames
-    : undefined;
   lastVideoCurrentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
   lastVideoProgressAt = Date.now();
+
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    const onFrame = () => {
+      lastVideoProgressAt = Date.now();
+      if (videoWatchdog && typeof video.requestVideoFrameCallback === 'function') {
+        videoFrameCallbackId = video.requestVideoFrameCallback(onFrame);
+      }
+    };
+    videoFrameCallbackId = video.requestVideoFrameCallback(onFrame);
+  }
+
   videoWatchdog = setInterval(() => {
     if (!autoLiveWanted || reconnecting || liveConnectPromise || !peer || !sessionId) return;
     if (video.readyState < 2 || !video.videoWidth) return;
 
-    const currentFrameCount = typeof video.getVideoPlaybackQuality === 'function'
-      ? video.getVideoPlaybackQuality().totalVideoFrames
-      : undefined;
-    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    const progressed = currentFrameCount !== undefined && lastVideoFrameCount !== undefined
-      ? currentFrameCount > lastVideoFrameCount
-      : currentTime > lastVideoCurrentTime + 0.05;
-
-    if (progressed) {
-      lastVideoProgressAt = Date.now();
-      lastVideoFrameCount = currentFrameCount;
-      lastVideoCurrentTime = currentTime;
-      return;
+    if (typeof video.requestVideoFrameCallback !== 'function') {
+      const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      if (currentTime > lastVideoCurrentTime + 0.02) {
+        lastVideoCurrentTime = currentTime;
+        lastVideoProgressAt = Date.now();
+      }
     }
 
-    lastVideoFrameCount = currentFrameCount;
-    lastVideoCurrentTime = currentTime;
     if (Date.now() - lastVideoProgressAt >= 8_000) {
       clearVideoWatchdog();
       status('Ring Playground video stopped advancing. Replaying live view…');
@@ -295,31 +297,32 @@ async function waitForVideo() {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
-function currentVideoProgress() {
-  const frameCount = typeof video.getVideoPlaybackQuality === 'function'
-    ? video.getVideoPlaybackQuality().totalVideoFrames
-    : undefined;
-  return {
-    sessionId,
-    frameCount,
-    currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
-  };
-}
-async function waitForAdvancingVideoFrame(timeoutMs = 12_000) {
+async function waitForFreshVideoFrame(timeoutMs = 3_000) {
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    await new Promise((resolve, reject) => {
+      let callbackId;
+      const timer = setTimeout(() => {
+        if (callbackId !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
+          video.cancelVideoFrameCallback(callbackId);
+        }
+        reject(new Error('Ring video is not advancing yet.'));
+      }, timeoutMs);
+      callbackId = video.requestVideoFrameCallback(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    return;
+  }
+
   const deadline = Date.now() + timeoutMs;
-  let baseline = currentVideoProgress();
+  let previousTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
   while (Date.now() <= deadline) {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 100));
     if (video.readyState < 2 || !video.videoWidth || !sessionId) continue;
-    const current = currentVideoProgress();
-    if (current.sessionId !== baseline.sessionId) {
-      baseline = current;
-      continue;
-    }
-    const frameAdvanced = current.frameCount !== undefined && baseline.frameCount !== undefined
-      ? current.frameCount > baseline.frameCount
-      : current.currentTime > baseline.currentTime + 0.02;
-    if (frameAdvanced) return;
+    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    if (currentTime > previousTime + 0.02) return;
+    previousTime = currentTime;
   }
   throw new Error('Ring video is not advancing yet.');
 }
@@ -437,31 +440,25 @@ async function ensureLiveViewForObservation() {
   reconnectAttempts = 0;
   if (!byId('devices').value) await discover();
 
-  const reconnectDeadline = Date.now() + 30_000;
+  const reconnectDeadline = Date.now() + 10_000;
   while ((reconnecting || liveConnectPromise) && Date.now() < reconnectDeadline) {
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  const stale = !videoReady()
-    || (lastVideoProgressAt > 0 && Date.now() - lastVideoProgressAt >= 6_000);
+  const recentlyAdvancing = videoReady()
+    && lastVideoProgressAt > 0
+    && Date.now() - lastVideoProgressAt < 4_000;
 
-  if (stale) {
-    try { await stop(); }
-    catch { await stop({ notifyServer: false }).catch(() => {}); }
-    await connectLiveView({ automatic: true });
+  if (recentlyAdvancing) {
+    await waitForFreshVideoFrame(2_500);
+    return;
   }
 
+  try { await stop(); }
+  catch { await stop({ notifyServer: false }).catch(() => {}); }
+  await connectLiveView({ automatic: true });
   await waitForVideo();
-
-  try {
-    await waitForAdvancingVideoFrame();
-  } catch {
-    try { await stop(); }
-    catch { await stop({ notifyServer: false }).catch(() => {}); }
-    await connectLiveView({ automatic: true });
-    await waitForVideo();
-    await waitForAdvancingVideoFrame();
-  }
+  await waitForFreshVideoFrame(4_000);
 }
 window.ensureLiveViewForObservation = ensureLiveViewForObservation;
 
