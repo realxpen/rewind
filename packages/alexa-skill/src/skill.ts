@@ -89,6 +89,14 @@ function retryableFreshRingError(error: unknown): boolean {
 
 function conciseError(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
+  if (/Ring snapshot unavailable \(400\)/i.test(message)) return "Ring rejected the snapshot request format.";
+  if (/Ring snapshot unavailable \(401\)/i.test(message)) return "The Ring access token is no longer authorized. Refresh the Ring token and restart REWIND.";
+  if (/Ring snapshot unavailable \(403\)/i.test(message)) return "This Ring account is not authorized to download snapshots from that device.";
+  if (/Ring snapshot unavailable \(404\)/i.test(message)) return "REWIND could not find that Ring device for snapshots.";
+  if (/Ring snapshot unavailable \(416\)/i.test(message)) return "Ring has no downloadable image available for this device yet.";
+  if (/Ring snapshot unavailable \(425\)/i.test(message)) return "Ring says the latest recording is not ready yet. Try again shortly.";
+  if (/Ring snapshot unavailable \((500|503)\)/i.test(message)) return "Ring's media service is temporarily unavailable. Try again shortly.";
+  if (/Ring snapshot/i.test(message)) return "REWIND could not download a Ring snapshot for this device.";
   if (/timed out waiting for the ring preview/i.test(message) || /Ring video is not advancing yet/i.test(message)) {
     return "I couldn't get a fresh Ring view. Make sure the REWIND preview is open, then try again.";
   }
@@ -184,6 +192,8 @@ export class RewindAlexaSkill {
       })
       .catch(error => {
         if (state.job === job) {
+          const message = error instanceof Error ? error.message : "unknown error";
+          console.error(`REWIND Alexa ${job.kind} failed: ${message.replace(/https?:\\/\\/\\S+/g, "[redacted-url]")}`);
           state.job.status = "FAILED";
           state.job.error = conciseError(error);
           state.job.retryable = retryableFreshRingError(error);
