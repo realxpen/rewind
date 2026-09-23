@@ -354,7 +354,7 @@ export class RewindAlexaSkill {
         checkpointName: checkpoint.name,
       };
       const started = this.startJob(state, job, async () => {
-        await this.tools.inspectSpace({ spaceId: state.spaceId });
+        await this.tools.inspectSpace({ spaceId: state.spaceId, checkpointId: checkpoint.id });
         const result = await this.tools.startRewind({
           spaceId: state.spaceId,
           checkpointId: checkpoint.id,
