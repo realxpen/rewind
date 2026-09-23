@@ -55,12 +55,16 @@ assert.match(observation.observationId, /^ring-whep-/);
 
 now += 6_000;
 const waiting = observer.inspect("ring-playground");
+const pending = observer.pendingRequest("ring-playground");
+assert(pending, "A stale buffer must expose an on-demand fresh-frame request.");
+assert.equal(pending.spaceId, "ring-playground");
 queueMicrotask(() => observer.publish({
   spaceId: "ring-playground",
   imageBytes: jpeg,
   capturedAt: new Date(now).toISOString(),
 }));
 const refreshed = await waiting;
+assert.equal(observer.pendingRequest("ring-playground"), undefined);
 assert.equal(novaCalls, 2);
 assert.equal(refreshed.state.capturedAt, new Date(now).toISOString());
 
