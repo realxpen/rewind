@@ -36,23 +36,33 @@ export async function downloadLatestRingSnapshot(
   if (!deviceId || deviceId.length > 300) throw new Error("Ring snapshot device ID is invalid.");
   const now = options.now ?? (() => Date.now());
   const end = now();
-  const lookbackMs = Math.max(5_000, Math.min(options.lookbackMs ?? 30_000, 120_000));
-  const start = end - lookbackMs;
+  const requestedLookbackMs = Math.max(5_000, Math.min(options.lookbackMs ?? 15 * 60_000, 24 * 60 * 60_000));
+  const attempts = [...new Set([
+    requestedLookbackMs,
+    Math.max(requestedLookbackMs, 15 * 60_000),
+    24 * 60 * 60_000,
+  ])];
 
-  const response = await client.requestMediaRedirect(
-    `/v1/devices/${encodeURIComponent(deviceId)}/media/image/download`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "image/jpeg" },
-      body: JSON.stringify({
-        type: "latest_in_range",
-        start_timestamp: start,
-        end_timestamp: end,
-        image_options: { format: "jpeg" },
-      }),
-    },
-  );
+  let response: Response | undefined;
+  for (const lookbackMs of attempts) {
+    const start = end - lookbackMs;
+    response = await client.requestMediaRedirect(
+      `/v1/devices/${encodeURIComponent(deviceId)}/media/image/download`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "image/jpeg" },
+        body: JSON.stringify({
+          type: "latest_in_range",
+          start_timestamp: start,
+          end_timestamp: end,
+          image_options: { format: "jpeg" },
+        }),
+      },
+    );
+    if (![416, 425].includes(response.status)) break;
+  }
 
+  if (!response) throw new Error("Ring snapshot request did not run.");
   let mediaResponse = response;
   if (response.status === 303) {
     const location = response.headers.get("location");
