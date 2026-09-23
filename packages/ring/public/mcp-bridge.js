@@ -1,61 +1,43 @@
 (() => {
-  let completedRequestId;
-  let activeRequestId;
   let stopped = false;
+  let publishing = false;
+  let lastPublishedAt = 0;
 
-  async function waitForRequest() {
+  async function publishRecentLiveFrame(force = false) {
+    if (stopped || publishing) return;
     const space = document.getElementById('space');
-    if (!space || !space.value) {
-      await new Promise(resolve => setTimeout(resolve, 250));
-      return undefined;
-    }
+    if (!space?.value || typeof videoReady !== 'function' || !videoReady()) return;
 
-    const url = `/api/mcp-observation-wait?spaceId=${encodeURIComponent(space.value)}&waitMs=15000`;
-    const response = await fetch(url, { method: 'GET', cache: 'no-store' });
-    if (!response.ok) throw new Error('Could not wait for an Alexa observation request.');
-    return response.json();
-  }
+    const now = Date.now();
+    if (!force && now - lastPublishedAt < 1_500) return;
 
-  async function answer(request) {
-    if (!request?.requested || !request.requestId) return;
-    if (request.requestId === completedRequestId || request.requestId === activeRequestId) return;
-
-    activeRequestId = request.requestId;
-    const status = document.getElementById('status');
+    publishing = true;
     try {
-      if (status) status.textContent = 'Alexa/agent requested a fresh Ring observation…';
-      if (typeof window.ensureLiveViewForObservation !== 'function') {
-        throw new Error('Ring live view recovery is not available.');
-      }
-
-      if (status) status.textContent = 'Fresh observation requested. Verifying an advancing Ring live view…';
-      await window.ensureLiveViewForObservation();
-      await captureFreshAgentObservation();
-
-      completedRequestId = request.requestId;
-      if (status) status.textContent = 'Fresh Ring → Nova observation delivered to the requesting tool.';
-    } catch (error) {
-      if (status) status.textContent = `Fresh Ring observation failed; the active Alexa request will retry. ${error?.message || ''}`.trim();
+      const blob = await videoBlob();
+      const image = await base64Blob(blob);
+      await api('live-frame', {
+        image,
+        capturedAt: new Date().toISOString(),
+        spaceId: space.value,
+      });
+      lastPublishedAt = Date.now();
+    } catch {
+      // The live frame buffer is best-effort. The visible Ring preview remains
+      // authoritative for connection status and automatic replay recovery.
     } finally {
-      activeRequestId = undefined;
+      publishing = false;
     }
   }
 
-  async function loop() {
-    while (!stopped) {
-      try {
-        const request = await waitForRequest();
-        await answer(request);
-      } catch (error) {
-        const status = document.getElementById('status');
-        if (status) status.textContent = `Alexa observation bridge reconnecting. ${error?.message || ''}`.trim();
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-  }
-
-  window.addEventListener('beforeunload', () => { stopped = true; }, { once: true });
-  void loop();
+  const timer = setInterval(() => { void publishRecentLiveFrame(); }, 2_000);
+  video?.addEventListener('playing', () => { void publishRecentLiveFrame(true); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void publishRecentLiveFrame(true);
+  });
+  window.addEventListener('beforeunload', () => {
+    stopped = true;
+    clearInterval(timer);
+  }, { once: true });
 })();
 
 /* Phase 10 experience layer. Observes existing deterministic UI state only. */
