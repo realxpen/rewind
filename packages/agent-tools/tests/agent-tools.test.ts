@@ -8,6 +8,7 @@ import {
   RewindAgentToolService,
   type AgentObservation,
   type SaveCheckpointToolInput,
+  type SpaceObservationContext,
   type SpaceObserver,
   type VerifyRewindToolInput,
 } from "../src/index.js";
@@ -37,6 +38,7 @@ class MemoryCheckpointStore implements CheckpointStore {
 
 class SequenceObserver implements SpaceObserver {
   private index = 0;
+  readonly contexts: Array<SpaceObservationContext | undefined> = [];
 
   constructor(
     private readonly states: PhysicalState[],
@@ -45,7 +47,8 @@ class SequenceObserver implements SpaceObserver {
     if (states.length === 0) throw new Error("At least one observation state is required.");
   }
 
-  async inspect(spaceId: string): Promise<AgentObservation> {
+  async inspect(spaceId: string, context?: SpaceObservationContext): Promise<AgentObservation> {
+    this.contexts.push(context ? structuredClone(context) : undefined);
     const state = this.states[Math.min(this.index, this.states.length - 1)]!;
     this.index += 1;
     if (state.spaceId !== spaceId) throw new Error("Unexpected test space.");
@@ -70,8 +73,9 @@ assert(!("match" in verifySpec.inputSchema.properties), "agent must not provide 
 
 const store = new MemoryCheckpointStore();
 const checkpoints = new CheckpointService(store);
+const sequenceObserver = new SequenceObserver([demoReady, messy, partial, restored]);
 const tools = new RewindAgentToolService(
-  new SequenceObserver([demoReady, messy, partial, restored]),
+  sequenceObserver,
   checkpoints,
 );
 
@@ -94,7 +98,12 @@ const listed = await tools.listCheckpoints({ spaceId: "studio" });
 assert.equal(listed.length, 1);
 assert.equal(listed[0]!.id, saved.id);
 
-await tools.inspectSpace({ spaceId: "studio" });
+await tools.inspectSpace({ spaceId: "studio", checkpointId: saved.id });
+assert.deepEqual(
+  sequenceObserver.contexts.at(-1)?.referenceState,
+  persisted.state,
+  "Checkpoint-guided inspection must pass the persisted state to the trusted observer.",
+);
 const compared = await tools.compareCheckpoint({ spaceId: "studio", checkpointId: saved.id });
 assert.equal(compared.match.restored, false);
 assert(compared.changeCount > 0);
