@@ -44,6 +44,7 @@ export interface PreviewServices {
   getCheckpoint?(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined>;
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
   pendingMcpObservationRequest?(spaceId: string): PreviewObservationRequest | undefined;
+  publishLiveFrame?(input: { spaceId: string; imageBytes: Uint8Array; capturedAt: string }): void;
 }
 
 interface RewindSession {
@@ -320,6 +321,7 @@ export function createPreviewServer(
         "/api/stop",
         "/api/heartbeat",
         "/api/observe",
+        "/api/live-frame",
         "/api/demo/observe",
         "/api/agent",
         "/api/checkpoints",
@@ -334,6 +336,24 @@ export function createPreviewServer(
         send(res, 403, { error: "Use the local preview page." }); return;
       }
       const data = await body(req);
+      if (path === "/api/live-frame") {
+        if (!services.publishLiveFrame) { send(res, 503, { error: "Live frame buffer is not configured." }); return; }
+        if (typeof data.image !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data.image) ||
+            !validSpaceId(data.spaceId) || typeof data.capturedAt !== "string" || !Number.isFinite(Date.parse(data.capturedAt))) {
+          throw new InputError("A live JPEG frame, space name, and capture time are required.");
+        }
+        const bytes = Buffer.from(data.image, "base64");
+        if (bytes.length < 4 || bytes.length > 3_500_000 || bytes[0] !== 255 || bytes[1] !== 216 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) {
+          throw new InputError("Capture a JPEG frame under 3.5 MB.");
+        }
+        services.publishLiveFrame({
+          spaceId: data.spaceId,
+          imageBytes: bytes,
+          capturedAt: data.capturedAt,
+        });
+        send(res, 202, { ok: true });
+        return;
+      }
       if (path === "/api/demo/observe") {
         if (!validSpaceId(data.spaceId) || !validControlledDemoScenario(data.scenario)) {
           throw new InputError("Choose a valid controlled demo scenario and space.");
