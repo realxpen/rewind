@@ -5,6 +5,7 @@ import type { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
 const jpeg = new Uint8Array([255, 216, 10, 20, 30, 255, 217]);
 let novaCalls = 0;
 let observedCapturedAt = "";
+let observedTrackedEntities: unknown;
 
 const nova = {
   async observe(request: {
@@ -17,6 +18,7 @@ const nova = {
     assert.equal(request.format, "jpeg");
     assert.equal(request.context.spaceId, "ring-playground");
     observedCapturedAt = request.context.capturedAt;
+    observedTrackedEntities = (request.context as { trackedEntities?: unknown }).trackedEntities;
     return {
       state: {
         schemaVersion: "0.1" as const,
@@ -46,8 +48,31 @@ observer.publish({
   capturedAt,
 });
 
-const observation = await observer.inspect("ring-playground");
+const referenceState = {
+  schemaVersion: "0.1" as const,
+  spaceId: "ring-playground",
+  capturedAt,
+  entities: [{
+    key: "desk.main",
+    category: "desk",
+    confidence: 0.98,
+    attributes: { clear: true },
+    relations: [],
+  }],
+};
+const observation = await observer.inspect("ring-playground", { referenceState });
 assert.equal(novaCalls, 1);
+assert.deepEqual(
+  observedTrackedEntities,
+  [{
+    key: "desk.main",
+    category: "desk",
+    description: "This is the checkpoint identity desk.main. Match the corresponding visible desk to this exact key; never replace, split, or rename it.",
+    observableAttributes: {
+      clear: "Observe only the current visible value for \"clear\" on this tracked entity. Omit it if the image does not support a value.",
+    },
+  }],
+);
 assert.equal(observedCapturedAt, capturedAt);
 assert.equal(observation.state.spaceId, "ring-playground");
 assert.equal(observation.evidenceMode, "vision");
