@@ -105,6 +105,17 @@ function validOpaqueId(value: unknown): value is string {
 function validControlledDemoScenario(value: unknown): value is ControlledDemoScenario {
   return typeof value === "string" && Object.hasOwn(controlledDemoStates, value);
 }
+function validWaitMs(value: string | null): number {
+  if (value === null || value === "") return 15_000;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 10 || parsed > 20_000) {
+    throw new InputError("waitMs must be an integer between 10 and 20000.");
+  }
+  return parsed;
+}
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 function hashImage(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -282,6 +293,23 @@ export function createPreviewServer(
         const spaceId = requestUrl.searchParams.get("spaceId");
         if (!validSpaceId(spaceId)) throw new InputError("A valid spaceId is required.");
         const pending = services.pendingMcpObservationRequest(spaceId);
+        send(res, 200, pending
+          ? { requested: true, requestId: pending.id, requestedAt: pending.requestedAt }
+          : { requested: false });
+        return;
+      }
+      if (req.method === "GET" && path === "/api/mcp-observation-wait") {
+        if (!services.pendingMcpObservationRequest) { send(res, 503, { error: "MCP observation bridge is not configured." }); return; }
+        const spaceId = requestUrl.searchParams.get("spaceId");
+        if (!validSpaceId(spaceId)) throw new InputError("A valid spaceId is required.");
+        const waitMs = validWaitMs(requestUrl.searchParams.get("waitMs"));
+        const deadline = Date.now() + waitMs;
+        let pending = services.pendingMcpObservationRequest(spaceId);
+        while (!pending && Date.now() < deadline && !res.destroyed) {
+          await delay(100);
+          pending = services.pendingMcpObservationRequest(spaceId);
+        }
+        if (res.destroyed) return;
         send(res, 200, pending
           ? { requested: true, requestId: pending.id, requestedAt: pending.requestedAt }
           : { requested: false });
