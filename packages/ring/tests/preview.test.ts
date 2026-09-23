@@ -187,9 +187,9 @@ assert.doesNotThrow(() => new Function(previewClientSource), "preview.js must re
 assert.doesNotThrow(() => new Function(mcpBridgeSource), "mcp-bridge.js must remain valid browser JavaScript.");
 assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must expose automatic live-view recovery for fresh observation requests.");
 assert.match(previewClientSource, /peer\.getStats\(\)/, "Fresh observation recovery must use WebRTC inbound stats so background tabs remain reliable.");
-assert.match(previewClientSource, /waitForFreshVideoFrame\(2_500\)/, "A healthy Ring stream must take the fast fresh-frame path.");
+assert.match(previewClientSource, /if \(videoReady\(\)\) return;/, "A renderable WHEP frame must be captured without waiting on playback counters.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
 assert.match(mcpBridgeSource, /mcp-observation-wait/, "Alexa observation bridge must long-poll so background tabs can wake without timer throttling.");
 assert.match(mcpBridgeSource, /Verifying an advancing Ring live view/, "Fresh observation bridge must verify/recover Ring before capture.");
 assert.match(mcpBridgeSource, /completedRequestId = request\.requestId/, "A request is completed only after a fresh observation succeeds.");
-console.log("PASS Ring preview client: automatic live-view recovery + background-safe long-poll + advancing-frame fresh observation contract.");
+console.log("PASS Ring preview client: automatic live-view recovery + background-safe long-poll + immediate renderable-frame observation contract.");
