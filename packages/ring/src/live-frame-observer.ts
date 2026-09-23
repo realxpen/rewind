@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { AgentObservation, SpaceObserver } from "../../agent-tools/src/index.js";
+import type { AgentObservation, SpaceObservationContext, SpaceObserver } from "../../agent-tools/src/index.js";
 import type { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
+import { trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 
 interface BufferedFrame {
   imageBytes: Uint8Array;
@@ -120,7 +121,7 @@ export class RingLiveFrameObserver implements SpaceObserver {
     return { id: wait.id, spaceId, requestedAt: wait.requestedAt };
   }
 
-  async inspect(spaceId: string): Promise<AgentObservation> {
+  async inspect(spaceId: string, observationContext?: SpaceObservationContext): Promise<AgentObservation> {
     assertSpaceId(spaceId);
     const frame = await this.frameFor(spaceId);
     console.log(`Ring WHEP live frame consumed for space ${spaceId}.`);
@@ -130,6 +131,9 @@ export class RingLiveFrameObserver implements SpaceObserver {
       context: {
         spaceId,
         capturedAt: frame.capturedAt,
+        ...(trackedEntitiesFromReferenceState(observationContext?.referenceState)
+          ? { trackedEntities: trackedEntitiesFromReferenceState(observationContext?.referenceState)! }
+          : {}),
       },
     });
     return {
