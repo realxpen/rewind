@@ -193,7 +193,7 @@ export class RewindAlexaSkill {
       .catch(error => {
         if (state.job === job) {
           const message = error instanceof Error ? error.message : "unknown error";
-          console.error(`REWIND Alexa ${job.kind} failed: ${message.replace(/https?:\\/\\/\\S+/g, "[redacted-url]")}`);
+          console.error(`REWIND Alexa ${job.kind} failed: ${message.replace(/https?:\/\/\S+/g, "[redacted-url]")}`);
           state.job.status = "FAILED";
           state.job.error = conciseError(error);
           state.job.retryable = retryableFreshRingError(error);
