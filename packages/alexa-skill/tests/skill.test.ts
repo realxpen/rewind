@@ -92,13 +92,15 @@ const restoredResult: RewindToolResult = {
 };
 
 let inspectCalls = 0;
+let lastInspectCheckpointId: string | undefined;
 let saveCalls = 0;
 let startCalls = 0;
 let verifyCalls = 0;
 
 const tools: AlexaRewindTools = {
-  async inspectSpace() {
+  async inspectSpace(input) {
     inspectCalls += 1;
+    lastInspectCheckpointId = input.checkpointId;
     return {};
   },
   async saveCheckpoint({ name }) {
@@ -188,6 +190,7 @@ const rewindStatus = await skill.handle(envelope("IntentRequest", "StatusIntent"
 assert.match(rewindStatus.response.outputSpeech?.text ?? "", /2 important changes/i);
 assert.match(rewindStatus.response.outputSpeech?.text ?? "", /Move backpack main near desk main/i);
 assert.equal(inspectCalls, 2);
+assert.equal(lastInspectCheckpointId, checkpoint.id, "Alexa rewind must request checkpoint-guided inspection.");
 assert.equal(startCalls, 1);
 
 const next = await skill.handle(envelope("IntentRequest", "NextStepIntent"));
