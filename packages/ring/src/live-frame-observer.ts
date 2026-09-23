@@ -65,12 +65,16 @@ export class RingLiveFrameObserver implements SpaceObserver {
       throw new Error("Ring WHEP live frame timestamp is invalid.");
     }
 
+    const firstFrameForSpace = !this.frames.has(input.spaceId);
     const frame: BufferedFrame = {
       imageBytes: new Uint8Array(input.imageBytes),
       capturedAt: input.capturedAt,
       receivedAt: this.now(),
     };
     this.frames.set(input.spaceId, frame);
+    if (firstFrameForSpace) {
+      console.log(`Ring WHEP live frame buffer active for space ${input.spaceId}.`);
+    }
 
     const waits = this.pending.get(input.spaceId);
     if (!waits?.length) return;
