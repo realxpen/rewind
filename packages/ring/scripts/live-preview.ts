@@ -44,6 +44,34 @@ function validPort(value: number): boolean {
   return Number.isInteger(value) && value >= 1024 && value <= 65535;
 }
 
+function isRtspTransportFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return /Ring RTSP|FFmpeg is required/i.test(message);
+}
+
+class AdaptiveRingObserver implements SpaceObserver {
+  private rtspDisabled = false;
+
+  constructor(
+    private readonly primary: SpaceObserver,
+    private readonly fallback: SpaceObserver,
+  ) {}
+
+  async inspect(spaceId: string) {
+    if (!this.rtspDisabled) {
+      try {
+        return await this.primary.inspect(spaceId);
+      } catch (error) {
+        if (!isRtspTransportFailure(error)) throw error;
+        this.rtspDisabled = true;
+        const message = error instanceof Error ? error.message : "RTSPS unavailable";
+        console.warn(`Ring RTSPS unavailable for this session (${message}); falling back to the live WHEP browser bridge.`);
+      }
+    }
+    return this.fallback.inspect(spaceId);
+  }
+}
+
 async function main() {
   const config = loadRingConfig();
   const client = new RingClient(config);
@@ -79,9 +107,9 @@ async function main() {
     get: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
   };
 
-  const voiceObservationMode = (process.env.REWIND_RING_OBSERVER?.trim().toLowerCase() || "rtsp");
-  if (!["rtsp", "snapshot", "browser"].includes(voiceObservationMode)) {
-    throw new Error("REWIND_RING_OBSERVER must be rtsp, snapshot, or browser.");
+  const voiceObservationMode = (process.env.REWIND_RING_OBSERVER?.trim().toLowerCase() || "auto");
+  if (!["auto", "rtsp", "snapshot", "browser"].includes(voiceObservationMode)) {
+    throw new Error("REWIND_RING_OBSERVER must be auto, rtsp, snapshot, or browser.");
   }
 
   let voiceObserver: SpaceObserver = bridge;
@@ -94,19 +122,23 @@ async function main() {
     }
   }
 
-  if (voiceObservationMode === "rtsp") {
-    voiceObserver = new RingRtspObserver({
-      nova,
-      deviceId: voiceDeviceId!,
-      accessToken: config.accessToken,
-      ...(process.env.REWIND_RING_COMPONENT_ID?.trim()
-        ? { componentId: process.env.REWIND_RING_COMPONENT_ID.trim() }
-        : {}),
-      ...(process.env.REWIND_FFMPEG_PATH?.trim()
-        ? { ffmpegPath: process.env.REWIND_FFMPEG_PATH.trim() }
-        : {}),
-      timeoutMs: Number(process.env.REWIND_RING_RTSP_TIMEOUT_MS ?? 18_000),
-    });
+  const createRtspObserver = () => new RingRtspObserver({
+    nova,
+    deviceId: voiceDeviceId!,
+    accessToken: config.accessToken,
+    ...(process.env.REWIND_RING_COMPONENT_ID?.trim()
+      ? { componentId: process.env.REWIND_RING_COMPONENT_ID.trim() }
+      : {}),
+    ...(process.env.REWIND_FFMPEG_PATH?.trim()
+      ? { ffmpegPath: process.env.REWIND_FFMPEG_PATH.trim() }
+      : {}),
+    timeoutMs: Number(process.env.REWIND_RING_RTSP_TIMEOUT_MS ?? 18_000),
+  });
+
+  if (voiceObservationMode === "auto") {
+    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), bridge);
+  } else if (voiceObservationMode === "rtsp") {
+    voiceObserver = createRtspObserver();
   } else if (voiceObservationMode === "snapshot") {
     voiceObserver = new RingSnapshotObserver({
       client,
@@ -160,7 +192,7 @@ async function main() {
     pendingMcpObservationRequest: spaceId => bridge.pendingRequest(spaceId),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
-    js: voiceObservationMode === "browser" ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
+    js: ["auto", "browser"].includes(voiceObservationMode) ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
     verifyJs: `${verifyJs}\n${consumerJs}`,
   });
 
@@ -171,7 +203,7 @@ async function main() {
   preview.server.listen(port, "127.0.0.1", () => {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
-    if (voiceObservationMode === "browser") {
+    if (["auto", "browser"].includes(voiceObservationMode)) {
       console.log(`MCP fresh-observation signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
     }
   });
@@ -188,11 +220,13 @@ async function main() {
   const mcpHttp = mcpApp.listen(mcpPort, "127.0.0.1", () => {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
     if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
-    const voiceRule = voiceObservationMode === "rtsp"
-      ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
-      : voiceObservationMode === "snapshot"
-        ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
-        : "Voice/MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.";
+    const voiceRule = voiceObservationMode === "auto"
+      ? `Voice/MCP fresh-state rule: RTSPS live frame (${voiceDeviceId}) with automatic WHEP browser fallback → Nova → deterministic REWIND.`
+      : voiceObservationMode === "rtsp"
+        ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
+        : voiceObservationMode === "snapshot"
+          ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
+          : "Voice/MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.";
     console.log(voiceRule);
   });
 
@@ -309,7 +343,7 @@ function safeStartupMessage(error: unknown): string {
     "REWIND_MCP_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_ALEXA_PORT must be a unique integer between 1024 and 65535.",
     "REWIND_MCP_PUBLIC_HOST must be a hostname only.",
-    "REWIND_RING_OBSERVER must be rtsp, snapshot, or browser.",
+    "REWIND_RING_OBSERVER must be auto, rtsp, snapshot, or browser.",
     "No Ring device is available for server-side voice observations.",
   ];
   return allowed.includes(message)
