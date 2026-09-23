@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { AgentObservation, SpaceObserver } from "../../agent-tools/src/index.js";
+import type { AgentObservation, SpaceObservationContext, SpaceObserver } from "../../agent-tools/src/index.js";
 import type { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
 import type { RingClient, RingFetch } from "./client.js";
+import { trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 
 export interface RingSnapshot {
   imageBytes: Uint8Array;
@@ -118,7 +119,7 @@ export class RingSnapshotObserver implements SpaceObserver {
     this.now = options.now;
   }
 
-  async inspect(spaceId: string): Promise<AgentObservation> {
+  async inspect(spaceId: string, observationContext?: SpaceObservationContext): Promise<AgentObservation> {
     if (!/^[a-zA-Z0-9._-]{1,80}$/.test(spaceId)) throw new Error("Space ID is invalid.");
     const snapshot = await downloadLatestRingSnapshot(this.client, this.deviceId, {
       ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
@@ -131,6 +132,9 @@ export class RingSnapshotObserver implements SpaceObserver {
       context: {
         spaceId,
         capturedAt: snapshot.capturedAt,
+        ...(trackedEntitiesFromReferenceState(observationContext?.referenceState)
+          ? { trackedEntities: trackedEntitiesFromReferenceState(observationContext?.referenceState)! }
+          : {}),
       },
     });
     return {
