@@ -177,7 +177,8 @@ const mcpBridgeSource = await readFile(resolve("packages/ring/public/mcp-bridge.
 assert.doesNotThrow(() => new Function(previewClientSource), "preview.js must remain valid browser JavaScript.");
 assert.doesNotThrow(() => new Function(mcpBridgeSource), "mcp-bridge.js must remain valid browser JavaScript.");
 assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must expose automatic live-view recovery for fresh observation requests.");
-assert.match(previewClientSource, /waitForAdvancingVideoFrame/, "Fresh observation recovery must verify that Ring frames are advancing.");
+assert.match(previewClientSource, /requestVideoFrameCallback/, "Fresh observation recovery must use rendered video frames when the browser supports them.");
+assert.match(previewClientSource, /waitForFreshVideoFrame\(2_500\)/, "A healthy Ring stream must take the fast fresh-frame path.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
 assert.match(mcpBridgeSource, /Verifying an advancing Ring live view/, "Fresh observation bridge must verify/recover Ring before capture.");
 assert.match(mcpBridgeSource, /completedRequestId = request\.requestId/, "A request is completed only after a fresh observation succeeds.");
