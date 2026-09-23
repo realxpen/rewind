@@ -13,3 +13,4 @@ export * from "./live-agent.js";
 export * from "./observation-bridge.js";
 export * from "./snapshot-observer.js";
 export * from "./rtsp-observer.js";
+export * from "./live-frame-observer.js";
