@@ -295,6 +295,34 @@ async function waitForVideo() {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
+function currentVideoProgress() {
+  const frameCount = typeof video.getVideoPlaybackQuality === 'function'
+    ? video.getVideoPlaybackQuality().totalVideoFrames
+    : undefined;
+  return {
+    sessionId,
+    frameCount,
+    currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+  };
+}
+async function waitForAdvancingVideoFrame(timeoutMs = 12_000) {
+  const deadline = Date.now() + timeoutMs;
+  let baseline = currentVideoProgress();
+  while (Date.now() <= deadline) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    if (video.readyState < 2 || !video.videoWidth || !sessionId) continue;
+    const current = currentVideoProgress();
+    if (current.sessionId !== baseline.sessionId) {
+      baseline = current;
+      continue;
+    }
+    const frameAdvanced = current.frameCount !== undefined && baseline.frameCount !== undefined
+      ? current.frameCount > baseline.frameCount
+      : current.currentTime > baseline.currentTime + 0.02;
+    if (frameAdvanced) return;
+  }
+  throw new Error('Ring video is not advancing yet.');
+}
 function videoBlob() {
   if (video.readyState < 2 || !video.videoWidth) throw new Error('Start the Ring live view and wait for video before asking REWIND.');
   const canvas = document.createElement('canvas');
@@ -405,16 +433,35 @@ async function connectLiveView({ automatic = false } = {}) {
 }
 
 async function ensureLiveViewForObservation() {
-  if (videoReady()) return;
   setAutoLiveWanted(true);
   reconnectAttempts = 0;
   if (!byId('devices').value) await discover();
-  if (!videoReady()) {
+
+  const reconnectDeadline = Date.now() + 30_000;
+  while ((reconnecting || liveConnectPromise) && Date.now() < reconnectDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+
+  const stale = !videoReady()
+    || (lastVideoProgressAt > 0 && Date.now() - lastVideoProgressAt >= 6_000);
+
+  if (stale) {
     try { await stop(); }
     catch { await stop({ notifyServer: false }).catch(() => {}); }
     await connectLiveView({ automatic: true });
   }
+
   await waitForVideo();
+
+  try {
+    await waitForAdvancingVideoFrame();
+  } catch {
+    try { await stop(); }
+    catch { await stop({ notifyServer: false }).catch(() => {}); }
+    await connectLiveView({ automatic: true });
+    await waitForVideo();
+    await waitForAdvancingVideoFrame();
+  }
 }
 window.ensureLiveViewForObservation = ensureLiveViewForObservation;
 
