@@ -2,7 +2,7 @@ import type { CheckpointSummary } from "../../checkpoints/src/contracts.js";
 import type { RewindToolResult } from "../../agent-tools/src/contracts.js";
 
 export interface AlexaRewindTools {
-  inspectSpace(input: { spaceId: string }): Promise<unknown>;
+  inspectSpace(input: { spaceId: string; checkpointId?: string }): Promise<unknown>;
   saveCheckpoint(input: { spaceId: string; name: string }): Promise<CheckpointSummary>;
   listCheckpoints(input: { spaceId: string }): Promise<CheckpointSummary[]>;
   startRewind(input: { spaceId: string; checkpointId: string }): Promise<RewindToolResult>;
