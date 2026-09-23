@@ -20,7 +20,7 @@ import {
 import { createPreviewServer } from "../src/preview-server.js";
 import { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
 import { CheckpointService, createDynamoCheckpointStoreFromEnv } from "../../checkpoints/src/index.js";
-import { RewindAgentToolService, type AgentCheckpointAccess, type SpaceObserver } from "../../agent-tools/src/index.js";
+import { RewindAgentToolService, type AgentCheckpointAccess, type SpaceObservationContext, type SpaceObserver } from "../../agent-tools/src/index.js";
 import {
   AgentCoreSessionContinuityStore,
   InMemorySessionContinuityStore,
@@ -58,10 +58,10 @@ class AdaptiveRingObserver implements SpaceObserver {
     private readonly fallback: SpaceObserver,
   ) {}
 
-  async inspect(spaceId: string) {
+  async inspect(spaceId: string, observationContext?: SpaceObservationContext) {
     if (!this.rtspDisabled) {
       try {
-        return await this.primary.inspect(spaceId);
+        return await this.primary.inspect(spaceId, observationContext);
       } catch (error) {
         if (!isRtspTransportFailure(error)) throw error;
         this.rtspDisabled = true;
@@ -69,7 +69,7 @@ class AdaptiveRingObserver implements SpaceObserver {
         console.warn(`Ring RTSPS unavailable for this session (${message}); falling back to the live WHEP browser bridge.`);
       }
     }
-    return this.fallback.inspect(spaceId);
+    return this.fallback.inspect(spaceId, observationContext);
   }
 }
 
