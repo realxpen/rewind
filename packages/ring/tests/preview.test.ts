@@ -11,6 +11,7 @@ import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.
 let created = 0, deleted = 0, failDelete = false, failObserve = false;
 let observed: VisionObservationRequest | undefined;
 let agentInput: PreviewAgentInput | undefined;
+let bufferedLiveFrame: { spaceId: string; imageBytes: Uint8Array; capturedAt: string } | undefined;
 const preview = createPreviewServer({
   devices: async () => [{ id: "test-device", name: "Unit camera" }],
   start: async (id, offer) => { assert.equal(id, "test-device"); assert.equal(offer, "v=0\r\n"); created++; return { sdpAnswer: "unit-answer", sessionUrl: "https://ring.example.test/private-session" }; },
@@ -36,6 +37,7 @@ const preview = createPreviewServer({
   pendingMcpObservationRequest: spaceId => spaceId === "unit-space"
     ? { id: "request-1", spaceId, requestedAt: 123 }
     : undefined,
+  publishLiveFrame: input => { bufferedLiveFrame = input; },
 }, { html: "<!doctype html><title>REWIND</title>", js: "/* preview */" });
 preview.server.listen(0, "127.0.0.1");
 await once(preview.server, "listening");
@@ -69,6 +71,19 @@ try {
   assert(Date.now() - idleWaitStarted < 500, "Short long-poll timeout should return promptly.");
   assert.equal((await fetch(`${base}/api/mcp-observation-request?spaceId=`)).status, 400);
   assert.equal((await fetch(`${base}/api/mcp-observation-wait?spaceId=unit-space&waitMs=1`)).status, 400);
+
+  const liveFrame = {
+    image: Buffer.from([255, 216, 10, 20, 255, 217]).toString("base64"),
+    spaceId: "unit-space",
+    capturedAt: new Date().toISOString(),
+  };
+  const liveFrameResponse = await post("live-frame", liveFrame);
+  assert.equal(liveFrameResponse.status, 202);
+  assert.equal(bufferedLiveFrame?.spaceId, "unit-space");
+  assert.equal(bufferedLiveFrame?.capturedAt, liveFrame.capturedAt);
+  assert.deepEqual(bufferedLiveFrame?.imageBytes, Buffer.from([255, 216, 10, 20, 255, 217]));
+  assert.equal((await post("live-frame", { ...liveFrame, image: "bad" })).status, 400);
+  assert.equal((await post("live-frame", { ...liveFrame, spaceId: "" })).status, 400);
 
   // Controlled Demo accepts only a named server-owned fixture. Client-supplied state is ignored.
   const controlledResponse = await post("demo/observe", {
@@ -189,7 +204,7 @@ assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must 
 assert.match(previewClientSource, /peer\.getStats\(\)/, "Fresh observation recovery must use WebRTC inbound stats so background tabs remain reliable.");
 assert.match(previewClientSource, /if \(videoReady\(\)\) return;/, "A renderable WHEP frame must be captured without waiting on playback counters.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
-assert.match(mcpBridgeSource, /mcp-observation-wait/, "Alexa observation bridge must long-poll so background tabs can wake without timer throttling.");
-assert.match(mcpBridgeSource, /Verifying an advancing Ring live view/, "Fresh observation bridge must verify/recover Ring before capture.");
-assert.match(mcpBridgeSource, /completedRequestId = request\.requestId/, "A request is completed only after a fresh observation succeeds.");
-console.log("PASS Ring preview client: automatic live-view recovery + background-safe long-poll + immediate renderable-frame observation contract.");
+assert.match(mcpBridgeSource, /api\('live-frame'/, "WHEP preview must continuously buffer recent JPEG frames without running Nova.");
+assert.match(mcpBridgeSource, /setInterval\(\(\) => \{ void publishRecentLiveFrame\(\); \}, 2_000\)/, "WHEP frame buffer must refresh on a bounded cadence.");
+assert.doesNotMatch(mcpBridgeSource, /mcp-observation-wait/, "Buffered WHEP fallback must not depend on the old Alexa browser polling handshake.");
+console.log("PASS Ring preview client: automatic live-view recovery + ephemeral buffered WHEP frame contract.");
