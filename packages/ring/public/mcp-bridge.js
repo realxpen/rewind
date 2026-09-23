@@ -22,13 +22,11 @@
       const status = document.getElementById('status');
       if (status) status.textContent = 'Alexa/agent requested a fresh Ring observation…';
 
-      if (video.readyState < 2 || !video.videoWidth) {
-        if (typeof window.ensureLiveViewForObservation !== 'function') {
-          throw new Error('Ring live view is not ready.');
-        }
-        if (status) status.textContent = 'Fresh observation requested. Reconnecting Ring live view automatically…';
-        await window.ensureLiveViewForObservation();
+      if (typeof window.ensureLiveViewForObservation !== 'function') {
+        throw new Error('Ring live view recovery is not available.');
       }
+      if (status) status.textContent = 'Fresh observation requested. Verifying an advancing Ring live view…';
+      await window.ensureLiveViewForObservation();
 
       await captureFreshAgentObservation();
       completedRequestId = request.requestId;
