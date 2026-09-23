@@ -21,9 +21,10 @@
         spaceId: space.value,
       });
       lastPublishedAt = Date.now();
-    } catch {
-      // The live frame buffer is best-effort. The visible Ring preview remains
-      // authoritative for connection status and automatic replay recovery.
+    } catch (error) {
+      const message = error?.message || 'unknown live-frame publish error';
+      console.warn(`REWIND WHEP live-frame publish failed: ${message}`);
+      window.__rewindLiveFrameError = message;
     } finally {
       publishing = false;
     }
