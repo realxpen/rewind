@@ -18,7 +18,7 @@ import {
 import { createPreviewServer } from "../src/preview-server.js";
 import { BedrockNovaVisionClient } from "../../vision/src/bedrock.js";
 import { CheckpointService, createDynamoCheckpointStoreFromEnv } from "../../checkpoints/src/index.js";
-import { RewindAgentToolService, type AgentCheckpointAccess } from "../../agent-tools/src/index.js";
+import { RewindAgentToolService, type AgentCheckpointAccess, type SpaceObserver } from "../../agent-tools/src/index.js";
 import {
   AgentCoreSessionContinuityStore,
   InMemorySessionContinuityStore,
@@ -83,7 +83,7 @@ async function main() {
     throw new Error("REWIND_RING_OBSERVER must be snapshot or browser.");
   }
 
-  let voiceObserver = bridge;
+  let voiceObserver: SpaceObserver = bridge;
   let voiceDeviceId: string | undefined;
   if (voiceObservationMode === "snapshot") {
     const devices = await listRingDevices(client, config.devicesPath);
