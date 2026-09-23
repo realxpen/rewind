@@ -7,6 +7,7 @@ import {
   RingAccountLinkService,
   RingClient,
   RingObservationBridge,
+  RingLiveFrameObserver,
   RingRtspObserver,
   RingSnapshotObserver,
   createLiveRingAgentRuntime,
@@ -101,6 +102,11 @@ async function main() {
 
   const configuredObservationTimeout = Number(process.env.REWIND_MCP_OBSERVATION_TIMEOUT_MS ?? 60_000);
   const bridge = new RingObservationBridge(Math.max(60_000, Math.min(60_000, configuredObservationTimeout)));
+  const liveFrameObserver = new RingLiveFrameObserver({
+    nova,
+    maxFrameAgeMs: Number(process.env.REWIND_RING_WHEP_FRAME_MAX_AGE_MS ?? 5_000),
+    waitMs: Number(process.env.REWIND_RING_WHEP_FRAME_WAIT_MS ?? 12_000),
+  });
   const checkpointAccess: AgentCheckpointAccess = {
     save: input => checkpoints.save(input),
     list: spaceId => checkpoints.list(spaceId),
@@ -112,7 +118,7 @@ async function main() {
     throw new Error("REWIND_RING_OBSERVER must be auto, rtsp, snapshot, or browser.");
   }
 
-  let voiceObserver: SpaceObserver = bridge;
+  let voiceObserver: SpaceObserver = liveFrameObserver;
   let voiceDeviceId: string | undefined;
   if (voiceObservationMode !== "browser") {
     const devices = await listRingDevices(client, config.devicesPath);
@@ -136,7 +142,7 @@ async function main() {
   });
 
   if (voiceObservationMode === "auto") {
-    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), bridge);
+    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), liveFrameObserver);
   } else if (voiceObservationMode === "rtsp") {
     voiceObserver = createRtspObserver();
   } else if (voiceObservationMode === "snapshot") {
@@ -146,6 +152,8 @@ async function main() {
       deviceId: voiceDeviceId!,
       lookbackMs: Number(process.env.REWIND_RING_SNAPSHOT_LOOKBACK_MS ?? 900_000),
     });
+  } else if (voiceObservationMode === "browser") {
+    voiceObserver = liveFrameObserver;
   }
 
   const mcpToolService = new RewindAgentToolService(voiceObserver, checkpointAccess);
@@ -190,6 +198,7 @@ async function main() {
     getCheckpoint: (spaceId, checkpointId) => checkpoints.get(spaceId, checkpointId),
     invokeAgent: input => liveAgent.invoke(input),
     pendingMcpObservationRequest: spaceId => bridge.pendingRequest(spaceId),
+    publishLiveFrame: input => liveFrameObserver.publish(input),
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: ["auto", "browser"].includes(voiceObservationMode) ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
@@ -221,12 +230,12 @@ async function main() {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
     if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
     const voiceRule = voiceObservationMode === "auto"
-      ? `Voice/MCP fresh-state rule: RTSPS live frame (${voiceDeviceId}) with automatic WHEP browser fallback → Nova → deterministic REWIND.`
+      ? `Voice/MCP fresh-state rule: RTSPS live frame (${voiceDeviceId}) with automatic buffered WHEP fallback → Nova → deterministic REWIND.`
       : voiceObservationMode === "rtsp"
         ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
         : voiceObservationMode === "snapshot"
           ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
-          : "Voice/MCP fresh-state rule: tool call → browser capture request → Ring frame → Nova → deterministic REWIND.";
+          : "Voice/MCP fresh-state rule: recent buffered WHEP frame → Nova → deterministic REWIND.";
     console.log(voiceRule);
   });
 
