@@ -50,15 +50,21 @@ function isRtspTransportFailure(error: unknown): boolean {
   return /Ring RTSP|FFmpeg is required/i.test(message);
 }
 
+type LiveSourceKind = "ring" | "camera";
+
 class AdaptiveRingObserver implements SpaceObserver {
   private rtspDisabled = false;
 
   constructor(
     private readonly primary: SpaceObserver,
     private readonly fallback: SpaceObserver,
+    private readonly sourceForSpace: (spaceId: string) => LiveSourceKind,
   ) {}
 
   async inspect(spaceId: string, observationContext?: SpaceObservationContext) {
+    if (this.sourceForSpace(spaceId) === "camera") {
+      return this.fallback.inspect(spaceId, observationContext);
+    }
     if (!this.rtspDisabled) {
       try {
         return await this.primary.inspect(spaceId, observationContext);
@@ -107,6 +113,8 @@ async function main() {
     maxFrameAgeMs: Number(process.env.REWIND_RING_WHEP_FRAME_MAX_AGE_MS ?? 5_000),
     waitMs: Number(process.env.REWIND_RING_WHEP_FRAME_WAIT_MS ?? 12_000),
   });
+  const liveSources = new Map<string, LiveSourceKind>();
+  const sourceForSpace = (spaceId: string): LiveSourceKind => liveSources.get(spaceId) ?? "ring";
   const checkpointAccess: AgentCheckpointAccess = {
     save: input => checkpoints.save(input),
     list: spaceId => checkpoints.list(spaceId),
@@ -142,7 +150,7 @@ async function main() {
   });
 
   if (voiceObservationMode === "auto") {
-    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), liveFrameObserver);
+    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), liveFrameObserver, sourceForSpace);
   } else if (voiceObservationMode === "rtsp") {
     voiceObserver = createRtspObserver();
   } else if (voiceObservationMode === "snapshot") {
@@ -199,6 +207,10 @@ async function main() {
     invokeAgent: input => liveAgent.invoke(input),
     pendingMcpObservationRequest: spaceId => liveFrameObserver.pendingRequest(spaceId),
     publishLiveFrame: input => liveFrameObserver.publish(input),
+    setLiveSource: ({ spaceId, source }) => {
+      liveSources.set(spaceId, source);
+      console.log(`Live source for space ${spaceId}: ${source}.`);
+    },
   }, {
     html: await readFile(resolve(assets, "index.html"), "utf8"),
     js: ["auto", "browser"].includes(voiceObservationMode) ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
@@ -213,7 +225,7 @@ async function main() {
     console.log(`REWIND preview: http://127.0.0.1:${port}`);
     console.log(`Live Strands agent: enabled · ${liveAgent.usingAgentCore ? "AgentCore Memory" : "in-memory continuity"} · actor ${liveAgent.actorId} · session ${liveAgent.sessionId}`);
     if (["auto", "browser"].includes(voiceObservationMode)) {
-      console.log(`WHEP fresh-frame signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
+      console.log(`Live-frame freshness signal: http://127.0.0.1:${port}/api/mcp-observation-request`);
     }
   });
 
@@ -230,12 +242,12 @@ async function main() {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
     if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
     const voiceRule = voiceObservationMode === "auto"
-      ? `Voice/MCP fresh-state rule: RTSPS live frame (${voiceDeviceId}) with automatic buffered WHEP fallback → Nova → deterministic REWIND.`
+      ? `Voice/MCP fresh-state rule: selected source (Ring RTSPS/browser or Camera/Phone buffer) → Nova → deterministic REWIND.`
       : voiceObservationMode === "rtsp"
         ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
         : voiceObservationMode === "snapshot"
           ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
-          : "Voice/MCP fresh-state rule: recent buffered WHEP frame → Nova → deterministic REWIND.";
+          : "Voice/MCP fresh-state rule: selected browser live-frame buffer → Nova → deterministic REWIND.";
     console.log(voiceRule);
   });
 
