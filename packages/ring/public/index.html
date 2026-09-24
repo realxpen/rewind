@@ -25,7 +25,7 @@
 <div class="app">
 <header class="topbar">
   <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>REWIND</h1><div class="tagline">Ctrl+Z for reality</div></div></div>
-  <div class="topmeta"><span class="chip"><span class="dot live"></span> Ring + Nova</span><span class="chip">Deterministic restore</span><button id="soundToggle" class="ghost sound-toggle" type="button">Sound on</button></div>
+  <div class="topmeta"><span class="chip"><span class="dot live"></span> Live Vision + Nova</span><span class="chip">Deterministic restore</span><button id="soundToggle" class="ghost sound-toggle" type="button">Sound on</button></div>
 </header>
 
 <div class="hero-copy">
@@ -65,11 +65,18 @@
     <div class="status-wrap"><span class="status-icon"></span><p id="status" role="status" aria-live="polite">Discovering devices…</p></div>
 
     <details id="liveRingDetails" class="utility">
-      <summary>Live Ring proof <span class="utility-sub">Real camera → Nova semantic state</span></summary>
+      <summary>Live vision source <span class="utility-sub">Ring, webcam or phone camera → Nova semantic state</span></summary>
       <section class="panel">
-        <div class="panel-head"><div><div class="eyebrow">Live physical state</div><h2>Ring observation</h2></div><span class="chip" id="streamChip"><span class="dot" id="streamDot"></span><span id="streamLabel">Connecting</span></span></div>
+        <div class="panel-head"><div><div class="eyebrow">Live physical state</div><h2 id="liveSourceTitle">Ring observation</h2></div><span class="chip" id="streamChip"><span class="dot" id="streamDot"></span><span id="streamLabel">Connecting</span></span></div>
         <div class="camera-tools">
-          <label>Device <select id="devices" aria-label="Ring device"></select></label>
+          <label>Live source
+            <select id="liveSource" aria-label="Live source">
+              <option value="ring">Ring</option>
+              <option value="camera">Camera / Phone</option>
+            </select>
+          </label>
+          <label id="ringDeviceWrap">Ring device <select id="devices" aria-label="Ring device"></select></label>
+          <label id="cameraDeviceWrap" hidden>Camera <select id="cameraDevices" aria-label="Camera or phone camera"></select></label>
           <button id="reload">Refresh devices</button>
           <button class="primary" id="start" disabled>Start live view</button>
           <button id="stop" disabled>Stop</button>
@@ -77,7 +84,7 @@
         </div>
         <div class="video-shell">
           <video id="video" autoplay muted playsinline controls></video>
-          <div class="live-overlay"><div><div class="live-title">Ring Playground</div><div class="live-sub" id="overlayState">Waiting for live state</div></div><div class="signal"><span class="pulse"></span> Semantic observation only</div></div>
+          <div class="live-overlay"><div><div class="live-title" id="liveTitle">Ring Playground</div><div class="live-sub" id="overlayState">Waiting for live state</div></div><div class="signal"><span class="pulse"></span> Semantic observation only</div></div>
         </div>
       </section>
     </details>
@@ -89,7 +96,7 @@
           <div class="section-head"><div><div class="eyebrow">Strands + AgentCore</div><h2>Ask REWIND</h2><p>Natural language may choose approved tools. It cannot invent physical truth.</p></div><span class="chip">Fresh observation required</span></div>
           <label for="agentPrompt" class="muted">Command</label>
           <textarea id="agentPrompt" maxlength="8000" placeholder="Inspect my studio">Inspect my studio</textarea>
-          <div class="controls"><button class="primary" id="agentSend" disabled>Run with live Ring</button><button class="ghost" id="capture" disabled>Capture frame manually</button></div>
+          <div class="controls"><button class="primary" id="agentSend" disabled>Run with live source</button><button class="ghost" id="capture" disabled>Capture frame manually</button></div>
           <pre id="agentResponse" class="agent-response" hidden></pre>
           <p id="agentSession" class="session-strip"></p>
         </section>
@@ -103,7 +110,7 @@
         </section>
 
         <section class="panel section-panel">
-          <div class="section-head"><div><div class="eyebrow">Semantic memory</div><h2>Checkpoint history</h2><p>Saved state persists in DynamoDB. Raw Ring frames do not.</p></div><button id="refreshCheckpoints">Refresh</button></div>
+          <div class="section-head"><div><div class="eyebrow">Semantic memory</div><h2>Checkpoint history</h2><p>Saved state persists in DynamoDB. Raw camera frames do not.</p></div><button id="refreshCheckpoints">Refresh</button></div>
           <ul id="checkpoints" class="checkpoint-list"><li class="muted">No checkpoints loaded yet.</li></ul>
         </section>
 
@@ -120,9 +127,9 @@
 
         <section id="verifyPanel" class="panel section-panel" hidden>
           <div class="section-head"><div><div class="eyebrow">Fresh observation required</div><h2>Verify Rewind</h2></div><span class="restore-state" id="verifyState">WAITING_FOR_CHANGE</span></div>
-          <p id="verifySummary">Follow one or more guidance steps, capture a fresh Ring frame, observe it with Nova, then Check Again.</p>
+          <p id="verifySummary">Follow one or more guidance steps, capture a fresh live frame, observe it with Nova, then Check Again.</p>
           <div class="controls"><button class="primary" id="checkAgain" disabled>Check Again</button></div>
-          <p class="muted">Signed Ring motion can trigger automatic verification. Check Again remains the deterministic fallback.</p>
+          <p class="muted">Signed Ring motion can trigger automatic verification when Ring is the active source. Check Again remains the deterministic fallback.</p>
         </section>
       </div>
     </details>
