@@ -5,8 +5,9 @@
   const demoMount = el('demoToolbarMount');
   const liveDetails = el('liveRingDetails');
   const advancedDetails = el('advancedDetails');
+  const advancedStack = advancedDetails?.querySelector('.advanced-stack');
   const space = el('space');
-  if (!focusCard || !demoMount || !space || document.getElementById('consumerPhotoFlow')) return;
+  if (!focusCard || !demoMount || !advancedDetails || !advancedStack || !space || document.getElementById('consumerPhotoFlow')) return;
 
   let mode = 'remember';
   let selectedFile;
@@ -71,24 +72,30 @@
     </div>
   `;
 
-  demoMount.before(section);
+  const photoDetails = document.createElement('details');
+  photoDetails.id = 'consumerPhotoDetails';
+  photoDetails.className = 'utility consumer-photo-details';
+  const photoSummary = document.createElement('summary');
+  photoSummary.innerHTML = 'Photo workflow <span class="utility-sub">Optional still-photo mode</span>';
+  photoDetails.append(photoSummary, section);
+  advancedStack.append(photoDetails);
 
   const demoDetails = document.createElement('details');
   demoDetails.id = 'controlledDemoDetails';
   demoDetails.className = 'utility consumer-demo-details';
   const demoSummary = document.createElement('summary');
-  demoSummary.innerHTML = 'Hackathon controlled demo <span class="utility-sub">Repeatable 25% → 63% → 100% journey</span>';
-  demoMount.before(demoDetails);
+  demoSummary.innerHTML = 'Controlled demo <span class="utility-sub">Repeatable 25% → 63% → 100% engineering test</span>';
   demoDetails.append(demoSummary, demoMount);
+  advancedStack.append(demoDetails);
 
   const style = document.createElement('style');
   style.textContent = `
-    .consumer-photo-flow{padding:20px;margin-bottom:12px;border-color:rgba(140,244,199,.24);background:radial-gradient(circle at 92% 0,rgba(140,244,199,.075),transparent 36%),linear-gradient(180deg,#111a24,#0d131c)}
+    .consumer-photo-flow{padding:16px;margin:0;border:0;border-radius:0;box-shadow:none;background:radial-gradient(circle at 92% 0,rgba(140,244,199,.075),transparent 36%),linear-gradient(180deg,#111a24,#0d131c)}
     .consumer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.consumer-head h2{font-size:24px;margin:5px 0 5px;letter-spacing:-.025em}.consumer-head p{max-width:730px;margin:0;color:var(--muted);font-size:12px;line-height:1.65}
     .consumer-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:16px 0 14px;border:1px solid var(--line);border-radius:13px;background:#0b1119}.consumer-mode{border:0;background:transparent;color:var(--muted);box-shadow:none}.consumer-mode.active{background:#17251f;color:var(--mint);border:1px solid rgba(140,244,199,.34)}
     .consumer-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end}.consumer-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.consumer-field{display:grid;gap:5px;color:var(--muted);font-size:10px}.consumer-field input,.consumer-field select{width:100%}.consumer-capture{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .consumer-preview{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#0a1018}.consumer-preview img{display:block;width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.consumer-preview-copy{align-self:center}.consumer-preview-copy strong{display:block;margin:4px 0}.consumer-preview-copy p{margin:0 0 9px;color:var(--muted);font-size:11px}.consumer-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .consumer-foot{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;color:var(--muted);font-size:10px}.consumer-foot .ghost{padding:7px 9px;font-size:10px}.consumer-demo-details{margin:0 0 12px}.consumer-demo-details>#demoToolbarMount{padding:0 10px 10px}.consumer-setup:not(.consumer-rewind-active) #focusCard{display:none}.consumer-photo-flow[data-busy="true"]{opacity:.78}.consumer-photo-flow[data-busy="true"] button{pointer-events:none}
+    .consumer-foot{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;color:var(--muted);font-size:10px}.consumer-foot .ghost{padding:7px 9px;font-size:10px}.consumer-photo-details,.consumer-demo-details{margin:0}.consumer-photo-details>.consumer-photo-flow{border-top:1px solid var(--line)}.consumer-demo-details>#demoToolbarMount{padding:0 10px 10px}.consumer-photo-flow[data-busy="true"]{opacity:.78}.consumer-photo-flow[data-busy="true"] button{pointer-events:none}
     @media(max-width:760px){.consumer-grid{grid-template-columns:1fr}.consumer-fields{grid-template-columns:1fr}.consumer-capture{justify-content:stretch}.consumer-capture button{flex:1}.consumer-preview{grid-template-columns:1fr}.consumer-preview img{height:220px}.consumer-head{display:block}.consumer-head>.chip{margin-top:10px}.consumer-foot{align-items:flex-start;flex-direction:column}}
   `;
   document.head.append(style);
