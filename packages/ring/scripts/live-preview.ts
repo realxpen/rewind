@@ -90,6 +90,9 @@ async function main() {
   const actorId = process.env.REWIND_AGENT_ACTOR_ID?.trim();
   const agentSessionId = process.env.REWIND_AGENT_SESSION_ID?.trim();
   const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "ring-playground";
+  if (!/^[a-zA-Z0-9._-]{1,80}$/.test(defaultSpaceId)) {
+    throw new Error("REWIND_DEFAULT_SPACE_ID must contain only letters, numbers, dots, underscores, or hyphens.");
+  }
   const publicMcpHost = process.env.REWIND_MCP_PUBLIC_HOST?.trim();
   if (publicMcpHost && !/^[A-Za-z0-9.-]{1,253}$/.test(publicMcpHost)) {
     throw new Error("REWIND_MCP_PUBLIC_HOST must be a hostname only.");
@@ -180,6 +183,8 @@ async function main() {
 
   const assets = resolve("packages/ring/public");
   const previewJs = await readFile(resolve(assets, "preview.js"), "utf8");
+  const previewHtml = (await readFile(resolve(assets, "index.html"), "utf8"))
+    .replace('value="ring-playground"', `value="${defaultSpaceId}"`);
   const mcpBridgeJs = await readFile(resolve(assets, "mcp-bridge.js"), "utf8");
   const verifyJs = await readFile(resolve(assets, "verify.js"), "utf8");
   const consumerJs = await readFile(resolve(assets, "consumer.js"), "utf8");
@@ -212,7 +217,7 @@ async function main() {
       console.log(`Live source for space ${spaceId}: ${source}.`);
     },
   }, {
-    html: await readFile(resolve(assets, "index.html"), "utf8"),
+    html: previewHtml,
     js: ["auto", "browser"].includes(voiceObservationMode) ? `${previewJs}\n${mcpBridgeJs}` : previewJs,
     verifyJs: `${verifyJs}\n${consumerJs}`,
   });
