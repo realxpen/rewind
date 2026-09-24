@@ -12,6 +12,7 @@ let created = 0, deleted = 0, failDelete = false, failObserve = false;
 let observed: VisionObservationRequest | undefined;
 let agentInput: PreviewAgentInput | undefined;
 let bufferedLiveFrame: { spaceId: string; imageBytes: Uint8Array; capturedAt: string } | undefined;
+let selectedLiveSource: { spaceId: string; source: "ring" | "camera" } | undefined;
 const preview = createPreviewServer({
   devices: async () => [{ id: "test-device", name: "Unit camera" }],
   start: async (id, offer) => { assert.equal(id, "test-device"); assert.equal(offer, "v=0\r\n"); created++; return { sdpAnswer: "unit-answer", sessionUrl: "https://ring.example.test/private-session" }; },
@@ -38,6 +39,7 @@ const preview = createPreviewServer({
     ? { id: "request-1", spaceId, requestedAt: 123 }
     : undefined,
   publishLiveFrame: input => { bufferedLiveFrame = input; },
+  setLiveSource: input => { selectedLiveSource = input; },
 }, { html: "<!doctype html><title>REWIND</title>", js: "/* preview */" });
 preview.server.listen(0, "127.0.0.1");
 await once(preview.server, "listening");
@@ -84,6 +86,12 @@ try {
   assert.deepEqual(bufferedLiveFrame?.imageBytes, Buffer.from([255, 216, 10, 20, 255, 217]));
   assert.equal((await post("live-frame", { ...liveFrame, image: "bad" })).status, 400);
   assert.equal((await post("live-frame", { ...liveFrame, spaceId: "" })).status, 400);
+
+  const liveSourceResponse = await post("live-source", { spaceId: "unit-space", source: "camera" });
+  assert.equal(liveSourceResponse.status, 200);
+  assert.deepEqual(selectedLiveSource, { spaceId: "unit-space", source: "camera" });
+  assert.equal((await post("live-source", { spaceId: "unit-space", source: "upload" })).status, 400);
+  assert.equal((await post("live-source", { spaceId: "", source: "ring" })).status, 400);
 
   // Controlled Demo accepts only a named server-owned fixture. Client-supplied state is ignored.
   const controlledResponse = await post("demo/observe", {
@@ -201,6 +209,9 @@ const mcpBridgeSource = await readFile(resolve("packages/ring/public/mcp-bridge.
 assert.doesNotThrow(() => new Function(previewClientSource), "preview.js must remain valid browser JavaScript.");
 assert.doesNotThrow(() => new Function(mcpBridgeSource), "mcp-bridge.js must remain valid browser JavaScript.");
 assert.match(previewClientSource, /ensureLiveViewForObservation/, "Preview must expose automatic live-view recovery for fresh observation requests.");
+assert.match(previewClientSource, /navigator\.mediaDevices\.getUserMedia/, "Preview must support a browser Camera / Phone live source.");
+assert.match(previewClientSource, /connectCameraView/, "Preview must have a dedicated camera-source adapter.");
+assert.match(previewClientSource, /api\('live-source'/, "Preview must publish the selected trusted live source to the server.");
 assert.match(previewClientSource, /peer\.getStats\(\)/, "Fresh observation recovery must use WebRTC inbound stats so background tabs remain reliable.");
 assert.match(previewClientSource, /if \(videoReady\(\)\) return;/, "A renderable WHEP frame must be captured without waiting on playback counters.");
 assert.match(previewClientSource, /REWIND restarted or lost the Ring session/, "Preview must detect backend/session restarts.");
@@ -208,4 +219,4 @@ assert.match(mcpBridgeSource, /api\('live-frame'/, "WHEP preview must buffer rec
 assert.match(mcpBridgeSource, /mcp-observation-wait/, "Background preview must long-poll for an on-demand fresh-frame request.");
 assert.match(mcpBridgeSource, /publishRecentLiveFrame\(true\)/, "On-demand wake must force a fresh WHEP frame publish.");
 assert.match(mcpBridgeSource, /void wakeLoop\(\)/, "Fresh-frame wake loop must start when the preview loads.");
-console.log("PASS Ring preview client: buffered WHEP frames + background-safe on-demand freshness wake.");
+console.log("PASS live preview client: Ring + Camera/Phone adapters + buffered frames + background-safe on-demand freshness wake.");
