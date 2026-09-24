@@ -7,7 +7,9 @@ const verify = await readFile("packages/ring/public/verify.js", "utf8");
 const consumer = await readFile("packages/ring/public/consumer.js", "utf8");
 
 for (const id of [
+  "liveSource",
   "devices",
+  "cameraDevices",
   "start",
   "stop",
   "space",
@@ -53,7 +55,9 @@ assert.match(html, /Remember the state\. Forget the footage\./);
 assert.match(html, /AI observes\. Deterministic code decides\./);
 assert.match(html, /AI does not decide match/);
 assert.match(html, /Advanced details/);
-assert.match(html, /Live Ring proof/);
+assert.match(html, /Live vision source/);
+assert.match(html, /Camera \/ Phone/);
+assert.match(html, /Ring, webcam or phone camera/);
 assert.match(html, /100% RESTORED/);
 assert.match(html, /prefers-reduced-motion/);
 assert.match(bridge, /MutationObserver/);
