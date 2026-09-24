@@ -37,12 +37,12 @@ function assertJpeg(bytes: Uint8Array): void {
     bytes.at(-2) !== 255 ||
     bytes.at(-1) !== 217
   ) {
-    throw new Error("Ring WHEP live frame JPEG was invalid.");
+    throw new Error("Live camera frame JPEG was invalid.");
   }
 }
 
 /**
- * Holds only the most recent browser-decoded WHEP frame in memory.
+ * Holds only the most recent browser-decoded live camera frame in memory.
  * Frames are never persisted. Nova is invoked only when inspect() is called.
  */
 export class RingLiveFrameObserver implements SpaceObserver {
@@ -75,7 +75,7 @@ export class RingLiveFrameObserver implements SpaceObserver {
     };
     this.frames.set(input.spaceId, frame);
     if (firstFrameForSpace) {
-      console.log(`Ring WHEP live frame buffer active for space ${input.spaceId}.`);
+      console.log(`Live frame buffer active for space ${input.spaceId}.`);
     }
 
     const waits = this.pending.get(input.spaceId);
@@ -100,13 +100,13 @@ export class RingLiveFrameObserver implements SpaceObserver {
     return new Promise<BufferedFrame>((resolve, reject) => {
       const requestedAt = now;
       const id = `whep-frame-${randomUUID()}`;
-      console.log(`Fresh Ring WHEP frame requested for space ${spaceId}.`);
+      console.log(`Fresh live frame requested for space ${spaceId}.`);
       const timer = setTimeout(() => {
         const waits = this.pending.get(spaceId) ?? [];
         const remaining = waits.filter(wait => wait.id !== id);
         if (remaining.length > 0) this.pending.set(spaceId, remaining);
         else this.pending.delete(spaceId);
-        reject(new Error("Timed out waiting for a recent Ring WHEP live frame."));
+        reject(new Error("Timed out waiting for a recent live camera frame."));
       }, this.waitMs);
       const waits = this.pending.get(spaceId) ?? [];
       waits.push({ id, requestedAt, resolve, reject, timer });
@@ -124,7 +124,7 @@ export class RingLiveFrameObserver implements SpaceObserver {
   async inspect(spaceId: string, observationContext?: SpaceObservationContext): Promise<AgentObservation> {
     assertSpaceId(spaceId);
     const frame = await this.frameFor(spaceId);
-    console.log(`Ring WHEP live frame consumed for space ${spaceId}.`);
+    console.log(`Live frame consumed for space ${spaceId}.`);
     const result = await this.nova.observe({
       imageBytes: frame.imageBytes,
       format: "jpeg",
