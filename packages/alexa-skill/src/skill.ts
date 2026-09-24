@@ -83,7 +83,7 @@ function pendingActions(result: RewindToolResult | undefined) {
 function retryableFreshRingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : "";
   return /timed out waiting for the ring preview/i.test(message)
-    || /timed out waiting for a recent Ring WHEP live frame/i.test(message)
+    || /timed out waiting for a recent (?:Ring WHEP )?live (?:camera )?frame/i.test(message)
     || /fresh Ring observation is already being requested/i.test(message)
     || /Ring video is not advancing yet/i.test(message);
 }
@@ -102,8 +102,8 @@ function conciseError(error: unknown): string {
   if (/Ring RTSP frame capture timed out/i.test(message)) return "Ring live video did not deliver a frame in time.";
   if (/Ring RTSP frame capture failed/i.test(message) || /Ring RTSP client could not start/i.test(message)) return "REWIND could not capture the Ring live stream.";
   if (/Ring RTSP did not produce a valid JPEG/i.test(message)) return "REWIND received Ring live video but could not turn it into a usable frame.";
-  if (/timed out waiting for a recent Ring WHEP live frame/i.test(message)) {
-    return "I don't have a recent Ring live frame yet. Keep the REWIND preview open with live view running, then try again.";
+  if (/timed out waiting for a recent (?:Ring WHEP )?live (?:camera )?frame/i.test(message)) {
+    return "I don't have a recent live camera frame yet. Keep the REWIND preview open with live view running, then try again.";
   }
 
   if (/timed out waiting for the ring preview/i.test(message) || /Ring video is not advancing yet/i.test(message)) {
