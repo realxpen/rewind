@@ -2,13 +2,31 @@ const byId = id => document.getElementById(id);
 const video = byId('video');
 const status = message => { byId('status').textContent = message; };
 const AUTO_LIVE_KEY = 'rewind.live.auto';
-let peer, sessionId, heartbeat, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
+const LIVE_SOURCE_KEY = 'rewind.live.source';
+let peer, sessionId, heartbeat, localStream, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
 let liveConnectPromise, reconnectTimer, videoWatchdog, heartbeatFailures = 0, reconnectAttempts = 0;
 let reconnecting = false, videoWatchdogChecking = false, lastVideoProgress, lastVideoProgressAt = 0;
 let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
+let liveSource = localStorage.getItem(LIVE_SOURCE_KEY) === 'camera' ? 'camera' : 'ring';
 
+function activeConnection() {
+  return liveSource === 'camera' ? Boolean(localStream) : Boolean(peer || sessionId);
+}
 function videoReady() {
-  return Boolean(peer && sessionId && video.readyState >= 2 && video.videoWidth);
+  const sourceConnected = liveSource === 'camera' ? Boolean(localStream) : Boolean(peer && sessionId);
+  return Boolean(sourceConnected && video.readyState >= 2 && video.videoWidth);
+}
+function updateSourceUi() {
+  const camera = liveSource === 'camera';
+  byId('liveSource').value = liveSource;
+  byId('ringDeviceWrap').hidden = camera;
+  byId('cameraDeviceWrap').hidden = !camera;
+  byId('liveSourceTitle').textContent = camera ? 'Camera / Phone observation' : 'Ring observation';
+  byId('liveTitle').textContent = camera ? 'Camera / Phone Live' : 'Ring Playground';
+}
+async function publishLiveSourceSelection() {
+  if (!byId('space').reportValidity()) return;
+  await api('live-source', { spaceId: byId('space').value, source: liveSource });
 }
 function setAutoLiveWanted(value) {
   autoLiveWanted = value;
@@ -103,13 +121,19 @@ async function api(path, data) {
   return result;
 }
 function controls() {
-  byId('start').disabled = pending || Boolean(peer || sessionId) || !byId('devices').value;
-  byId('stop').disabled = pending || !Boolean(peer || sessionId);
-  byId('devices').disabled = pending || Boolean(peer || sessionId);
-  byId('reload').disabled = pending || Boolean(peer || sessionId);
-  byId('capture').disabled = pending || observing || agentRunning || !peer || video.readyState < 2 || !video.videoWidth;
+  const connected = activeConnection();
+  const sourceHasDevice = liveSource === 'ring'
+    ? Boolean(byId('devices').value)
+    : Boolean(byId('cameraDevices').value || navigator.mediaDevices?.getUserMedia);
+  byId('start').disabled = pending || connected || !sourceHasDevice;
+  byId('stop').disabled = pending || !connected;
+  byId('devices').disabled = pending || connected || liveSource !== 'ring';
+  byId('cameraDevices').disabled = pending || connected || liveSource !== 'camera';
+  byId('liveSource').disabled = pending || connected;
+  byId('reload').disabled = pending || connected;
+  byId('capture').disabled = pending || observing || agentRunning || !videoReady();
   byId('saveCheckpoint').disabled = saving || observing || agentRunning || !latestObservationId;
-  byId('agentSend').disabled = pending || observing || agentRunning || !peer || video.readyState < 2 || !video.videoWidth;
+  byId('agentSend').disabled = pending || observing || agentRunning || !videoReady();
   document.querySelectorAll('[data-compare-checkpoint]').forEach(button => {
     button.disabled = comparing || observing || rewinding || agentRunning || !latestObservationId;
   });
@@ -256,16 +280,39 @@ async function refreshCheckpoints() {
     byId('checkpoints').replaceChildren(Object.assign(document.createElement('li'), { className: 'muted', textContent: error.message }));
   } finally { byId('refreshCheckpoints').disabled = false; controls(); }
 }
+async function discoverLocalCameras() {
+  const select = byId('cameraDevices');
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    select.replaceChildren();
+    return [];
+  }
+  const devices = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'videoinput');
+  const current = select.value;
+  select.replaceChildren(...devices.map((device, index) => {
+    const option = document.createElement('option');
+    option.value = device.deviceId;
+    option.textContent = device.label || `Camera ${index + 1}`;
+    return option;
+  }));
+  if (current && devices.some(device => device.deviceId === current)) select.value = current;
+  return devices;
+}
 async function discover() {
-  pending = true; controls(); status('Discovering devices…');
+  pending = true; controls(); status('Discovering live sources…');
   try {
-    const devices = await api('devices');
-    byId('devices').replaceChildren(...devices.map(device => {
+    const ringDevices = await api('devices');
+    byId('devices').replaceChildren(...ringDevices.map(device => {
       const option = document.createElement('option'); option.value = device.id; option.textContent = device.name; return option;
     }));
-    status(devices.length ? 'Camera ready. Start live view.' : 'No Ring devices found.');
+    const cameras = await discoverLocalCameras();
+    updateSourceUi();
+    await publishLiveSourceSelection();
+    const ready = liveSource === 'ring' ? ringDevices.length > 0 : Boolean(cameras.length || navigator.mediaDevices?.getUserMedia);
+    status(ready
+      ? `${liveSource === 'ring' ? 'Ring' : 'Camera / Phone'} source ready. Start live view.`
+      : liveSource === 'ring' ? 'No Ring devices found.' : 'No browser camera is available.');
     await refreshCheckpoints();
-    if (devices.length && autoLiveWanted) scheduleLiveReconnect(250);
+    if (liveSource === 'ring' && ringDevices.length && autoLiveWanted) scheduleLiveReconnect(250);
   } catch (error) { status(error.message); }
   finally { pending = false; controls(); }
 }
@@ -280,6 +327,9 @@ async function stop({ notifyServer = true } = {}) {
     currentPeer.onconnectionstatechange = null;
     currentPeer.close();
   }
+  const currentLocalStream = localStream;
+  localStream = undefined;
+  currentLocalStream?.getTracks().forEach(track => track.stop());
   video.srcObject = null;
   const currentSessionId = sessionId;
   sessionId = undefined;
@@ -327,7 +377,7 @@ async function waitForFreshVideoFrame(timeoutMs = 3_000) {
   throw new Error('Ring video is not advancing yet.');
 }
 function videoBlob() {
-  if (video.readyState < 2 || !video.videoWidth) throw new Error('Start the Ring live view and wait for video before asking REWIND.');
+  if (video.readyState < 2 || !video.videoWidth) throw new Error('Start the selected live source and wait for video before asking REWIND.');
   const canvas = document.createElement('canvas');
   const scale = Math.min(1, 1280 / video.videoWidth);
   canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
@@ -351,6 +401,70 @@ async function captureFreshAgentObservation() {
   latestObservationId = result.observationId;
   return result;
 }
+async function connectCameraView({ automatic = false } = {}) {
+  if (videoReady()) return;
+  if (liveConnectPromise) return liveConnectPromise;
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser cannot access a camera.');
+
+  liveConnectPromise = (async () => {
+    pending = true; controls();
+    status(automatic ? 'Reconnecting Camera / Phone live view…' : 'Connecting to Camera / Phone…');
+    try {
+      clearReconnectTimer();
+      if (peer || sessionId || localStream) {
+        try { await stop(); }
+        catch { await stop({ notifyServer: false }).catch(() => {}); }
+      }
+      const selectedDeviceId = byId('cameraDevices').value;
+      const videoConstraints = selectedDeviceId
+        ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
+      localStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+      video.srcObject = localStream;
+      await video.play().catch(() => {});
+      await waitForVideo();
+
+      const track = localStream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => {
+          localStream = undefined;
+          controls();
+          status('Camera / Phone stream ended. Start live view to reconnect.');
+        };
+      }
+      await discoverLocalCameras();
+      const activeDeviceId = track?.getSettings?.().deviceId;
+      if (activeDeviceId && [...byId('cameraDevices').options].some(option => option.value === activeDeviceId)) {
+        byId('cameraDevices').value = activeDeviceId;
+      }
+
+      reconnectAttempts = 0;
+      setAutoLiveWanted(true);
+      await publishLiveSourceSelection();
+      status('Camera / Phone live video connected. REWIND can now observe your real desk.');
+    } catch (error) {
+      try { await stop(); }
+      catch { await stop({ notifyServer: false }).catch(() => {}); }
+      const name = error?.name || '';
+      const message = name === 'NotAllowedError'
+        ? 'Camera permission was denied. Allow camera access in the browser and try again.'
+        : name === 'NotFoundError'
+          ? 'No usable camera was found.'
+          : error?.message || 'Could not connect to Camera / Phone.';
+      status(message);
+      throw error;
+    } finally {
+      pending = false; controls();
+    }
+  })();
+
+  try {
+    await liveConnectPromise;
+  } finally {
+    liveConnectPromise = undefined;
+  }
+}
+
 async function connectLiveView({ automatic = false } = {}) {
   if (videoReady()) return;
   if (liveConnectPromise) return liveConnectPromise;
@@ -435,24 +549,27 @@ async function connectLiveView({ automatic = false } = {}) {
   }
 }
 
+async function connectSelectedLiveView(options = {}) {
+  return liveSource === 'camera' ? connectCameraView(options) : connectLiveView(options);
+}
+
 async function ensureLiveViewForObservation() {
   setAutoLiveWanted(true);
   reconnectAttempts = 0;
-  if (!byId('devices').value) await discover();
+  const selectedAvailable = liveSource === 'ring' ? byId('devices').value : navigator.mediaDevices?.getUserMedia;
+  if (!selectedAvailable) await discover();
+  await publishLiveSourceSelection();
 
   const reconnectDeadline = Date.now() + 8_000;
   while ((reconnecting || liveConnectPromise) && Date.now() < reconnectDeadline) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  // For truth-sensitive Alexa/MCP calls, a currently renderable WHEP frame is
-  // already fresh enough to capture at request time. Do not block on browser
-  // playback counters; those can be throttled or unreliable in background tabs.
   if (videoReady()) return;
 
   try { await stop(); }
   catch { await stop({ notifyServer: false }).catch(() => {}); }
-  await connectLiveView({ automatic: true });
+  await connectSelectedLiveView({ automatic: true });
   await waitForVideo();
 }
 window.ensureLiveViewForObservation = ensureLiveViewForObservation;
@@ -460,7 +577,7 @@ window.ensureLiveViewForObservation = ensureLiveViewForObservation;
 byId('start').onclick = () => {
   setAutoLiveWanted(true);
   reconnectAttempts = 0;
-  void connectLiveView().catch(() => {});
+  void connectSelectedLiveView().catch(() => {});
 };
 byId('stop').onclick = async () => {
   setAutoLiveWanted(false);
@@ -508,12 +625,12 @@ byId('observe').onclick = async () => {
 };
 byId('agentSend').onclick = async () => {
   const prompt = byId('agentPrompt').value.trim();
-  if (!prompt || agentRunning || !peer || !byId('space').reportValidity()) return;
+  if (!prompt || agentRunning || !videoReady() || !byId('space').reportValidity()) return;
   agentRunning = true; controls(); byId('agentResponse').hidden = true; byId('agentSession').textContent = '';
   try {
-    status('Capturing a fresh Ring frame for REWIND…');
+    status('Capturing a fresh live frame for REWIND…');
     const observation = await captureFreshAgentObservation();
-    status('Nova validated the Ring frame. Strands is choosing the approved REWIND tool…');
+    status('Nova validated the live frame. Strands is choosing the approved REWIND tool…');
     const result = await api('agent', {
       prompt,
       spaceId: byId('space').value,
@@ -524,7 +641,7 @@ byId('agentSend').onclick = async () => {
     const session = result.session || {};
     byId('agentSession').textContent = `Session: ${session.activeSpaceId || 'no-space'} · ${session.activeCheckpointName || 'no-checkpoint'} · ${session.lastDeterministicState || 'no-state'}`;
     await refreshCheckpoints();
-    status('REWIND agent completed using a fresh Ring → Nova observation.');
+    status('REWIND agent completed using a fresh live-source → Nova observation.');
   } catch (error) {
     byId('agentResponse').textContent = error.message || 'REWIND agent request failed.';
     byId('agentResponse').hidden = false;
@@ -550,10 +667,30 @@ byId('discard').onclick = discard;
 byId('reload').onclick = discover;
 byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
-byId('space').onchange = () => { latestObservationId = latestDiffCheckpointId = undefined; byId('savePanel').hidden = true; byId('agentSession').textContent = ''; hideDiff(); controls(); void refreshCheckpoints(); };
+byId('cameraDevices').onchange = controls;
+byId('liveSource').onchange = async () => {
+  liveSource = byId('liveSource').value === 'camera' ? 'camera' : 'ring';
+  localStorage.setItem(LIVE_SOURCE_KEY, liveSource);
+  updateSourceUi();
+  latestObservationId = latestDiffCheckpointId = undefined;
+  hideDiff();
+  await publishLiveSourceSelection().catch(error => status(error.message));
+  controls();
+};
+byId('space').onchange = () => {
+  latestObservationId = latestDiffCheckpointId = undefined;
+  byId('savePanel').hidden = true;
+  byId('agentSession').textContent = '';
+  hideDiff();
+  controls();
+  void publishLiveSourceSelection().catch(error => status(error.message));
+  void refreshCheckpoints();
+};
 video.onloadeddata = controls;
 window.addEventListener('pagehide', () => {
   if (sessionId) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ id: sessionId })], { type: 'application/json' }));
   peer?.close();
+  localStream?.getTracks().forEach(track => track.stop());
 });
+updateSourceUi();
 void discover();
