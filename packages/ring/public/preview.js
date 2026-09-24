@@ -21,8 +21,14 @@ function updateSourceUi() {
   byId('liveSource').value = liveSource;
   byId('ringDeviceWrap').hidden = camera;
   byId('cameraDeviceWrap').hidden = !camera;
-  byId('liveSourceTitle').textContent = camera ? 'Camera / Phone observation' : 'Ring observation';
-  byId('liveTitle').textContent = camera ? 'Camera / Phone Live' : 'Ring Playground';
+  byId('liveSourceTitle').textContent = camera ? 'Camera / Phone' : 'Ring';
+  byId('liveTitle').textContent = camera ? 'Camera / Phone Live' : 'Ring Live';
+  byId('start').textContent = camera ? 'Start camera' : 'Start Ring';
+  for (const button of document.querySelectorAll('[data-source-choice]')) {
+    const active = button.dataset.sourceChoice === liveSource;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
 }
 async function publishLiveSourceSelection() {
   if (!byId('space').reportValidity()) return;
@@ -309,7 +315,7 @@ async function discover() {
     await publishLiveSourceSelection();
     const ready = liveSource === 'ring' ? ringDevices.length > 0 : Boolean(cameras.length || navigator.mediaDevices?.getUserMedia);
     status(ready
-      ? `${liveSource === 'ring' ? 'Ring' : 'Camera / Phone'} source ready. Start live view.`
+      ? `${liveSource === 'ring' ? 'Ring' : 'Camera / Phone'} is ready. Start the camera when you are ready.`
       : liveSource === 'ring' ? 'No Ring devices found.' : 'No browser camera is available.');
     await refreshCheckpoints();
     if (liveSource === 'ring' && ringDevices.length && autoLiveWanted) scheduleLiveReconnect(250);
@@ -668,6 +674,13 @@ byId('reload').onclick = discover;
 byId('refreshCheckpoints').onclick = refreshCheckpoints;
 byId('devices').onchange = controls;
 byId('cameraDevices').onchange = controls;
+for (const button of document.querySelectorAll('[data-source-choice]')) {
+  button.onclick = () => {
+    if (activeConnection() || pending) return;
+    byId('liveSource').value = button.dataset.sourceChoice === 'camera' ? 'camera' : 'ring';
+    byId('liveSource').dispatchEvent(new Event('change'));
+  };
+}
 byId('liveSource').onchange = async () => {
   liveSource = byId('liveSource').value === 'camera' ? 'camera' : 'ring';
   localStorage.setItem(LIVE_SOURCE_KEY, liveSource);
