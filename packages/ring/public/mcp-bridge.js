@@ -31,7 +31,7 @@
         window.__rewindLiveFrameError = undefined;
       } catch (error) {
         const message = error?.message || 'unknown live-frame publish error';
-        console.warn(`REWIND WHEP live-frame publish failed: ${message}`);
+        console.warn(`REWIND live-frame publish failed: ${message}`);
         window.__rewindLiveFrameError = message;
         throw error;
       } finally {
@@ -51,7 +51,7 @@
 
     const url = `/api/mcp-observation-wait?spaceId=${encodeURIComponent(space.value)}&waitMs=15000`;
     const response = await fetch(url, { method: 'GET', cache: 'no-store' });
-    if (!response.ok) throw new Error('Could not wait for a fresh Ring frame request.');
+    if (!response.ok) throw new Error('Could not wait for a fresh live-frame request.');
     return response.json();
   }
 
@@ -60,16 +60,16 @@
 
     const status = document.getElementById('status');
     try {
-      if (status) status.textContent = 'Alexa/agent requested a fresh Ring frame…';
+      if (status) status.textContent = 'Alexa/agent requested a fresh live frame…';
       if (typeof window.ensureLiveViewForObservation !== 'function') {
         throw new Error('Ring live view recovery is not available.');
       }
       await window.ensureLiveViewForObservation();
       await publishRecentLiveFrame(true);
       completedRequestId = request.requestId;
-      if (status) status.textContent = 'Fresh Ring frame delivered for REWIND analysis.';
+      if (status) status.textContent = 'Fresh live frame delivered for REWIND analysis.';
     } catch (error) {
-      if (status) status.textContent = `Fresh Ring frame failed. ${error?.message || ''}`.trim();
+      if (status) status.textContent = `Fresh live frame failed. ${error?.message || ''}`.trim();
     }
   }
 
@@ -80,7 +80,7 @@
         await answerFreshFrameRequest(request);
       } catch (error) {
         const status = document.getElementById('status');
-        if (status) status.textContent = `Ring fresh-frame bridge reconnecting. ${error?.message || ''}`.trim();
+        if (status) status.textContent = `Live-frame bridge reconnecting. ${error?.message || ''}`.trim();
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
