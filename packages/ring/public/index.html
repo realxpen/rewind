@@ -19,6 +19,33 @@
 @media(max-width:900px){.experience-layout{grid-template-columns:1fr}.status-column{position:static;grid-template-columns:1fr 1fr}.hero-copy{align-items:start;flex-direction:column}.snapshot-grid{grid-template-columns:1fr}.video-shell,video{min-height:280px}}
 @media(max-width:640px){.app{padding:14px 11px 48px}.topbar{align-items:flex-start}.topmeta{display:none}.hero-copy h2{font-size:34px}.flow{grid-template-columns:repeat(2,1fr);position:static}.focus-card{padding:18px;min-height:300px}.focus-top{display:block}.focus-metric{text-align:left;margin-top:12px}.focus-list{grid-template-columns:1fr}.status-column{grid-template-columns:1fr}.camera-tools>*{max-width:100%}.video-shell,video{min-height:220px}.live-overlay{left:18px;right:18px;bottom:16px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Frictionless demo shell: one obvious source choice, one live view, one next action. */
+.quick-live-card{border-color:rgba(140,244,199,.3);background:radial-gradient(circle at 90% 0,rgba(140,244,199,.08),transparent 34%),linear-gradient(180deg,#111a24,#0d131c)}
+.quick-live-card>summary{padding:15px 18px;font-size:13px}
+.quick-live-card>summary:after{display:none}
+.source-hero{padding:18px;border-bottom:1px solid var(--line)}
+.source-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.source-choice button{min-height:58px;text-align:left;padding:12px 14px;background:#0c131c;border:1px solid var(--line2)}
+.source-choice button strong{display:block;font-size:13px}.source-choice button span{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:500}
+.source-choice button.active{border-color:rgba(140,244,199,.62);background:#13251f;box-shadow:inset 0 0 0 1px rgba(140,244,199,.12)}
+.source-choice button.active strong{color:var(--mint)}
+.source-select-native{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important}
+.source-connect-row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.source-connect-row label{display:grid;gap:5px;min-width:min(360px,100%);font-size:10px;color:var(--muted)}
+.source-connect-row select{min-width:260px;max-width:100%}
+.source-connect-row #start{min-width:150px}
+.source-connect-row #stop,.source-connect-row #reload{padding:10px 12px}
+.source-advanced{display:none!important}
+.quick-live-card .video-shell{border-top:0;min-height:360px}.quick-live-card video{min-height:360px}
+.main-progress-only .trust-card,.main-progress-only .privacy{display:none}
+.main-progress-only{display:block;position:static}
+.main-progress-only .progress-card{position:sticky;top:12px}
+#demoToolbarMount:empty{display:none}
+#advancedDetails{margin-top:4px}
+#advancedDetails>summary{background:rgba(14,20,29,.9)}
+@media(max-width:900px){.source-connect-row label{min-width:100%}.source-connect-row select{width:100%}.main-progress-only .progress-card{position:static}}
+@media(max-width:640px){.source-choice{grid-template-columns:1fr}.quick-live-card .video-shell,.quick-live-card video{min-height:240px}}
 </style>
 </head>
 <body>
@@ -29,9 +56,39 @@
 </header>
 
 <div class="hero-copy">
-  <h2>Save the state. See what changed. Rewind reality.</h2>
-  <p>A focused demo of physical-state memory: AI observes the scene, deterministic code decides what changed and when restoration is complete.</p>
+  <h2>Ctrl+Z for your physical space.</h2>
+  <p>Choose a live camera, save the clean state, change reality, then let REWIND guide you back.</p>
 </div>
+
+<details id="liveRingDetails" class="utility quick-live-card" open>
+      <summary>1 · Choose your live camera <span class="utility-sub">Ring or Camera / Phone</span></summary>
+      <section class="panel">
+        <div class="panel-head"><div><div class="eyebrow">Live physical state</div><h2 id="liveSourceTitle">Ring observation</h2></div><span class="chip" id="streamChip"><span class="dot" id="streamDot"></span><span id="streamLabel">Ready</span></span></div>
+        <div class="source-hero">
+          <div class="source-choice" role="group" aria-label="Choose live source">
+            <button type="button" id="sourceRingButton" data-source-choice="ring" aria-pressed="true"><strong>Ring</strong><span>Use the Ring Playground / Ring camera feed</span></button>
+            <button type="button" id="sourceCameraButton" data-source-choice="camera" aria-pressed="false"><strong>Camera / Phone</strong><span>Use your laptop camera or phone as a live webcam</span></button>
+          </div>
+          <select id="liveSource" class="source-select-native" aria-label="Live source">
+            <option value="ring">Ring</option>
+            <option value="camera">Camera / Phone</option>
+          </select>
+          <div class="source-connect-row">
+            <label id="ringDeviceWrap">Ring device<select id="devices" aria-label="Ring device"></select></label>
+            <label id="cameraDeviceWrap" hidden>Camera<select id="cameraDevices" aria-label="Camera or phone camera"></select></label>
+            <button class="primary" id="start" disabled>Start live view</button>
+            <button id="stop" disabled>Stop</button>
+            <button class="ghost" id="reload">Refresh</button>
+            <label class="source-advanced">Space<input id="space" value="ring-playground" maxlength="80" pattern="[a-zA-Z0-9._-]+"></label>
+          </div>
+        </div>
+        <div class="video-shell">
+          <video id="video" autoplay muted playsinline controls></video>
+          <div class="live-overlay"><div><div class="live-title" id="liveTitle">Ring Playground</div><div class="live-sub" id="overlayState">Waiting for live state</div></div><div class="signal"><span class="pulse"></span> Semantic observation only</div></div>
+        </div>
+      </section>
+    </details>
+
 
 <nav class="flow" aria-label="REWIND workflow">
   <div class="flow-step active" data-flow="save"><strong>01 · SAVE</strong><span>Remember this state</span></div>
@@ -49,45 +106,20 @@
         <div class="focus-top">
           <div>
             <div class="eyebrow" id="focusStage">SAVE</div>
-            <h2 class="focus-title" id="focusTitle">Ready to remember this space</h2>
+            <h2 class="focus-title" id="focusTitle">Save your clean setup</h2>
           </div>
           <div class="focus-metric" id="focusMetric">READY</div>
         </div>
-        <p class="focus-summary" id="focusSummary">Capture the current physical state as a semantic checkpoint.</p>
-        <ul class="focus-list" id="focusList"><li class="current">Choose Live Ring or Controlled Demo above to begin.</li></ul>
+        <p class="focus-summary" id="focusSummary">Start a live camera above, then save the state you want to return to.</p>
+        <ul class="focus-list" id="focusList"><li class="current">1. Choose a camera above</li><li>2. Save a clean state</li><li>3. Change the space</li><li>4. Rewind and verify</li></ul>
       </div>
       <div class="focus-actions">
-        <div><button class="primary" id="focusPrimary" type="button">Open Live Ring</button></div>
+        <div><button class="primary" id="focusPrimary" type="button">Start with live camera</button></div>
         <span class="focus-hint" id="focusHint">One primary action at a time.</span>
       </div>
     </section>
 
     <div class="status-wrap"><span class="status-icon"></span><p id="status" role="status" aria-live="polite">Discovering devices…</p></div>
-
-    <details id="liveRingDetails" class="utility">
-      <summary>Live vision source <span class="utility-sub">Ring, webcam or phone camera → Nova semantic state</span></summary>
-      <section class="panel">
-        <div class="panel-head"><div><div class="eyebrow">Live physical state</div><h2 id="liveSourceTitle">Ring observation</h2></div><span class="chip" id="streamChip"><span class="dot" id="streamDot"></span><span id="streamLabel">Connecting</span></span></div>
-        <div class="camera-tools">
-          <label>Live source
-            <select id="liveSource" aria-label="Live source">
-              <option value="ring">Ring</option>
-              <option value="camera">Camera / Phone</option>
-            </select>
-          </label>
-          <label id="ringDeviceWrap">Ring device <select id="devices" aria-label="Ring device"></select></label>
-          <label id="cameraDeviceWrap" hidden>Camera <select id="cameraDevices" aria-label="Camera or phone camera"></select></label>
-          <button id="reload">Refresh devices</button>
-          <button class="primary" id="start" disabled>Start live view</button>
-          <button id="stop" disabled>Stop</button>
-          <label>Space <input id="space" value="ring-playground" maxlength="80" pattern="[a-zA-Z0-9._-]+"></label>
-        </div>
-        <div class="video-shell">
-          <video id="video" autoplay muted playsinline controls></video>
-          <div class="live-overlay"><div><div class="live-title" id="liveTitle">Ring Playground</div><div class="live-sub" id="overlayState">Waiting for live state</div></div><div class="signal"><span class="pulse"></span> Semantic observation only</div></div>
-        </div>
-      </section>
-    </details>
 
     <details id="advancedDetails" class="utility">
       <summary>Advanced details <span class="utility-sub">Agent, raw semantic state, checkpoints and deterministic evidence</span></summary>
@@ -135,7 +167,7 @@
     </details>
   </main>
 
-  <aside class="status-column">
+  <aside class="status-column main-progress-only">
     <section class="panel progress-card">
       <div class="progress-top"><div><div class="eyebrow">Physical match</div><h2>Restoration progress</h2></div><div class="progress-number" id="progressValue">—</div></div>
       <div class="meter" aria-hidden="true"><span id="progressBar"></span></div>
