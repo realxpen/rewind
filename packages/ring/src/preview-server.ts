@@ -45,6 +45,7 @@ export interface PreviewServices {
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
   pendingMcpObservationRequest?(spaceId: string): PreviewObservationRequest | undefined;
   publishLiveFrame?(input: { spaceId: string; imageBytes: Uint8Array; capturedAt: string }): void;
+  setLiveSource?(input: { spaceId: string; source: "ring" | "camera" }): void;
 }
 
 interface RewindSession {
@@ -322,6 +323,7 @@ export function createPreviewServer(
         "/api/heartbeat",
         "/api/observe",
         "/api/live-frame",
+        "/api/live-source",
         "/api/demo/observe",
         "/api/agent",
         "/api/checkpoints",
@@ -336,6 +338,15 @@ export function createPreviewServer(
         send(res, 403, { error: "Use the local preview page." }); return;
       }
       const data = await body(req);
+      if (path === "/api/live-source") {
+        if (!services.setLiveSource) { send(res, 503, { error: "Live source selection is not configured." }); return; }
+        if (!validSpaceId(data.spaceId) || (data.source !== "ring" && data.source !== "camera")) {
+          throw new InputError("Choose a valid live source and space.");
+        }
+        services.setLiveSource({ spaceId: data.spaceId, source: data.source });
+        send(res, 200, { ok: true, source: data.source });
+        return;
+      }
       if (path === "/api/live-frame") {
         if (!services.publishLiveFrame) { send(res, 503, { error: "Live frame buffer is not configured." }); return; }
         if (typeof data.image !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data.image) ||
