@@ -55,9 +55,11 @@ assert.match(html, /Remember the state\. Forget the footage\./);
 assert.match(html, /AI observes\. Deterministic code decides\./);
 assert.match(html, /AI does not decide match/);
 assert.match(html, /Advanced details/);
-assert.match(html, /Live vision source/);
+assert.match(html, /Choose your live camera/);
+assert.match(html, /data-source-choice=["']ring["']/);
+assert.match(html, /data-source-choice=["']camera["']/);
 assert.match(html, /Camera \/ Phone/);
-assert.match(html, /Ring, webcam or phone camera/);
+assert.match(html, /Use your laptop camera or phone as a live webcam/);
 assert.match(html, /100% RESTORED/);
 assert.match(html, /prefers-reduced-motion/);
 assert.match(bridge, /MutationObserver/);
@@ -88,7 +90,7 @@ assert.match(verify, /compareControlledBaseline/);
 assert.match(verify, /startRewind/);
 assert.match(verify, /checkAgain/);
 assert.match(verify, /Controlled Demo — validated semantic fixtures/);
-assert.match(verify, /Live Ring is real camera evidence/);
+assert.match(verify, /selected live source is real camera evidence/);
 
 // Everyday photo mode is a real observation source, not a fake fixture path.
 assert.match(consumer, /Phase 12 everyday photo flow\. Reuses the same Nova → PSP → deterministic REWIND services\./);
@@ -117,9 +119,10 @@ assert.match(consumer, /activeRewindSessionId/);
 assert.match(consumer, /uploaded image is not persisted by REWIND/);
 assert.doesNotMatch(consumer, /api\('demo\/observe'/, "Phone photo mode must not use Controlled Demo fixtures.");
 
-// During an active consumer Rewind session, selecting/analyzing a fresh photo must keep
-// the focused REWIND card visible so Check Again is reachable without opening Advanced details.
-assert.match(consumer, /consumer-setup:not\(\.consumer-rewind-active\) #focusCard\{display:none\}/);
+// Photo and controlled-demo workflows stay available, but must live under Advanced
+// instead of competing with the primary live-camera experience.
+assert.match(consumer, /advancedStack\.append\(photoDetails\)/);
+assert.match(consumer, /advancedStack\.append\(demoDetails\)/);
 assert.match(consumer, /function syncConsumerRewindState\(\)/);
 assert.match(consumer, /classList\.toggle\('consumer-rewind-active', Boolean\(activeRewindSessionId\)\)/);
 assert.match(consumer, /Fresh state ready\. Use Check Again in the REWIND card/);
