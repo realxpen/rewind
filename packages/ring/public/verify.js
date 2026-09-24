@@ -346,12 +346,12 @@ void pollMotionEvents();
 
     if (source === 'demo') {
       setText(focusStage, 'SAVE');
-      setText(focusTitle, 'Ready to remember this space');
+      setText(focusTitle, 'Save your clean setup');
       setText(focusMetric, 'READY');
       setText(focusSummary, 'Save Demo Ready as the semantic checkpoint for this restoration run.');
       setItems([{ text: 'Controlled Demo — validated semantic fixtures', state: 'current' }, { text: 'No arbitrary browser-supplied state is accepted' }]);
       setPrimary('Save this state', 'save-demo');
-      setText(focusHint, 'Controlled Demo is clearly separated from Live Ring evidence.');
+      setText(focusHint, 'Controlled Demo is clearly separated from live camera evidence.');
       return;
     }
 
@@ -360,7 +360,7 @@ void pollMotionEvents();
       setText(focusTitle, 'Semantic state ready');
       setText(focusMetric, 'READY');
       setText(focusSummary, 'Nova produced a validated physical-state observation. Save it as a checkpoint.');
-      setItems([{ text: 'Ring frame captured', state: 'done' }, { text: 'Nova semantic state validated', state: 'done' }, { text: 'Save checkpoint', state: 'current' }]);
+      setItems([{ text: 'Live frame captured', state: 'done' }, { text: 'Nova semantic state validated', state: 'done' }, { text: 'Save checkpoint', state: 'current' }]);
       setPrimary('Save this state', 'save-live', Boolean(el('saveCheckpoint')?.disabled));
       setText(focusHint, 'Raw footage is not persisted by the checkpoint flow.');
       return;
@@ -371,31 +371,31 @@ void pollMotionEvents();
       setText(focusTitle, 'Frame captured');
       setText(focusMetric, 'OBSERVE');
       setText(focusSummary, 'Send this ephemeral frame to Nova to extract validated semantic state.');
-      setItems([{ text: 'Ring frame captured', state: 'done' }, { text: 'Observe with Nova', state: 'current' }]);
+      setItems([{ text: 'Live frame captured', state: 'done' }, { text: 'Observe with Nova', state: 'current' }]);
       setPrimary('Observe with Nova', 'observe', Boolean(el('observe')?.disabled));
       setText(focusHint, 'The image stays ephemeral; the semantic state is what REWIND remembers.');
       return;
     }
 
-    if (peer && el('capture') && !el('capture').disabled) {
+    if (videoReady() && el('capture') && !el('capture').disabled) {
       setText(focusStage, 'SAVE');
-      setText(focusTitle, 'Live Ring connected');
+      setText(focusTitle, 'Live camera connected');
       setText(focusMetric, 'LIVE');
       setText(focusSummary, 'Capture the current frame to create a semantic checkpoint.');
-      setItems([{ text: 'Ring live view connected', state: 'done' }, { text: 'Capture current state', state: 'current' }]);
+      setItems([{ text: 'Live camera connected', state: 'done' }, { text: 'Capture current state', state: 'current' }]);
       setPrimary('Capture current state', 'capture');
-      setText(focusHint, 'Live Ring is real camera evidence.');
+      setText(focusHint, 'The selected live source is real camera evidence.');
       return;
     }
 
     setText(focusStage, 'SAVE');
-    setText(focusTitle, 'Ready to remember this space');
+    setText(focusTitle, 'Save your clean setup');
     setText(focusMetric, 'READY');
-    setText(focusSummary, 'Use Live Ring for real camera proof, or switch to Controlled Demo for a repeatable restoration journey.');
+    setText(focusSummary, 'Choose Ring or Camera / Phone above, start the live view, then save the physical state you want to return to.');
     setItems([{ text: 'Choose an observation source', state: 'current' }, { text: 'AI observes. Deterministic code decides.' }]);
     const canStart = el('start') && !el('start').disabled;
-    setPrimary(canStart ? 'Start Live Ring' : 'Open Live Ring', canStart ? 'start-live' : 'open-live');
-    setText(focusHint, 'Controlled Demo is available above for the repeatable 25% → 63% → 100% flow.');
+    setPrimary(canStart ? 'Start live camera' : 'Choose live camera', canStart ? 'start-live' : 'open-live');
+    setText(focusHint, 'Controlled Demo and engineering tools are available under Advanced.');
   }
 
   function runAction(action) {
@@ -423,7 +423,7 @@ void pollMotionEvents();
   const observer = new MutationObserver(() => refreshFocus());
   for (const node of observed) observer.observe(node, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'disabled', 'class'] });
 
-  document.querySelectorAll('[data-source],[data-scenario]').forEach(button => button.addEventListener('click', () => setTimeout(refreshFocus, 0)));
+  document.querySelectorAll('[data-source],[data-scenario],[data-source-choice]').forEach(button => button.addEventListener('click', () => setTimeout(refreshFocus, 0)));
   el('saveControlledBaseline')?.addEventListener('click', () => setTimeout(refreshFocus, 0));
   el('compareControlledBaseline')?.addEventListener('click', () => setTimeout(refreshFocus, 0));
 
