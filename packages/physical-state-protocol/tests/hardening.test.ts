@@ -34,7 +34,7 @@ assert.equal(legacyParsed.evidence, undefined);
 const legacyNormalized = normalizeState(legacyState);
 assert.equal(legacyNormalized.spaceId, "legacy-room");
 assert.equal(legacyNormalized.entities[0]?.category, "desk");
-assert.deepEqual(legacyNormalized.entities[0]?.attributes, { clear: true });
+assert.deepEqual(legacyNormalized.entities[0]?.attributes, { clear: true, color: "brown" });
 assert.equal(legacyNormalized.zones, undefined);
 assert.equal(legacyNormalized.evidence, undefined);
 
