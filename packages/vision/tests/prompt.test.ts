@@ -81,6 +81,16 @@ assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /boolean "clear" attribute/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /"present": true/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /"present": false/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /relevant support\/location area is visible and not occluded/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /clear absence must be represented by the tracked entity itself with "present": false, never by omission/i);
+assert.match(buildNovaObservationPrompt({
+  spaceId: "photo-space",
+  capturedAt: "2026-09-25T13:00:00.000Z",
+  trackedEntities: [{
+    key: "notebook.red",
+    category: "notebook",
+    observableAttributes: { present: "checkpoint presence" },
+  }],
+}), /never represent clear absence by omission/i);
 assert.match(untrackedPrompt, /present=true/i);
 assert.match(prompt, /final DELTA SCAN/i);
 assert.match(prompt, /at most 8 genuinely additional high-confidence restoration-relevant extras/i);
