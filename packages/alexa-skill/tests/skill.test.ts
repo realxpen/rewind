@@ -252,7 +252,7 @@ const retrySaveRequest = envelope("IntentRequest", "SaveCheckpointIntent", "Clea
 await retrySkill.handle(retrySaveRequest);
 await retrySkill.whenIdle(retrySaveRequest);
 const retryStatusStart = await retrySkill.handle(envelope("IntentRequest", "StatusIntent"));
-assert.match(retryStatusStart.response.outputSpeech?.text ?? "", /trying the fresh view again/i);
+assert.match(retryStatusStart.response.outputSpeech?.text ?? "", /trying a fresh view again/i);
 assert.equal(retryStatusStart.response.shouldEndSession, true);
 await retrySkill.whenIdle(retrySaveRequest);
 const retryStatusDone = await retrySkill.handle(envelope("IntentRequest", "StatusIntent"));
