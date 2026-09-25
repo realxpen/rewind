@@ -173,7 +173,7 @@ assert.equal(launch.response.shouldEndSession, false);
 
 const saveRequest = envelope("IntentRequest", "SaveCheckpointIntent", "Clean Setup");
 const saveStart = await skill.handle(saveRequest);
-assert.match(saveStart.response.outputSpeech?.text ?? "", /scanning the room with Ring/i);
+assert.match(saveStart.response.outputSpeech?.text ?? "", /scanning the room with the camera/i);
 assert.equal(saveStart.response.shouldEndSession, true);
 await skill.whenIdle(saveRequest);
 const saveStatus = await skill.handle(envelope("IntentRequest", "StatusIntent"));
@@ -198,7 +198,7 @@ assert.match(next.response.outputSpeech?.text ?? "", /Remove shoe floor/i);
 
 const checkRequest = envelope("IntentRequest", "CheckAgainIntent");
 const check = await skill.handle(checkRequest);
-assert.match(check.response.outputSpeech?.text ?? "", /checking the room again with Ring/i);
+assert.match(check.response.outputSpeech?.text ?? "", /checking the room again with the camera/i);
 await skill.whenIdle(checkRequest);
 const restored = await skill.handle(envelope("IntentRequest", "StatusIntent"));
 assert.match(restored.response.outputSpeech?.text ?? "", /important visible parts of Clean Setup are restored/i);
@@ -223,9 +223,9 @@ const lowConfidenceRequest = envelope("IntentRequest", "StartRewindIntent", "cle
 await lowConfidenceSkill.handle(lowConfidenceRequest);
 await lowConfidenceSkill.whenIdle(lowConfidenceRequest);
 const lowConfidenceStatus = await lowConfidenceSkill.handle(envelope("IntentRequest", "StatusIntent"));
-assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /restored enough/i);
-assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /3 items weren't clear enough/i);
-assert.doesNotMatch(lowConfidenceStatus.response.outputSpeech?.text ?? "", /confirmed restore steps/i);
+assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /don't have enough visual evidence to call it fully restored/i);
+assert.match(lowConfidenceStatus.response.outputSpeech?.text ?? "", /birdfeeder left and birdfeeder right and 1 more/i);
+assert.doesNotMatch(lowConfidenceStatus.response.outputSpeech?.text ?? "", /restored enough/i);
 
 let retryInspectCalls = 0;
 let retrySaveCalls = 0;
