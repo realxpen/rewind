@@ -341,11 +341,12 @@ export function createPreviewServer(
       const data = await body(req);
       if (path === "/api/live-source") {
         if (!services.setLiveSource) { send(res, 503, { error: "Live source selection is not configured." }); return; }
-        if (!validSpaceId(data.spaceId) || !["ring", "camera", "photo"].includes(String(data.source))) {
+        const source = String(data.source);
+        if (!validSpaceId(data.spaceId) || !["ring", "camera", "photo"].includes(source)) {
           throw new InputError("Choose a valid observation source and space.");
         }
-        services.setLiveSource({ spaceId: data.spaceId, source: data.source });
-        send(res, 200, { ok: true, source: data.source });
+        services.setLiveSource({ spaceId: data.spaceId, source: source as "ring" | "camera" | "photo" });
+        send(res, 200, { ok: true, source });
         return;
       }
       if (path === "/api/live-frame") {
