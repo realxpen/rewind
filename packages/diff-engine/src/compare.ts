@@ -47,6 +47,7 @@ const DESCRIPTIVE_ATTRIBUTES = new Set([
   "species",
 ]);
 
+const VISION_UNSTABLE_ATTRIBUTES = new Set(["clear"]);
 const UNKNOWN_CONFIDENCE = 0.6;
 const VISION_ADDED_CONFIDENCE = 0.85;
 const VISION_ACTIONABLE_EXTRA_TERMS = new Set([
@@ -185,7 +186,11 @@ interface AttributeComparison {
  * uncertainty rather than a physical change; only two observed, differing values become a
  * confirmed ATTRIBUTE_CHANGED result.
  */
-function compareAttributes(expected: PhysicalEntity, actual: PhysicalEntity): AttributeComparison {
+function compareAttributes(
+  expected: PhysicalEntity,
+  actual: PhysicalEntity,
+  evidenceMode: ComparisonEvidenceMode,
+): AttributeComparison {
   const expectedAttributes = expected.attributes ?? {};
   const actualAttributes = actual.attributes ?? {};
   const expectedChanged: Record<string, AttributeValue> = {};
@@ -193,7 +198,9 @@ function compareAttributes(expected: PhysicalEntity, actual: PhysicalEntity): At
   const uncertainKeys: string[] = [];
 
   for (const key of Object.keys(expectedAttributes).sort()) {
-    if (DESCRIPTIVE_ATTRIBUTES.has(key.toLowerCase())) continue;
+    const normalizedKey = key.toLowerCase();
+    if (DESCRIPTIVE_ATTRIBUTES.has(normalizedKey)) continue;
+    if (evidenceMode === "vision" && VISION_UNSTABLE_ATTRIBUTES.has(normalizedKey)) continue;
     if (!Object.hasOwn(actualAttributes, key)) {
       uncertainKeys.push(key);
       continue;
@@ -304,8 +311,25 @@ export function compareStates(
       continue;
     }
 
+    const expectedPresent = expected.attributes?.present;
+    const actualPresent = actual.attributes?.present;
+    if (typeof expectedPresent === "boolean" && typeof actualPresent === "boolean" && expectedPresent !== actualPresent) {
+      diffs.push({
+        type: expectedPresent && !actualPresent ? "REMOVED" : "ADDED",
+        entity: key,
+        category: expected.category,
+        expected: { entity: expected, attributes: { present: expectedPresent } },
+        actual: { entity: actual, attributes: { present: actualPresent } },
+        confidence,
+        reason: expectedPresent && !actualPresent
+          ? "Tracked object has explicit high-confidence visual evidence of absence from its saved fixed-view scene."
+          : "Tracked object has explicit high-confidence visual evidence of presence where the checkpoint recorded it absent.",
+      });
+      continue;
+    }
+
     const relations = compareRelations(expected, actual, evidenceMode);
-    const attributes = compareAttributes(expected, actual);
+    const attributes = compareAttributes(expected, actual, evidenceMode);
     let emittedConfirmed = false;
 
     const spatialExpected = relations.expectedChanged.filter(relation => SPATIAL_RELATIONS.has(relation.type));
