@@ -27,6 +27,35 @@ assert(
   "Self-relations must never generate Move X on X guidance.",
 );
 
+const explicitRemovedPlan = buildRestorePlan([{
+  type: "REMOVED",
+  entity: "notebook.left",
+  category: "notebook",
+  expected: {
+    entity: {
+      key: "notebook.left",
+      category: "notebook",
+      confidence: 0.97,
+      attributes: { present: true },
+      relations: [{ type: "ON", target: "table.main", confidence: 0.95 }],
+    },
+  },
+  actual: {
+    entity: {
+      key: "notebook.left",
+      category: "notebook",
+      confidence: 0.94,
+      attributes: { present: false },
+    },
+  },
+  confidence: 0.94,
+  reason: "explicit absence",
+}]);
+assert(
+  explicitRemovedPlan.actions[0]?.instruction === "Move notebook left on table main.",
+  "Explicit removed movable objects should get object-level restore guidance anchored to the saved relation.",
+);
+
 const partialProgress = updateRestoreProgress(plan, compareStates(demoReady, partial));
 assert(partialProgress.percentage > 0 && partialProgress.percentage < 100, "Partial fixture should produce intermediate progress.");
 assert(!partialProgress.restored, "Partial fixture must not be restored.");
