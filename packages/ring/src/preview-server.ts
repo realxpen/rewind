@@ -45,7 +45,8 @@ export interface PreviewServices {
   invokeAgent?(input: PreviewAgentInput): Promise<PreviewAgentResult>;
   pendingMcpObservationRequest?(spaceId: string): PreviewObservationRequest | undefined;
   publishLiveFrame?(input: { spaceId: string; imageBytes: Uint8Array; capturedAt: string }): void;
-  setLiveSource?(input: { spaceId: string; source: "ring" | "camera" }): void;
+  publishPhotoFrame?(input: { spaceId: string; imageBytes: Uint8Array; capturedAt: string }): void;
+  setLiveSource?(input: { spaceId: string; source: "ring" | "camera" | "photo" }): void;
 }
 
 interface RewindSession {
@@ -340,8 +341,8 @@ export function createPreviewServer(
       const data = await body(req);
       if (path === "/api/live-source") {
         if (!services.setLiveSource) { send(res, 503, { error: "Live source selection is not configured." }); return; }
-        if (!validSpaceId(data.spaceId) || (data.source !== "ring" && data.source !== "camera")) {
-          throw new InputError("Choose a valid live source and space.");
+        if (!validSpaceId(data.spaceId) || !["ring", "camera", "photo"].includes(String(data.source))) {
+          throw new InputError("Choose a valid observation source and space.");
         }
         services.setLiveSource({ spaceId: data.spaceId, source: data.source });
         send(res, 200, { ok: true, source: data.source });
@@ -465,6 +466,12 @@ export function createPreviewServer(
             checkpointViewId,
             viewSelectionScore,
           );
+          services.publishPhotoFrame?.({
+            spaceId: data.spaceId,
+            imageBytes: bytes,
+            capturedAt: data.capturedAt,
+          });
+          services.setLiveSource?.({ spaceId: data.spaceId, source: "photo" });
           send(res, 200, {
             observationId,
             state: result.state,
