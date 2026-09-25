@@ -67,7 +67,7 @@ assert.deepEqual(
   [{
     key: "desk.main",
     category: "desk",
-    description: "This is the checkpoint identity desk.main. Match the corresponding visible desk to this exact key; never replace, split, or rename it.",
+    description: "This is checkpoint identity desk.main. Match the corresponding visible desk to this exact key; never replace, split, or rename it.",
     observableAttributes: {
       clear: "Observe only the current visible value for \"clear\" on this tracked entity. Omit it if the image does not support a value.",
     },
@@ -77,6 +77,43 @@ assert.equal(observedCapturedAt, capturedAt);
 assert.equal(observation.state.spaceId, "ring-playground");
 assert.equal(observation.evidenceMode, "vision");
 assert.match(observation.observationId, /^ring-whep-/);
+
+observer.publish({
+  spaceId: "ring-playground",
+  imageBytes: jpeg,
+  capturedAt,
+});
+const identityReference = {
+  schemaVersion: "0.1" as const,
+  spaceId: "ring-playground",
+  capturedAt,
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.99 },
+    {
+      key: "notebook.left",
+      category: "notebook",
+      confidence: 0.97,
+      attributes: {
+        present: true,
+        color: "turquoise",
+        appearance: "turquoise spiral notebook",
+      },
+      relations: [{ type: "ON" as const, target: "table.main", confidence: 0.95 }],
+    },
+  ],
+};
+await observer.inspect("ring-playground", { referenceState: identityReference });
+const notebookHint = (observedTrackedEntities as Array<{
+  key: string;
+  description?: string;
+  observableAttributes?: Record<string, string>;
+}>).find(entity => entity.key === "notebook.left");
+assert(notebookHint);
+assert.match(notebookHint.description ?? "", /color=turquoise/);
+assert.match(notebookHint.description ?? "", /appearance=turquoise spiral notebook/);
+assert.match(notebookHint.description ?? "", /Saved location cue: ON table\.main/);
+assert.match(notebookHint.observableAttributes?.present ?? "", /present=false only if/i);
+assert.equal(notebookHint.observableAttributes?.color, undefined, "Identity descriptors must not become restoration attributes.");
 
 now += 6_000;
 const waiting = observer.inspect("ring-playground");
