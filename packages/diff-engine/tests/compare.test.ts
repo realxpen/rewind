@@ -143,6 +143,56 @@ const omittedVisionCurrent: PhysicalState = {
   capturedAt: "2026-09-17T12:05:00.000Z",
   entities: supportCheckpoint.entities.filter(entity => entity.key !== "candle.main"),
 };
+const explicitPresenceCheckpoint: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "vision-explicit-presence",
+  capturedAt: "2026-09-25T10:00:00.000Z",
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.99, attributes: { clear: true } },
+    {
+      key: "notebook.left",
+      category: "notebook",
+      confidence: 0.97,
+      attributes: { present: true },
+      relations: [{ type: "ON", target: "table.main", confidence: 0.95 }],
+    },
+  ],
+};
+const explicitPresenceCurrent: PhysicalState = {
+  ...explicitPresenceCheckpoint,
+  capturedAt: "2026-09-25T10:01:00.000Z",
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.98, attributes: { clear: false } },
+    {
+      key: "notebook.left",
+      category: "notebook",
+      confidence: 0.94,
+      attributes: { present: false },
+    },
+  ],
+};
+const explicitPresenceDiffs = compareStates(explicitPresenceCheckpoint, explicitPresenceCurrent, { evidenceMode: "vision" });
+assert(
+  explicitPresenceDiffs.some(diff => diff.entity === "notebook.left" && diff.type === "REMOVED"),
+  "Explicit high-confidence present=true → present=false must become a real REMOVED diff in vision mode.",
+);
+assert(
+  !explicitPresenceDiffs.some(diff => diff.entity === "table.main" && diff.type === "ATTRIBUTE_CHANGED"),
+  "Vision-only clear attribute noise must not create a table-level restore action.",
+);
+
+const lowConfidencePresenceCurrent: PhysicalState = {
+  ...explicitPresenceCurrent,
+  capturedAt: "2026-09-25T10:02:00.000Z",
+  entities: explicitPresenceCurrent.entities.map(entity =>
+    entity.key === "notebook.left" ? { ...entity, confidence: 0.7 } : entity),
+};
+assert(
+  compareStates(explicitPresenceCheckpoint, lowConfidencePresenceCurrent, { evidenceMode: "vision" })
+    .some(diff => diff.entity === "notebook.left" && diff.type === "UNKNOWN"),
+  "Explicit absence below 0.85 confidence must remain UNKNOWN.",
+);
+
 const omittedVisionDiffs = compareStates(supportCheckpoint, omittedVisionCurrent, { evidenceMode: "vision" });
 const omittedVisionMatch = calculateMatch(omittedVisionDiffs);
 assert(
