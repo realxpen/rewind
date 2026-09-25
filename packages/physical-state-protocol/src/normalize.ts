@@ -9,7 +9,7 @@ import type {
 import { parseState } from "./validate.js";
 import { sortZones } from "./zones.js";
 
-const ACTIONABLE_ATTRIBUTES = new Set(["clear", "powered"]);
+const ACTIONABLE_ATTRIBUTES = new Set(["clear", "powered", "present"]);
 const TRANSIENT_LIVING_CATEGORIES = new Set(["person", "human", "bird", "animal", "pet"]);
 
 function normalizeRelation(relation: PhysicalRelation): PhysicalRelation {
