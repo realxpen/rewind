@@ -27,7 +27,7 @@ Hard rules:
 - The boolean attribute "present" is reserved for restoration-relevant movable objects. In an open observation, emit "present": true for clearly visible movable/restorable objects such as notebooks, phones, bottles, chargers, remotes, bags, loose papers, boxes, and similar items. Do not add "present" to large fixed anchors/support surfaces such as desks, tables, walls, cabinets, or floors.
 - For each clearly visible movable/restorable object in open observation, add up to two compact identity-only attributes when visually obvious: "color" and "appearance". "appearance" must be a short literal visual phrase such as "turquoise spiral notebook" or "small red rectangular case". These descriptors help later identity matching but are NOT restoration state.
 - If a tracked entity defines observable attribute "present", explicitly re-check physical presence. Use the supplied saved identity description (including color/appearance cues) and saved location relations to search for that exact object. If clearly visible, emit "present": true. If clearly absent AND the saved object's relevant support/location area is visible and not occluded, include the tracked key/category with "present": false and confidence >= 0.85. This is explicit negative visual evidence, not an inferred omission.
-- If a tracked entity does not define "present" and is clearly absent from the fixed-view scene, omit it.
+- If a tracked entity does not define "present" and is clearly absent from the fixed-view scene, omit it. If it DOES define "present", clear absence must be represented by the tracked entity itself with "present": false, never by omission.
 - If presence or identity is genuinely uncertain because of ambiguity, occlusion, camera shift, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes, including "present".
 - Never use low confidence merely because a visible object's state differs from an expected checkpoint. You are observing the current image only.
 - A supplied checkpoint relation is a QUESTION TO RE-CHECK, not current-state ground truth. Never copy it unless the image supports it.
@@ -166,8 +166,8 @@ Observation guidance:
 2. Preserve supplied tracked keys when the corresponding object can be matched.
 3. For every visible tracked entity with supplied observable attributes, explicitly evaluate those attributes.
 4. For every supplied checkpoint relation, explicitly evaluate whether that exact type/target relation is still true before adding any alternative relation.
-5. If a tracked object is clearly absent from the fixed-view image, omit it.
-6. If a tracked object defines observable attribute "present", emit present=true when clearly visible or present=false only when clearly absent with its relevant saved area visible and unoccluded. If presence or identity is uncertain, include it with confidence below 0.60 and omit uncertain relations/attributes.
+5. If a tracked object does NOT define observable attribute "present" and is clearly absent from the fixed-view image, omit it.
+6. If a tracked object DOES define observable attribute "present", never represent clear absence by omission. Preserve its exact tracked key/category and emit present=true when clearly visible or present=false when clearly absent with its relevant saved area visible and unoccluded. Use confidence >= 0.85 for a visually clear present=false result. If presence or identity is uncertain, include the exact tracked key/category with confidence below 0.60 and omit present and uncertain relations/attributes.
 7. Do not use an UNKNOWN relation type; uncertainty is represented by confidence.
 8. Only describe visible state.
 9. Relations are written on the subject entity. For example, if headphones are ON a desk, put {"type":"ON","target":"desk.main"} on headphones.main, never the reverse.
