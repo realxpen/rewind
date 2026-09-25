@@ -9,7 +9,21 @@ import type {
 import { parseState } from "./validate.js";
 import { sortZones } from "./zones.js";
 
-const ACTIONABLE_ATTRIBUTES = new Set(["clear", "powered", "present"]);
+const PRESERVED_ATTRIBUTES = new Set([
+  "clear",
+  "powered",
+  "present",
+  "color",
+  "colour",
+  "material",
+  "pattern",
+  "brand",
+  "model",
+  "shape",
+  "size",
+  "appearance",
+  "visible_label",
+]);
 const TRANSIENT_LIVING_CATEGORIES = new Set(["person", "human", "bird", "animal", "pet"]);
 
 function normalizeRelation(relation: PhysicalRelation): PhysicalRelation {
@@ -28,7 +42,7 @@ function normalizeAttributes(
 ): Record<string, AttributeValue> | undefined {
   if (!attributes) return undefined;
   const entries = Object.entries(attributes)
-    .filter(([key]) => ACTIONABLE_ATTRIBUTES.has(key.trim().toLowerCase()))
+    .filter(([key]) => PRESERVED_ATTRIBUTES.has(key.trim().toLowerCase()))
     .map(([key, value]) => [key.trim().toLowerCase(), value] as const)
     .sort(([a], [b]) => a.localeCompare(b));
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
