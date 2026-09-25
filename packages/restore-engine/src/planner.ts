@@ -38,6 +38,8 @@ function attributeInstruction(entity: string, expected: Record<string, Attribute
   const [key, value] = entries[0]!;
   if (key === "powered" && value === true) return `Turn on ${humanEntity(entity)}.`;
   if (key === "powered" && value === false) return `Turn off ${humanEntity(entity)}.`;
+  if (key === "present" && value === true) return `Return ${humanEntity(entity)} to the saved scene.`;
+  if (key === "present" && value === false) return `Remove ${humanEntity(entity)} from the restored scene.`;
   if (key === "clear" && value === true) return `Clear ${humanEntity(entity)}.`;
   if (key === "clear" && value === false) return `Restore items to ${humanEntity(entity)}.`;
   if (typeof value === "boolean") return `${value ? "Enable" : "Disable"} ${key} on ${humanEntity(entity)}.`;
