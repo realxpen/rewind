@@ -12,7 +12,8 @@ let created = 0, deleted = 0, failDelete = false, failObserve = false;
 let observed: VisionObservationRequest | undefined;
 let agentInput: PreviewAgentInput | undefined;
 let bufferedLiveFrame: { spaceId: string; imageBytes: Uint8Array; capturedAt: string } | undefined;
-let selectedLiveSource: { spaceId: string; source: "ring" | "camera" } | undefined;
+let bufferedPhotoFrame: { spaceId: string; imageBytes: Uint8Array; capturedAt: string } | undefined;
+let selectedLiveSource: { spaceId: string; source: "ring" | "camera" | "photo" } | undefined;
 const preview = createPreviewServer({
   devices: async () => [{ id: "test-device", name: "Unit camera" }],
   start: async (id, offer) => { assert.equal(id, "test-device"); assert.equal(offer, "v=0\r\n"); created++; return { sdpAnswer: "unit-answer", sessionUrl: "https://ring.example.test/private-session" }; },
@@ -39,6 +40,7 @@ const preview = createPreviewServer({
     ? { id: "request-1", spaceId, requestedAt: 123 }
     : undefined,
   publishLiveFrame: input => { bufferedLiveFrame = input; },
+  publishPhotoFrame: input => { bufferedPhotoFrame = input; },
   setLiveSource: input => { selectedLiveSource = input; },
 }, { html: "<!doctype html><title>REWIND</title>", js: "/* preview */" });
 preview.server.listen(0, "127.0.0.1");
@@ -90,6 +92,9 @@ try {
   const liveSourceResponse = await post("live-source", { spaceId: "unit-space", source: "camera" });
   assert.equal(liveSourceResponse.status, 200);
   assert.deepEqual(selectedLiveSource, { spaceId: "unit-space", source: "camera" });
+  const photoSourceResponse = await post("live-source", { spaceId: "unit-space", source: "photo" });
+  assert.equal(photoSourceResponse.status, 200);
+  assert.deepEqual(selectedLiveSource, { spaceId: "unit-space", source: "photo" });
   assert.equal((await post("live-source", { spaceId: "unit-space", source: "upload" })).status, 400);
   assert.equal((await post("live-source", { spaceId: "", source: "ring" })).status, 400);
 
@@ -155,6 +160,10 @@ try {
   const frame = { image: Buffer.from([255, 216, 255, 217]).toString("base64"), spaceId: "unit-space", capturedAt: new Date().toISOString() };
   const result = await post("observe", frame);
   assert.equal(result.status, 200);
+  assert.equal(bufferedPhotoFrame?.spaceId, "unit-space");
+  assert.equal(bufferedPhotoFrame?.capturedAt, frame.capturedAt);
+  assert.deepEqual(bufferedPhotoFrame?.imageBytes, Buffer.from([255, 216, 255, 217]));
+  assert.deepEqual(selectedLiveSource, { spaceId: "unit-space", source: "photo" });
   const observation = await result.json() as { observationId: string; state: { spaceId: string }; rawText?: string };
   assert.equal(observation.rawText, undefined);
   assert.equal(observation.state.spaceId, frame.spaceId);
