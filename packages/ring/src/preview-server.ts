@@ -1,4 +1,5 @@
 import { observationErrorMessage } from "./observation-error.js";
+import { trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
@@ -150,28 +151,7 @@ function safeAgentError(error: unknown): string {
   return "REWIND agent request failed. Check AWS credentials, AgentCore Memory, and Bedrock access, then retry.";
 }
 function trackedEntitiesFromState(state: VisionObservation["state"]): NonNullable<VisionObservationRequest["context"]["trackedEntities"]> {
-  return state.entities.map(entity => {
-    const hint: NonNullable<VisionObservationRequest["context"]["trackedEntities"]>[number] = {
-      key: entity.key,
-      category: entity.category,
-      description: `This is the checkpoint identity ${entity.key}. Match the corresponding visible ${entity.category} to this exact key; never replace, split, or rename it.`,
-    };
-    if (entity.attributes && Object.keys(entity.attributes).length > 0) {
-      hint.observableAttributes = Object.fromEntries(
-        Object.keys(entity.attributes).map(attribute => [attribute, `Observe only the current visible value for \"${attribute}\" on this tracked entity. Omit it if the image does not support a value.`]),
-      );
-    }
-    if (entity.relations?.length) {
-      hint.observableRelations = entity.relations.map(relation => ({
-        type: relation.type,
-        ...(relation.target ? { target: relation.target } : {}),
-        description: relation.target
-          ? `Re-check whether ${entity.key} is still ${relation.type} ${relation.target}. If visibly true, emit this exact relation. If uncertain, omit it. If clearly false, report only visually clear contradictory current evidence.`
-          : `Re-check whether ${entity.key} is still in checkpoint state ${relation.type}. If visibly true, emit this exact relation; otherwise omit or report only a clear contradiction.`,
-      }));
-    }
-    return hint;
-  });
+  return trackedEntitiesFromReferenceState(state) ?? [];
 }
 function comparisonEvidenceMode(observation: StoredObservation): "strict" | "vision" {
   return observation.basis === "controlled-demo" ? "strict" : "vision";
