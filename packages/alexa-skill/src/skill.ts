@@ -51,6 +51,14 @@ function response(text: string, shouldEndSession = false, reprompt?: string): Al
   };
 }
 
+function humanEntityKey(value: string): string {
+  return value
+    .replace(/[._-]+/g, " ")
+    .replace(/\bmain\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalized(value: string): string {
   return value
     .toLowerCase()
@@ -84,7 +92,7 @@ function retryableFreshRingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : "";
   return /timed out waiting for the ring preview/i.test(message)
     || /timed out waiting for a recent (?:Ring WHEP )?live (?:camera )?frame/i.test(message)
-    || /fresh Ring observation is already being requested/i.test(message)
+    || /fresh camera observation is already being requested/i.test(message)
     || /Ring video is not advancing yet/i.test(message);
 }
 
@@ -111,7 +119,7 @@ function conciseError(error: unknown): string {
   }
   if (/checkpoint not found/i.test(message)) return "I couldn't find that saved state.";
   if (/observation/i.test(message) && /already/i.test(message)) {
-    return "REWIND is already waiting for a fresh Ring observation.";
+    return "REWIND is already waiting for a fresh camera observation.";
   }
   return "I couldn't finish that REWIND action. Check the Ring preview and try again.";
 }
@@ -124,8 +132,13 @@ function restoredSpeech(result: RewindToolResult, checkpointName?: string): stri
   }
 
   if (result.state === "LOW_CONFIDENCE" || result.plan.blockedUnknowns.length > 0) {
-    const count = result.plan.blockedUnknowns.length;
-    return `I don't see any confirmed important changes from ${name}. It looks restored enough from what Ring can verify. ${count || "Some"} ${count === 1 ? "item wasn't" : "items weren't"} clear enough to confirm, so you can ask me to check again if you want stronger verification.`;
+    const blocked = result.plan.blockedUnknowns.map(humanEntityKey).filter(Boolean);
+    const count = blocked.length;
+    const named = blocked.slice(0, 2);
+    const itemPhrase = named.length
+      ? ` I couldn't confidently verify ${named.join(named.length === 2 ? " and " : "")}${count > 2 ? ` and ${count - 2} more` : ""}.`
+      : "";
+    return `I don't see a confirmed important change from ${name}, but I don't have enough visual evidence to call it fully restored yet.${itemPhrase} Ask me to check again after the camera has a clear view.`;
   }
 
   return `The important visible parts of ${name} are restored. I don't need a perfect pixel match to stop guiding you.`;
@@ -232,7 +245,7 @@ export class RewindAlexaSkill {
     const job = state.job;
     if (!job) return undefined;
     if (job.status === "PENDING") {
-      return "I'm still checking the room with Ring. Ask me again in a moment.";
+      return "I'm still checking the room with the camera. Ask me again in a moment.";
     }
     if (job.status === "FAILED") {
       return job.error ?? "The last REWIND action didn't finish.";
@@ -328,7 +341,7 @@ export class RewindAlexaSkill {
       if (!started) return this.speak(state, "REWIND is already checking the room. Ask me for status in a moment.", false);
       return this.speak(
         state,
-        `I'm scanning the room with Ring so I can remember it as ${name}. This can take longer than an Alexa request, so ask me for status in a moment.`,
+        `I'm scanning the room with the camera so I can remember it as ${name}. This can take longer than an Alexa request, so ask me for status in a moment.`,
         true,
       );
     }
@@ -393,7 +406,7 @@ export class RewindAlexaSkill {
       if (!started) return this.speak(state, "I'm already checking your progress. Ask me for status in a moment.", false);
       return this.speak(
         state,
-        "I'm checking the room again with Ring. Ask me for status in a moment.",
+        "I'm checking the room again with the camera. Ask me for status in a moment.",
         true,
       );
     }
@@ -402,7 +415,7 @@ export class RewindAlexaSkill {
       if (state.job?.status === "FAILED" && this.retryFailedJob(state)) {
         return this.speak(
           state,
-          "The last Ring scan timed out, so I'm trying the fresh view again now. Ask me for status in a moment.",
+          "The last camera scan timed out, so I'm trying a fresh view again now. Ask me for status in a moment.",
           true,
         );
       }
