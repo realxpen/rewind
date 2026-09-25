@@ -119,13 +119,16 @@ assert.match(consumer, /activeRewindSessionId/);
 assert.match(consumer, /uploaded image is not persisted by REWIND/);
 assert.doesNotMatch(consumer, /api\('demo\/observe'/, "Phone photo mode must not use Controlled Demo fixtures.");
 
-// Photo and controlled-demo workflows stay available, but must live under Advanced
-// instead of competing with the primary live-camera experience.
-assert.match(consumer, /advancedStack\.append\(photoDetails\)/);
+// Submission UX is photo-first: the Alexa image workflow is promoted ahead of the
+// live-camera card, while the controlled deterministic demo remains under Advanced.
+assert.match(consumer, /liveDetails\?\.before\(photoDetails\)/);
+assert.match(consumer, /photoDetails\.open = true/);
+assert.match(consumer, /Image \+ Alexa test mode/);
 assert.match(consumer, /advancedStack\.append\(demoDetails\)/);
 assert.match(consumer, /function syncConsumerRewindState\(\)/);
 assert.match(consumer, /classList\.toggle\('consumer-rewind-active', Boolean\(activeRewindSessionId\)\)/);
-assert.match(consumer, /Fresh state ready\. Use Check Again in the REWIND card/);
+assert.match(consumer, /Alexa is now using this photo as the current scene/);
+assert.match(consumer, /Photo ready for Alexa/);
 assert.match(consumer, /focusCard\.scrollIntoView/);
 
 // The experience observer watches matchScore, so writes back to matchScore must be
@@ -141,4 +144,4 @@ new Function(bridge);
 new Function(verify);
 new Function(consumer);
 
-console.log("PASS Phase 12 experience contract: focused workflow + everyday photo mode + controlled/live separation + deterministic action delegation + browser JS syntax");
+console.log("PASS Phase 12 experience contract: photo-first Alexa workflow + controlled/live separation + deterministic action delegation + browser JS syntax");
