@@ -24,8 +24,10 @@ Hard rules:
 - Never split one tracked object into multiple entities. Never merge two supplied tracked keys into one entity.
 - Do not create an untracked replacement for a supplied tracked entity merely because another key feels more descriptive.
 - If a tracked entity is clearly visible, include it using the supplied key/category and report all supplied observable attributes that can be visually determined.
-- If a tracked entity is clearly absent from the fixed-view scene, omit it.
-- If presence or identity is genuinely uncertain because of ambiguity, occlusion, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes.
+- The boolean attribute "present" is reserved for restoration-relevant movable objects. In an open observation, emit "present": true for clearly visible movable/restorable objects such as notebooks, phones, bottles, chargers, remotes, bags, loose papers, boxes, and similar items. Do not add "present" to large fixed anchors/support surfaces such as desks, tables, walls, cabinets, or floors.
+- If a tracked entity defines observable attribute "present", explicitly re-check physical presence. If clearly visible, emit "present": true. If clearly absent AND the saved object's relevant support/location area is visible and not occluded, include the tracked key/category with "present": false and confidence >= 0.85. This is explicit negative visual evidence, not an inferred omission.
+- If a tracked entity does not define "present" and is clearly absent from the fixed-view scene, omit it.
+- If presence or identity is genuinely uncertain because of ambiguity, occlusion, camera shift, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes, including "present".
 - Never use low confidence merely because a visible object's state differs from an expected checkpoint. You are observing the current image only.
 - A supplied checkpoint relation is a QUESTION TO RE-CHECK, not current-state ground truth. Never copy it unless the image supports it.
 - For every supplied checkpoint relation, explicitly inspect whether that exact relation is still visually true in the current image.
@@ -36,7 +38,7 @@ Hard rules:
 - For untracked extra objects, only add an entity when it is visually clear, genuinely additional, and useful to the physical-state task.
 - If a tracked category already accounts for all clearly visible instances of that category, do not create another untracked entity of that category.
 - If no tracked vocabulary is supplied, return at most 24 entities. Prioritize movable/restorable objects, major support surfaces, and stable room anchors needed for relations.
-- In open observation, when visually obvious, record a boolean "clear" attribute on major restorable support surfaces such as desks, coffee tables, sofas/seats, and floor zones; true means free of loose clutter, false means visibly cluttered.
+- In open observation, when visually obvious, you may record a boolean "clear" attribute on major restorable support surfaces such as desks, coffee tables, sofas/seats, and floor zones; true means free of loose clutter, false means visibly cluttered. Treat "clear" as a coarse descriptive signal only; object-level presence/relations are preferred for restoration.
 - If tracked vocabulary is supplied, first verify every tracked entity, then run a DELTA SCAN for obvious current clutter or movable objects not represented by the checkpoint. Add no more than 8 high-confidence, restoration-relevant untracked extras.
 - DELTA SCAN examples include clothing, shoes, bags/backpacks, remotes/controllers, cups/glasses/bottles, dishes, loose papers, toys, cables/chargers, boxes/baskets, blankets/throws, and other clearly misplaced loose objects.
 - Do not use the DELTA SCAN to add decorative plants, wall art, fixed lighting, or other background decor merely because the checkpoint inventory omitted them.
@@ -45,7 +47,7 @@ Hard rules:
 
 function trackedVocabulary(context: ObservationContext): string {
   if (!context.trackedEntities || context.trackedEntities.length === 0) {
-    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. Return at most 24 entities total, prioritizing movable/restorable objects, major support surfaces, and stable anchors. When visually obvious, include boolean clear on major support surfaces so later clutter can be compared. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
+    return "No tracked entity vocabulary was supplied. Use conservative, unique semantic keys. Return at most 24 entities total, prioritizing movable/restorable objects, major support surfaces, and stable anchors. Add boolean present=true to clearly visible movable/restoration-relevant objects, but not to large fixed anchors/support surfaces. When visually obvious, clear may be included on major support surfaces as a coarse descriptive signal. For repeated categories, use stable role/location qualifiers so every entity key remains unique.";
   }
 
   return context.trackedEntities
@@ -163,7 +165,7 @@ Observation guidance:
 3. For every visible tracked entity with supplied observable attributes, explicitly evaluate those attributes.
 4. For every supplied checkpoint relation, explicitly evaluate whether that exact type/target relation is still true before adding any alternative relation.
 5. If a tracked object is clearly absent from the fixed-view image, omit it.
-6. If a tracked object's presence or identity is uncertain, include it with confidence below 0.60 and omit uncertain relations/attributes.
+6. If a tracked object defines observable attribute "present", emit present=true when clearly visible or present=false only when clearly absent with its relevant saved area visible and unoccluded. If presence or identity is uncertain, include it with confidence below 0.60 and omit uncertain relations/attributes.
 7. Do not use an UNKNOWN relation type; uncertainty is represented by confidence.
 8. Only describe visible state.
 9. Relations are written on the subject entity. For example, if headphones are ON a desk, put {"type":"ON","target":"desk.main"} on headphones.main, never the reverse.
