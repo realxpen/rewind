@@ -8,6 +8,7 @@ import {
   RingClient,
   RingObservationBridge,
   RingLiveFrameObserver,
+  PhotoObserver,
   RingRtspObserver,
   RingSnapshotObserver,
   createLiveRingAgentRuntime,
@@ -50,21 +51,17 @@ function isRtspTransportFailure(error: unknown): boolean {
   return /Ring RTSP|FFmpeg is required/i.test(message);
 }
 
-type LiveSourceKind = "ring" | "camera";
+type LiveSourceKind = "ring" | "camera" | "photo";
 
-class AdaptiveRingObserver implements SpaceObserver {
+class RingFallbackObserver implements SpaceObserver {
   private rtspDisabled = false;
 
   constructor(
     private readonly primary: SpaceObserver,
     private readonly fallback: SpaceObserver,
-    private readonly sourceForSpace: (spaceId: string) => LiveSourceKind,
   ) {}
 
   async inspect(spaceId: string, observationContext?: SpaceObservationContext) {
-    if (this.sourceForSpace(spaceId) === "camera") {
-      return this.fallback.inspect(spaceId, observationContext);
-    }
     if (!this.rtspDisabled) {
       try {
         return await this.primary.inspect(spaceId, observationContext);
@@ -76,6 +73,22 @@ class AdaptiveRingObserver implements SpaceObserver {
       }
     }
     return this.fallback.inspect(spaceId, observationContext);
+  }
+}
+
+class SelectedObservationSource implements SpaceObserver {
+  constructor(
+    private readonly ring: SpaceObserver,
+    private readonly camera: SpaceObserver,
+    private readonly photo: SpaceObserver,
+    private readonly sourceForSpace: (spaceId: string) => LiveSourceKind,
+  ) {}
+
+  async inspect(spaceId: string, observationContext?: SpaceObservationContext) {
+    const source = this.sourceForSpace(spaceId);
+    if (source === "photo") return this.photo.inspect(spaceId, observationContext);
+    if (source === "camera") return this.camera.inspect(spaceId, observationContext);
+    return this.ring.inspect(spaceId, observationContext);
   }
 }
 
@@ -116,6 +129,7 @@ async function main() {
     maxFrameAgeMs: Number(process.env.REWIND_RING_WHEP_FRAME_MAX_AGE_MS ?? 5_000),
     waitMs: Number(process.env.REWIND_RING_WHEP_FRAME_WAIT_MS ?? 12_000),
   });
+  const photoObserver = new PhotoObserver({ nova });
   const liveSources = new Map<string, LiveSourceKind>();
   const sourceForSpace = (spaceId: string): LiveSourceKind => liveSources.get(spaceId) ?? "ring";
   const checkpointAccess: AgentCheckpointAccess = {
@@ -129,7 +143,7 @@ async function main() {
     throw new Error("REWIND_RING_OBSERVER must be auto, rtsp, snapshot, or browser.");
   }
 
-  let voiceObserver: SpaceObserver = liveFrameObserver;
+  let ringVoiceObserver: SpaceObserver = liveFrameObserver;
   let voiceDeviceId: string | undefined;
   if (voiceObservationMode !== "browser") {
     const devices = await listRingDevices(client, config.devicesPath);
@@ -153,19 +167,26 @@ async function main() {
   });
 
   if (voiceObservationMode === "auto") {
-    voiceObserver = new AdaptiveRingObserver(createRtspObserver(), liveFrameObserver, sourceForSpace);
+    ringVoiceObserver = new RingFallbackObserver(createRtspObserver(), liveFrameObserver);
   } else if (voiceObservationMode === "rtsp") {
-    voiceObserver = createRtspObserver();
+    ringVoiceObserver = createRtspObserver();
   } else if (voiceObservationMode === "snapshot") {
-    voiceObserver = new RingSnapshotObserver({
+    ringVoiceObserver = new RingSnapshotObserver({
       client,
       nova,
       deviceId: voiceDeviceId!,
       lookbackMs: Number(process.env.REWIND_RING_SNAPSHOT_LOOKBACK_MS ?? 900_000),
     });
   } else if (voiceObservationMode === "browser") {
-    voiceObserver = liveFrameObserver;
+    ringVoiceObserver = liveFrameObserver;
   }
+
+  const voiceObserver: SpaceObserver = new SelectedObservationSource(
+    ringVoiceObserver,
+    liveFrameObserver,
+    photoObserver,
+    sourceForSpace,
+  );
 
   const mcpToolService = new RewindAgentToolService(voiceObserver, checkpointAccess);
   const mcpContinuity: SessionContinuityStore = memoryId
@@ -212,6 +233,10 @@ async function main() {
     invokeAgent: input => liveAgent.invoke(input),
     pendingMcpObservationRequest: spaceId => liveFrameObserver.pendingRequest(spaceId),
     publishLiveFrame: input => liveFrameObserver.publish(input),
+    publishPhotoFrame: input => {
+      photoObserver.publish(input);
+      liveSources.set(input.spaceId, "photo");
+    },
     setLiveSource: ({ spaceId, source }) => {
       liveSources.set(spaceId, source);
       console.log(`Live source for space ${spaceId}: ${source}.`);
@@ -247,12 +272,12 @@ async function main() {
     console.log(`REWIND live MCP (Streamable HTTP): http://127.0.0.1:${mcpPort}/mcp`);
     if (publicMcpHost) console.log(`MCP public Host allowlisted for tunnel: ${publicMcpHost}`);
     const voiceRule = voiceObservationMode === "auto"
-      ? `Voice/MCP fresh-state rule: selected source (Ring RTSPS/browser or Camera/Phone buffer) → Nova → deterministic REWIND.`
+      ? `Voice/MCP observation rule: selected source (Ring, Camera/Phone, or analyzed Photo) → Nova → deterministic REWIND.`
       : voiceObservationMode === "rtsp"
         ? `Voice/MCP fresh-state rule: tool call → Ring RTSPS live frame (${voiceDeviceId}) → Nova → deterministic REWIND.`
         : voiceObservationMode === "snapshot"
           ? `Voice/MCP fresh-state rule: tool call → Ring historical snapshot (${voiceDeviceId}) → Nova → deterministic REWIND.`
-          : "Voice/MCP fresh-state rule: selected browser live-frame buffer → Nova → deterministic REWIND.";
+          : "Voice/MCP observation rule: selected browser camera or analyzed Photo → Nova → deterministic REWIND.";
     console.log(voiceRule);
   });
 
