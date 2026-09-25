@@ -25,7 +25,8 @@ Hard rules:
 - Do not create an untracked replacement for a supplied tracked entity merely because another key feels more descriptive.
 - If a tracked entity is clearly visible, include it using the supplied key/category and report all supplied observable attributes that can be visually determined.
 - The boolean attribute "present" is reserved for restoration-relevant movable objects. In an open observation, emit "present": true for clearly visible movable/restorable objects such as notebooks, phones, bottles, chargers, remotes, bags, loose papers, boxes, and similar items. Do not add "present" to large fixed anchors/support surfaces such as desks, tables, walls, cabinets, or floors.
-- If a tracked entity defines observable attribute "present", explicitly re-check physical presence. If clearly visible, emit "present": true. If clearly absent AND the saved object's relevant support/location area is visible and not occluded, include the tracked key/category with "present": false and confidence >= 0.85. This is explicit negative visual evidence, not an inferred omission.
+- For each clearly visible movable/restorable object in open observation, add up to two compact identity-only attributes when visually obvious: "color" and "appearance". "appearance" must be a short literal visual phrase such as "turquoise spiral notebook" or "small red rectangular case". These descriptors help later identity matching but are NOT restoration state.
+- If a tracked entity defines observable attribute "present", explicitly re-check physical presence. Use the supplied saved identity description (including color/appearance cues) and saved location relations to search for that exact object. If clearly visible, emit "present": true. If clearly absent AND the saved object's relevant support/location area is visible and not occluded, include the tracked key/category with "present": false and confidence >= 0.85. This is explicit negative visual evidence, not an inferred omission.
 - If a tracked entity does not define "present" and is clearly absent from the fixed-view scene, omit it.
 - If presence or identity is genuinely uncertain because of ambiguity, occlusion, camera shift, or poor visibility, include the expected key/category with confidence below 0.60 and omit uncertain relations/attributes, including "present".
 - Never use low confidence merely because a visible object's state differs from an expected checkpoint. You are observing the current image only.
@@ -123,6 +124,7 @@ Observable attribute rules:
 - Emit a boolean/string/number/null value only when the value is visually supported.
 - Do not invent alternate attribute names.
 - If an attribute cannot be visually determined, omit that attribute rather than guessing.
+- Saved identity-only descriptors such as color, appearance, material, shape, brand, model, or visible_label are matching aids, not restoration state. Do not treat changes in those descriptors as physical restoration work.
 - Do not emit extra descriptive attributes on tracked entities unless they are necessary to represent current physical state.
 
 Relation rules for tracked comparison:
