@@ -127,7 +127,7 @@ queueMicrotask(() => observer.publish({
 }));
 const refreshed = await waiting;
 assert.equal(observer.pendingRequest("ring-playground"), undefined);
-assert.equal(novaCalls, 2);
+assert.equal(novaCalls, 3);
 assert.equal(refreshed.state.capturedAt, new Date(now).toISOString());
 
 await assert.rejects(
