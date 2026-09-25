@@ -50,6 +50,7 @@ const DESCRIPTIVE_ATTRIBUTES = new Set([
 const VISION_UNSTABLE_ATTRIBUTES = new Set(["clear"]);
 const UNKNOWN_CONFIDENCE = 0.6;
 const VISION_ADDED_CONFIDENCE = 0.85;
+const VISION_PRESENCE_CONFIDENCE = 0.85;
 const VISION_ACTIONABLE_EXTRA_TERMS = new Set([
   "backpack", "bag", "handbag", "clothing", "clothes", "garment", "jacket", "shirt", "pants", "trousers",
   "sock", "socks", "shoe", "shoes", "sneaker", "sneakers", "footwear", "remote", "controller", "gamepad",
@@ -314,16 +315,21 @@ export function compareStates(
     const expectedPresent = expected.attributes?.present;
     const actualPresent = actual.attributes?.present;
     if (typeof expectedPresent === "boolean" && typeof actualPresent === "boolean" && expectedPresent !== actualPresent) {
+      const explicitPresenceTrusted = evidenceMode !== "vision" || confidence >= VISION_PRESENCE_CONFIDENCE;
       diffs.push({
-        type: expectedPresent && !actualPresent ? "REMOVED" : "ADDED",
+        type: explicitPresenceTrusted
+          ? (expectedPresent && !actualPresent ? "REMOVED" : "ADDED")
+          : "UNKNOWN",
         entity: key,
         category: expected.category,
         expected: { entity: expected, attributes: { present: expectedPresent } },
         actual: { entity: actual, attributes: { present: actualPresent } },
         confidence,
-        reason: expectedPresent && !actualPresent
-          ? "Tracked object has explicit high-confidence visual evidence of absence from its saved fixed-view scene."
-          : "Tracked object has explicit high-confidence visual evidence of presence where the checkpoint recorded it absent.",
+        reason: !explicitPresenceTrusted
+          ? "Explicit presence evidence is below the high-confidence threshold required for a vision removal/addition."
+          : expectedPresent && !actualPresent
+            ? "Tracked object has explicit high-confidence visual evidence of absence from its saved fixed-view scene."
+            : "Tracked object has explicit high-confidence visual evidence of presence where the checkpoint recorded it absent.",
       });
       continue;
     }
