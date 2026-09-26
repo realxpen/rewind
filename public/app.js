@@ -4,13 +4,47 @@ let selectedFile;
 let previewUrl;
 let checkpoints = [];
 let busy = false;
+let voiceBusy = false;
+let recognition;
+let listening = false;
+
+const voiceSessionId = (() => {
+  const key = "rewind.voice.session";
+  let value = localStorage.getItem(key);
+  if (!value) {
+    value = globalThis.crypto?.randomUUID?.() || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(key, value);
+  }
+  return value;
+})();
 
 function setStatus(title, text, kind = "") {
   const box = $("status");
   box.className = `status ${kind}`.trim();
-  box.innerHTML = `<strong></strong><span></span>`;
+  box.innerHTML = "<strong></strong><span></span>";
   box.querySelector("strong").textContent = title;
   box.querySelector("span").textContent = text;
+}
+
+function setVoiceState(text) {
+  $("voiceState").textContent = text;
+}
+
+function addVoiceBubble(role, text) {
+  const bubble = document.createElement("div");
+  bubble.className = `bubble ${role}`;
+  bubble.textContent = text;
+  $("voiceLog").append(bubble);
+  $("voiceLog").scrollTop = $("voiceLog").scrollHeight;
+}
+
+function speak(text) {
+  if (!("speechSynthesis" in window) || !text) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
 }
 
 async function api(path, options = {}) {
@@ -45,10 +79,12 @@ async function loadCheckpoints() {
       select.replaceChildren(Object.assign(document.createElement("option"), { value: "", textContent: "No saved state yet" }));
       return;
     }
+    const current = select.value;
     select.replaceChildren(...checkpoints.map(item => Object.assign(document.createElement("option"), {
       value: item.id,
       textContent: item.name,
     })));
+    if (checkpoints.some(item => item.id === current)) select.value = current;
   } catch (error) {
     checkpoints = [];
     setStatus("Could not load saved states", error.message, "bad");
@@ -59,12 +95,12 @@ function setMode(next) {
   mode = next;
   document.querySelectorAll("[data-mode]").forEach(button => button.classList.toggle("active", button.dataset.mode === mode));
   $("checkpointField").hidden = mode !== "rewind";
-  $("alexaBox").hidden = true;
+  $("sceneBox").hidden = true;
   if (mode === "rewind") void loadCheckpoints();
   setStatus(mode === "remember" ? "Remember mode" : "Rewind mode",
     mode === "remember"
-      ? "Analyze the clean reference scene, then ask Alexa to remember it."
-      : "Choose the saved state, analyze the changed or restored scene, then talk to Alexa.");
+      ? "Analyze the clean reference scene, then tell REWIND Voice what to call it."
+      : "Choose the saved state, analyze the changed or restored scene, then talk to REWIND Voice.");
 }
 
 function selectFile(file) {
@@ -80,8 +116,8 @@ function selectFile(file) {
   $("photoName").textContent = file.name || "Camera photo";
   $("preview").hidden = false;
   $("analyze").disabled = false;
-  $("alexaBox").hidden = true;
-  setStatus("Photo selected", "Analyze it with Nova to make it Alexa's current semantic scene.");
+  $("sceneBox").hidden = true;
+  setStatus("Photo selected", "Analyze it with Nova to make it REWIND's current semantic scene.");
 }
 
 function imageBlob(file) {
@@ -121,6 +157,94 @@ function base64Blob(blob) {
   });
 }
 
+async function runVoiceCommand(raw) {
+  const transcript = String(raw || "").trim();
+  if (!transcript || voiceBusy) return;
+  voiceBusy = true;
+  $("voiceSend").disabled = true;
+  $("voiceMic").disabled = true;
+  setVoiceState("Thinking…");
+  addVoiceBubble("user", transcript);
+  $("voiceInput").value = "";
+
+  try {
+    const chosen = checkpoints.find(item => item.id === $("checkpoint").value);
+    const data = await api("voice", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId: voiceSessionId,
+        spaceId: $("spaceId").value.trim(),
+        transcript,
+        ...(mode === "rewind" && $("checkpoint").value ? { checkpointId: $("checkpoint").value } : {}),
+        ...(chosen?.name ? { checkpointName: chosen.name } : {}),
+      }),
+    });
+    addVoiceBubble("assistant", data.text);
+    speak(data.text);
+    setVoiceState(data.state ? data.state.replaceAll("_", " ") : "Ready");
+    if (data.command === "remember") await loadCheckpoints();
+    if (typeof data.pendingActions === "number") {
+      setStatus(
+        data.state === "RESTORED" ? "RESTORED" : "REWIND Voice ready",
+        data.state === "RESTORED"
+          ? "The deterministic engine verified the saved state."
+          : `${data.pendingActions} restore action${data.pendingActions === 1 ? "" : "s"} pending.`,
+        data.state === "RESTORED" ? "good" : "",
+      );
+    }
+  } catch (error) {
+    addVoiceBubble("assistant", `I couldn't complete that command: ${error.message}`);
+    setVoiceState("Error");
+  } finally {
+    voiceBusy = false;
+    $("voiceSend").disabled = false;
+    $("voiceMic").disabled = false;
+  }
+}
+
+function setupSpeechRecognition() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) {
+    $("voiceMic").disabled = true;
+    $("voiceMic").textContent = "Mic unavailable";
+    $("voiceNote").textContent = "This browser does not expose speech recognition. Type a command instead—the same REWIND Voice backend is used.";
+    return;
+  }
+
+  recognition = new Recognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.continuous = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    listening = true;
+    $("voiceMic").classList.add("listening");
+    $("voiceOrb").classList.add("listening");
+    $("voiceMic").textContent = "Listening…";
+    setVoiceState("Listening");
+  };
+
+  recognition.onresult = event => {
+    const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+    if (transcript) void runVoiceCommand(transcript);
+  };
+
+  recognition.onerror = event => {
+    if (event.error !== "no-speech") {
+      addVoiceBubble("assistant", `Microphone recognition error: ${event.error}. You can type the command instead.`);
+    }
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    $("voiceMic").classList.remove("listening");
+    $("voiceOrb").classList.remove("listening");
+    $("voiceMic").textContent = "🎙 Talk";
+    if (!voiceBusy) setVoiceState("Ready");
+  };
+}
+
 $("analyze").onclick = async () => {
   if (!selectedFile || busy) return;
   busy = true;
@@ -145,16 +269,16 @@ $("analyze").onclick = async () => {
       className: "entity",
       textContent: entity.key,
     })));
-    $("alexaBox").hidden = false;
+    $("sceneBox").hidden = false;
     if (mode === "remember") {
-      $("alexaText").textContent = "The clean reference scene is analyzed and stored as semantic state.";
-      $("alexaCommand").textContent = "ask rewind memory to remember this room as desk baseline";
+      $("sceneText").textContent = "The clean reference scene is analyzed and ready for REWIND Voice.";
+      $("sceneCommand").textContent = "Say: remember this room as desk baseline";
     } else {
       const chosen = checkpoints.find(item => item.id === $("checkpoint").value);
-      $("alexaText").textContent = "The latest changed/restored scene is now the exact semantic state Alexa will compare.";
-      $("alexaCommand").textContent = `ask rewind memory to rewind to ${chosen?.name || "desk baseline"}`;
+      $("sceneText").textContent = "The latest changed/restored scene is now the semantic state REWIND Voice will compare.";
+      $("sceneCommand").textContent = `Say: rewind this room to ${chosen?.name || "desk baseline"}`;
     }
-    setStatus("Alexa scene ready", `${entities.length} semantic entities · ${observation.latencyMs ?? "—"} ms Nova latency.`, "good");
+    setStatus("REWIND scene ready", `${entities.length} semantic entities · ${observation.latencyMs ?? "—"} ms Nova latency.`, "good");
   } catch (error) {
     setStatus("Analysis failed", error.message, "bad");
   } finally {
@@ -164,12 +288,30 @@ $("analyze").onclick = async () => {
 };
 
 document.querySelectorAll("[data-mode]").forEach(button => button.onclick = () => setMode(button.dataset.mode));
+document.querySelectorAll("[data-voice]").forEach(button => button.onclick = () => void runVoiceCommand(button.dataset.voice));
 $("takePhoto").onclick = () => $("cameraInput").click();
 $("uploadPhoto").onclick = () => $("uploadInput").click();
 $("cameraInput").onchange = () => selectFile($("cameraInput").files?.[0]);
 $("uploadInput").onchange = () => selectFile($("uploadInput").files?.[0]);
 $("refresh").onclick = () => void loadCheckpoints();
 $("spaceId").onchange = () => void loadCheckpoints();
-window.addEventListener("beforeunload", () => { if (previewUrl) URL.revokeObjectURL(previewUrl); });
+$("voiceSend").onclick = () => void runVoiceCommand($("voiceInput").value);
+$("voiceInput").onkeydown = event => {
+  if (event.key === "Enter") void runVoiceCommand($("voiceInput").value);
+};
+$("voiceMic").onclick = () => {
+  if (!recognition || voiceBusy) return;
+  try {
+    if (listening) recognition.stop();
+    else recognition.start();
+  } catch {
+    // Some browsers throw if start/stop is called during a transition.
+  }
+};
+window.addEventListener("beforeunload", () => {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  window.speechSynthesis?.cancel?.();
+});
 
+setupSpeechRecognition();
 void health();

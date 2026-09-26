@@ -8,7 +8,7 @@ Capture clean crops or full-window shots with only REWIND/Alexa/Ring content vis
 
 ### 1. Hero — REWIND in action
 
-Show the public REWIND UI with Rewind a space selected, Vercel desk baseline, changed desk image, Alexa scene ready, and semantic entity chips.
+Show the public REWIND UI with Rewind a space selected, Vercel desk baseline, changed desk image, REWIND scene ready, semantic entity chips, and the built-in REWIND Voice card.
 
 Caption:
 
@@ -16,7 +16,7 @@ Caption:
 
 ### 2. Two-object DIFF
 
-Show Alexa reporting:
+Show REWIND Voice reporting:
 
 > “I found 2 important changes from vercel desk baseline.”
 
@@ -26,7 +26,7 @@ Caption:
 
 ### 3. VERIFY / RESTORED
 
-Show final Alexa restored result.
+Show the final REWIND Voice restored result.
 
 Caption:
 

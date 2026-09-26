@@ -52,6 +52,24 @@ interface PersistentVoiceState {
   updatedAt: string;
 }
 
+interface WebVoiceRequest {
+  sessionId?: string;
+  spaceId?: string;
+  transcript?: string;
+  checkpointId?: string;
+  checkpointName?: string;
+}
+
+interface WebVoiceResponse {
+  transcript: string;
+  command: "remember" | "rewind" | "check" | "status" | "next" | "list" | "repeat" | "help" | "unknown";
+  text: string;
+  checkpointName?: string;
+  state?: string;
+  changeCount?: number;
+  pendingActions?: number;
+}
+
 const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1";
 const modelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0";
 const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "phone-my-room";
@@ -203,8 +221,7 @@ function voiceKey(envelope: AlexaRequestEnvelope): string {
   return createHash("sha256").update(userId).digest("hex");
 }
 
-async function loadVoiceState(envelope: AlexaRequestEnvelope): Promise<PersistentVoiceState> {
-  const key = voiceKey(envelope);
+async function loadVoiceStateByKey(key: string): Promise<PersistentVoiceState> {
   const stored = await getRuntime<PersistentVoiceState>(runtimePartition("voice", key), "state");
   if (stored) {
     return {
@@ -220,9 +237,17 @@ async function loadVoiceState(envelope: AlexaRequestEnvelope): Promise<Persisten
   };
 }
 
-async function saveVoiceState(envelope: AlexaRequestEnvelope, state: PersistentVoiceState): Promise<void> {
+async function saveVoiceStateByKey(key: string, state: PersistentVoiceState): Promise<void> {
   state.updatedAt = new Date().toISOString();
-  await putRuntime(runtimePartition("voice", voiceKey(envelope)), "state", state as unknown as Record<string, unknown>);
+  await putRuntime(runtimePartition("voice", key), "state", state as unknown as Record<string, unknown>);
+}
+
+async function loadVoiceState(envelope: AlexaRequestEnvelope): Promise<PersistentVoiceState> {
+  return loadVoiceStateByKey(voiceKey(envelope));
+}
+
+async function saveVoiceState(envelope: AlexaRequestEnvelope, state: PersistentVoiceState): Promise<void> {
+  await saveVoiceStateByKey(voiceKey(envelope), state);
 }
 
 function alexaResponse(text: string, shouldEndSession = false, reprompt?: string): AlexaResponseEnvelope {
@@ -447,6 +472,186 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
   }
 
   return alexaResponse("I can remember an analyzed scene, rewind to it, check progress, or tell you the next restore step.");
+}
+
+function webVoiceKey(sessionId: string): string {
+  return createHash("sha256").update(`rewind-web:${sessionId}`).digest("hex");
+}
+
+function parseWebVoiceCommand(transcript: string): WebVoiceResponse["command"] {
+  const value = normalized(transcript);
+  if (!value) return "unknown";
+  if (/\b(help|what can you do|commands)\b/.test(value)) return "help";
+  if (/\b(list|show)\b.*\b(saved|states|checkpoints)\b/.test(value)) return "list";
+  if (/\b(repeat|say that again)\b/.test(value)) return "repeat";
+  if (/\b(next|next step|another step)\b/.test(value)) return "next";
+  if (/\b(check again|verify|check progress|verify again)\b/.test(value)) return "check";
+  if (/\b(status|what changed|what is the status|whats the status)\b/.test(value)) return "status";
+  if (/\b(remember|save)\b/.test(value)) return "remember";
+  if (/\b(rewind|restore|go back)\b/.test(value)) return "rewind";
+  return "unknown";
+}
+
+function checkpointNameFromTranscript(transcript: string): string | undefined {
+  const raw = transcript.trim();
+  const patterns = [
+    /(?:remember|save)(?: this (?:room|space|scene))?(?: as| called| named)\s+(.+)$/i,
+    /(?:rewind|restore)(?: this (?:room|space|scene))?(?: to| back to)\s+(.+)$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    const value = match?.[1]?.trim().replace(/[.!?]+$/, "");
+    if (value) return value;
+  }
+  return undefined;
+}
+
+async function handleWebVoice(req: RequestLike, res: ResponseLike): Promise<void> {
+  const body = parseBody(req) as WebVoiceRequest;
+  const sessionId = body.sessionId?.trim();
+  const transcript = body.transcript?.trim();
+  const requestedSpaceId = body.spaceId?.trim() || defaultSpaceId;
+
+  if (!sessionId || sessionId.length < 8 || sessionId.length > 200) {
+    send(res, 400, { error: "Voice session ID is invalid." });
+    return;
+  }
+  if (!validSpaceId(requestedSpaceId)) {
+    send(res, 400, { error: "Space ID is invalid." });
+    return;
+  }
+  if (!transcript || transcript.length > 500) {
+    send(res, 400, { error: "Voice command is empty or too long." });
+    return;
+  }
+
+  const key = webVoiceKey(sessionId);
+  const state = await loadVoiceStateByKey(key);
+  state.spaceId = requestedSpaceId;
+
+  const command = parseWebVoiceCommand(transcript);
+  const spokenName = body.checkpointName?.trim() || checkpointNameFromTranscript(transcript);
+  const respond = async (text: string, extra: Partial<WebVoiceResponse> = {}) => {
+    state.lastSpeech = text;
+    await saveVoiceStateByKey(key, state);
+    send(res, 200, {
+      transcript,
+      command,
+      text,
+      ...(state.checkpointName ? { checkpointName: state.checkpointName } : {}),
+      ...(state.latestResult ? {
+        state: state.latestResult.state,
+        changeCount: state.latestResult.changeCount,
+        pendingActions: pendingActions(state.latestResult).length,
+      } : {}),
+      ...extra,
+    } satisfies WebVoiceResponse);
+  };
+
+  if (command === "help") {
+    await respond("Try saying remember this room as desk baseline, rewind to desk baseline, what's the status, next step, or check again.");
+    return;
+  }
+
+  if (command === "repeat") {
+    await respond(state.lastSpeech ?? "There isn't a REWIND instruction to repeat yet.");
+    return;
+  }
+
+  if (command === "list") {
+    const items = await requireConfigured().list(state.spaceId);
+    await respond(items.length
+      ? `Your saved states are ${items.slice(0, 5).map(item => item.name).join(", ")}.`
+      : "You don't have any saved REWIND states for this space yet.");
+    return;
+  }
+
+  if (command === "remember") {
+    const name = spokenName || "desk baseline";
+    const observation = await latestObservation(state.spaceId);
+    const checkpoint = await requireConfigured().save({
+      spaceId: state.spaceId,
+      name,
+      observationId: observation.observationId,
+      state: observation.state,
+    });
+    state.checkpointId = checkpoint.id;
+    state.checkpointName = checkpoint.name;
+    delete state.rewindSessionId;
+    delete state.latestResult;
+    state.actionIndex = 0;
+    state.statusMessage = `Saved ${checkpoint.name}. REWIND now remembers its semantic state.`;
+    await respond(state.statusMessage, { checkpointName: checkpoint.name });
+    return;
+  }
+
+  if (command === "rewind") {
+    let checkpoint: Checkpoint | undefined;
+    if (body.checkpointId && validOpaqueId(body.checkpointId)) {
+      checkpoint = await requireConfigured().get(state.spaceId, body.checkpointId);
+    }
+    checkpoint ??= await findCheckpoint(state.spaceId, spokenName);
+    if (!checkpoint) {
+      await respond(spokenName
+        ? `I couldn't find a saved state called ${spokenName}.`
+        : "You don't have a saved state for this space yet.");
+      return;
+    }
+    const observation = await latestObservation(state.spaceId);
+    const result = computeResult(checkpoint, observation);
+    state.checkpointId = checkpoint.id;
+    state.checkpointName = checkpoint.name;
+    state.rewindSessionId = result.rewindSessionId;
+    state.latestResult = result;
+    state.actionIndex = 0;
+    delete state.statusMessage;
+    await respond(resultSpeech(result, checkpoint.name), {
+      checkpointName: checkpoint.name,
+      state: result.state,
+      changeCount: result.changeCount,
+      pendingActions: pendingActions(result).length,
+    });
+    return;
+  }
+
+  if (command === "check") {
+    if (!state.checkpointId || !state.rewindSessionId) {
+      await respond("Start a rewind first, then I can check your progress.");
+      return;
+    }
+    const checkpoint = await requireConfigured().get(state.spaceId, state.checkpointId);
+    if (!checkpoint) {
+      await respond("I couldn't find that saved state.");
+      return;
+    }
+    const observation = await latestObservation(state.spaceId);
+    state.latestResult = computeResult(checkpoint, observation, state.rewindSessionId);
+    state.actionIndex = 0;
+    delete state.statusMessage;
+    await respond(resultSpeech(state.latestResult, state.checkpointName));
+    return;
+  }
+
+  if (command === "status") {
+    await respond(state.statusMessage
+      ?? (state.latestResult ? resultSpeech(state.latestResult, state.checkpointName) : "REWIND isn't restoring anything right now."));
+    return;
+  }
+
+  if (command === "next") {
+    const actions = pendingActions(state.latestResult);
+    if (!actions.length) {
+      await respond(state.latestResult
+        ? resultSpeech(state.latestResult, state.checkpointName)
+        : "Start a rewind first and I'll guide you one step at a time.");
+      return;
+    }
+    state.actionIndex = Math.min(state.actionIndex + 1, actions.length - 1);
+    await respond(`Next, ${actions[state.actionIndex]!.instruction} Analyze another photo and say check again when you want me to verify it.`);
+    return;
+  }
+
+  await respond("I didn't understand that command. Try saying rewind to desk baseline, what's the status, next step, or check again.");
 }
 
 function missingTrackedPresenceHints(
@@ -841,6 +1046,11 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
 
     if (path === "checkpoints" && (req.method === "GET" || req.method === "POST")) {
       await handleCheckpoints(req, res);
+      return;
+    }
+
+    if (path === "voice" && req.method === "POST") {
+      await handleWebVoice(req, res);
       return;
     }
 

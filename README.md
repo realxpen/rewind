@@ -28,7 +28,7 @@ Built for **Build, Ship, Shape: Amazon Developer Hackathon (2026)**.
 REWIND keeps evidence honest:
 
 - **Live Ring proof** demonstrates Ring Developer Playground → WHEP live frame → Nova semantic state.
-- **Image + Alexa** demonstrates the repeatable SAVE → DIFF → REWIND → VERIFY interaction.
+- **Image + REWIND Voice** demonstrates the repeatable SAVE → DIFF → REWIND → VERIFY interaction in one product UI.
 - **Controlled fixtures** provide deterministic ground-truth evaluation.
 
 The photo flow is never presented as Live Ring camera truth.
@@ -158,6 +158,12 @@ Ring Playground → live frame → Nova → validated semantic state → compare
 ```
 
 The final Live Ring evaluation used a stable unchanged scene and reached **100% match** in both recorded runs.
+
+### REWIND Voice
+
+The public submission UI includes a native voice surface. In supported browsers, speech recognition converts the user's utterance into a REWIND command; typed input is always available as a fallback. The server maps that command onto the same deterministic checkpoint/diff/restore/verify functions, and the browser can speak the resulting response.
+
+REWIND Voice is intentionally labeled separately from Alexa. The working external Alexa Custom Skill remains an additional integration through AWS Lambda and the same REWIND engine.
 
 ### Controlled Demo
 

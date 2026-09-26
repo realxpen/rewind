@@ -5,12 +5,12 @@ Target: **2:40–2:55**. Hard limit: under 3:00.
 Primary track: **Ring**  
 Mini challenges: **AWS Builder + Open Source**
 
-The video must clearly distinguish the repeatable Image + Alexa product demo from separate Live Ring integration proof.
+The video must clearly distinguish the repeatable Image + REWIND Voice product demo from separate Live Ring integration proof.
 
 ## Recording rules
 
 - Start with working product behavior, not a title card.
-- Keep REWIND and Alexa Tester already open.
+- Keep REWIND already open. The main restoration sequence stays inside the REWIND UI.
 - Cut loading/waiting.
 - Do not show secrets, AWS keys, Ring tokens, IDs, or relay secrets.
 - Do not imply the uploaded-image sequence is a live Ring feed.
@@ -25,7 +25,7 @@ Say:
 
 > “This room used to look different. REWIND is Ctrl+Z for reality.”
 
-Trigger Alexa to rewind to Vercel desk baseline, then ask status.
+Use the built-in REWIND Voice microphone: “Rewind this room to Vercel desk baseline.” The response should immediately report the two changes.
 
 Show:
 
@@ -33,11 +33,11 @@ Show:
 
 ## 0:10–0:38 — Real restore actions
 
-Show first Alexa instruction:
+Show the first REWIND Voice instruction:
 
 > “Move notebook red on table main.”
 
-Then ask for next step and show the turquoise instruction.
+Say “next step” in REWIND Voice and show the turquoise instruction.
 
 Voiceover:
 
@@ -47,7 +47,7 @@ Voiceover:
 
 Analyze the partial image: red restored, turquoise still missing.
 
-Ask Alexa to check again, then status.
+Say “check again” in REWIND Voice.
 
 Voiceover:
 
@@ -57,7 +57,7 @@ Voiceover:
 
 Analyze the original baseline image.
 
-Ask check again + status.
+Say “check again” in REWIND Voice.
 
 Show the real final response:
 
@@ -67,7 +67,17 @@ Voiceover:
 
 > “That is SAVE → DIFF → REWIND → VERIFY.”
 
-## 1:13–1:38 — Primary-track proof: Live Ring
+## 1:13–1:28 — Actual Alexa integration proof
+
+Briefly show the existing Alexa Custom Skill path and label it **ACTUAL ALEXA INTEGRATION**.
+
+Voiceover:
+
+> “REWIND Voice is the native web experience. We also built a real Alexa Custom Skill through AWS Lambda that calls the same deterministic REWIND engine.”
+
+Do not spend the main demo switching back and forth to Alexa Tester.
+
+## 1:28–1:50 — Primary-track proof: Live Ring
 
 Clearly label on screen: **LIVE RING INTEGRATION PROOF**
 
@@ -86,7 +96,7 @@ Voiceover:
 
 Do not claim physical rearrangement in the Playground.
 
-## 1:38–1:58 — Architecture
+## 1:50–2:08 — Architecture
 
 Show docs/ARCHITECTURE.md.
 
@@ -94,7 +104,7 @@ Voiceover:
 
 > “The core rule is simple: AI interprets state; deterministic code compares state. Nova never decides that the room is restored.”
 
-## 1:58–2:18 — AWS Builder
+## 2:08–2:25 — AWS Builder
 
 Show Bedrock + Nova 2 Lite, DynamoDB, Strands, AgentCore Memory, and Lambda.
 
@@ -102,7 +112,7 @@ Voiceover:
 
 > “AWS handles perception, durable semantic checkpoints, agent orchestration, session continuity, and the Alexa relay while deterministic code keeps restoration truth auditable.”
 
-## 2:18–2:35 — Open Source PSP
+## 2:25–2:40 — Open Source PSP
 
 Show packages/physical-state-protocol, diff engine, restore engine, and tests.
 
@@ -110,23 +120,24 @@ Say:
 
 > “We don’t store a room as just an image. The open Physical State Protocol represents environments as semantic state that software can validate, compare, and restore.”
 
-## 2:35–2:48 — Privacy + impact
+## 2:40–2:50 — Privacy + impact
 
 Say:
 
 > “Remember the state. Forget the footage. REWIND can support studios, rentals, retail, classrooms, workshops, hospitality, and care environments where returning a space to a known state matters.”
 
-## 2:48–2:55 — End
+## 2:50–2:55 — End
 
 > “REWIND. Ctrl+Z for reality.”
 
 ## Required shots
 
-- [ ] 2-change Alexa result
+- [ ] 2-change REWIND Voice result
 - [ ] first restore action
 - [ ] second next-step action
 - [ ] partial verify
-- [ ] final restored response
+- [ ] final REWIND Voice restored response
+- [ ] brief actual Alexa Custom Skill proof
 - [ ] Live Ring Playground video
 - [ ] Ring frame → Nova semantic output
 - [ ] architecture diagram

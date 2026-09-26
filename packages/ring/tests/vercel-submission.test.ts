@@ -39,3 +39,16 @@ assert.equal(vercel.functions?.["api/[...path].ts"]?.maxDuration, 60);
 new Function(app);
 
 console.log("PASS Vercel submission contract: public photo UI + semantic-only persistence + Alexa relay + deterministic REWIND.");
+
+const voiceApiSource = api;
+assert.match(voiceApiSource, /path === "voice"/, "Submission runtime must expose REWIND Voice.");
+assert.match(voiceApiSource, /handleWebVoice/, "REWIND Voice must have a dedicated server handler.");
+assert.match(voiceApiSource, /computeResult\(checkpoint, observation/, "REWIND Voice must use the deterministic comparison path.");
+assert.match(voiceApiSource, /parseWebVoiceCommand/, "REWIND Voice commands must be parsed explicitly.");
+assert.match(voiceApiSource, /webVoiceKey/, "REWIND Voice must isolate browser voice sessions.");
+assert.doesNotMatch(voiceApiSource, /notebook\.red|notebook\.turquoise/, "Production voice/runtime code must not hardcode demo objects.");
+assert.match(html, /REWIND Voice/, "Public UI must expose REWIND Voice.");
+assert.match(html, /External Alexa integration remains available/, "UI must distinguish REWIND Voice from the external Alexa integration.");
+assert.match(app, /SpeechRecognition|webkitSpeechRecognition/, "Public UI must support browser microphone recognition when available.");
+assert.match(app, /speechSynthesis/, "Public UI must speak REWIND Voice responses when available.");
+assert.match(app, /api\("voice"/, "Public UI must call the dedicated REWIND Voice endpoint.");
