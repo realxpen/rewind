@@ -137,7 +137,8 @@ async function putRuntime(spaceId: string, id: string, item: Record<string, unkn
   if (!tableName) throw new Error("DYNAMODB_CHECKPOINTS_TABLE is not configured.");
   await documentClient.send(new PutCommand({
     TableName: tableName,
-    Item: { spaceId, id, ...item },
+    // Internal runtime keys must win over payload fields such as observation.spaceId.
+    Item: { ...item, spaceId, id },
   }));
 }
 
