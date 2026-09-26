@@ -1,8 +1,8 @@
 # Phase 9 — Alexa+ MCP
 
-Status: **IN PROGRESS**
+Status: **ENGINEERING PASS / LIVE ALEXA+ ONBOARDING DEFERRED**
 
-External blocker: Alexa+ developer tooling role access is pending Amazon support case **52846821**. Do not broaden IAM permissions while that case is open.
+The MCP engineering gate passed. Live Alexa+ Add-on/MCP onboarding is not claimed because Amazon/Devpost confirmed the relevant developer tooling is currently restricted to select partners. REWIND remains a Ring-track submission.
 
 ## Locked rule
 
@@ -131,18 +131,9 @@ Authorization-server / Alexa account-linking setup will be finalized after Amazo
 
 ## External Amazon blocker
 
-The cross-account Alexa developer-tools role assumption is still rejected on Amazon's side. Support case **52846821** is open. Do not add broad IAM permissions to work around it.
+Live Alexa+ onboarding is unavailable through the public hackathon developer path used by this project. The repository therefore documents the compliant MCP implementation and its local/live Ring-backed verification without claiming Alexa+ deployment.
 
 ## Phase 9 gate
 
-Phase 9 completes only when:
-
-```text
-Alexa+
-→ remote HTTPS Streamable HTTP MCP
-→ approved REWIND tool
-→ fresh Ring/Nova observation when physical truth is required
-→ deterministic REWIND result
-```
-
-At minimum the Alexa+ path must exercise save, compare, start Rewind, and verify without bypassing the deterministic state engine.
+MCP engineering: **PASS**.  
+Live Alexa+ onboarding: **DEFERRED — external partner-only access restriction**.

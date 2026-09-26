@@ -470,22 +470,27 @@ Phase 11 gate: **PASS**.
 
 ## Phase 12 — Submission
 
-- [ ] README.
-- [ ] architecture diagram.
-- [ ] screenshots.
-- [ ] public repo verification.
-- [ ] license verification.
-- [ ] setup steps.
-- [ ] demo script.
-- [ ] demo video.
-- [ ] Devpost story.
-- [ ] product feedback.
-- [ ] friction log.
-- [ ] feature requests.
-- [ ] AWS Builder explanation.
-- [ ] Open Source explanation.
+- [x] README submission hardening.
+- [x] judge-facing architecture diagram.
+- [ ] final clean screenshots captured/uploaded.
+- [x] public repo verification.
+- [x] license verification.
+- [x] setup steps.
+- [x] demo script.
+- [ ] demo video recorded/uploaded.
+- [x] Devpost story drafted.
+- [x] product feedback drafted.
+- [x] friction log.
+- [x] feature requests.
+- [x] AWS Builder explanation.
+- [x] Open Source explanation.
+- [x] exact Devpost custom-field checklist prepared.
+- [ ] Open Source direct contribution URL confirmed.
+- [ ] required human attestations completed.
+- [ ] final Devpost submission.
 
-Phase 12 gate: **IN PROGRESS**.
+Phase 12 repository package: **READY**.  
+Phase 12 final submission gate: **IN PROGRESS** — blocked only on clean media, final Open Source contribution URL, user attestations, and Devpost submit action.
 
 ## MVP completion gate
 

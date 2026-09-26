@@ -6,6 +6,9 @@ REWIND is a spatial-AI system that lets people save semantic checkpoints of phys
 
 Built for **Build, Ship, Shape: Amazon Developer Hackathon (2026)**.
 
+**Live demo:** https://rewind-rho-dun.vercel.app  
+**Source:** https://github.com/realxpen/rewind
+
 - **Primary track:** Ring
 - **Mini-challenges:** AWS Builder + Open Source
 - **Current phase:** Phase 12 — Submission
@@ -19,6 +22,16 @@ Built for **Build, Ship, Shape: Amazon Developer Hackathon (2026)**.
 2. **DIFF** — observe the space again and deterministically compare it with the checkpoint.
 3. **REWIND** — generate an ordered restoration plan from the semantic differences.
 4. **VERIFY** — observe again, recompute the diff, and continue until the deterministic engine reaches **100% RESTORED**.
+
+## Submission proof
+
+REWIND keeps evidence honest:
+
+- **Live Ring proof** demonstrates Ring Developer Playground → WHEP live frame → Nova semantic state.
+- **Image + Alexa** demonstrates the repeatable SAVE → DIFF → REWIND → VERIFY interaction.
+- **Controlled fixtures** provide deterministic ground-truth evaluation.
+
+The photo flow is never presented as Live Ring camera truth.
 
 ## Architecture principle
 
@@ -192,6 +205,10 @@ The tracked-absence mechanism is checkpoint-driven rather than object/image hard
 
 See `docs/PHASE11_EVALUATION.md` and `docs/FRICTION_LOG.md` for the evaluation protocol, final run set, limitations, and developer friction observed during the build.
 
+## Architecture diagram
+
+See the full judge-facing Mermaid diagram and trust boundaries in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Quick start
 
 Requires **Node.js 22+**.
@@ -233,7 +250,7 @@ npm run eval:record
 npm run eval:summary
 ```
 
-For local credentials and environment configuration, copy `.env.example` to `.env` and follow the project documentation. Do not commit AWS or Ring secrets.
+For local credentials and environment configuration, copy `.env.example` to `.env` and follow [docs/SETUP.md](docs/SETUP.md). Do not commit AWS or Ring secrets.
 
 ## Technology
 
@@ -288,9 +305,19 @@ See `PROJECT_STATE.md` for the detailed gate history.
 - `docs/PRD.md` — product requirements
 - `docs/PHYSICAL_STATE_PROTOCOL.md` — semantic state contract
 - `docs/ARCHITECTURE.md` — architecture and package boundaries
+- `docs/SETUP.md` — local/live setup
+- `docs/RING_INTEGRATION.md` — primary-track Ring proof
+- `docs/ALEXA_MCP.md` — Alexa voice path + MCP status
+- `docs/AWS_ARCHITECTURE.md` — AWS Builder integration
+- `docs/PRIVACY.md` — retention/trust model
 - `docs/TESTING.md` — testing strategy
 - `docs/PHASE11_EVALUATION.md` — final evaluation protocol and results
-- `docs/FRICTION_LOG.md` — Amazon/Ring developer friction and feature requests
+- `docs/DEMO_SCRIPT.md` — under-three-minute final video plan
+- `docs/SCREENSHOTS.md` — clean submission gallery capture plan
+- `docs/PRODUCT_FEEDBACK.md` — required Amazon tool feedback + feature requests
+- `docs/DEVPOST_SUBMISSION.md` — submission copy
+- `docs/SUBMISSION_CHECKLIST.md` — final Devpost gate
+- `docs/FRICTION_LOG.md` — Amazon/Ring developer friction
 - `AGENTS.md` — repository knowledge and AI-agent rules
 
 ## License
