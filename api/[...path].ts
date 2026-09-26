@@ -583,7 +583,7 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
           category: entity.category,
           confidence: entity.confidence,
           present: entity.attributes?.present,
-          relations: entity.relations.map(relation => ({
+          relations: (entity.relations ?? []).map(relation => ({
             type: relation.type,
             target: relation.target,
             confidence: relation.confidence,
