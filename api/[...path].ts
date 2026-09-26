@@ -315,8 +315,8 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
     });
     state.checkpointId = checkpoint.id;
     state.checkpointName = checkpoint.name;
-    state.rewindSessionId = undefined;
-    state.latestResult = undefined;
+    delete state.rewindSessionId;
+    delete state.latestResult;
     state.actionIndex = 0;
     state.statusMessage = `Saved ${checkpoint.name}. REWIND now remembers its semantic state.`;
     state.lastSpeech = `I'm saving the analyzed scene as ${checkpoint.name}. Ask me for status in a moment.`;
@@ -342,7 +342,7 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
     state.rewindSessionId = result.rewindSessionId;
     state.latestResult = result;
     state.actionIndex = 0;
-    state.statusMessage = undefined;
+    delete state.statusMessage;
     state.lastSpeech = `I'm checking the analyzed scene against ${checkpoint.name}. Ask me what's the status in a moment.`;
     await saveVoiceState(envelope, state);
     return alexaResponse(state.lastSpeech, true);
@@ -357,7 +357,7 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
     const observation = await latestObservation(state.spaceId);
     state.latestResult = computeResult(checkpoint, observation, state.rewindSessionId);
     state.actionIndex = 0;
-    state.statusMessage = undefined;
+    delete state.statusMessage;
     state.lastSpeech = "I'm checking the latest analyzed photo. Ask me what's the status in a moment.";
     await saveVoiceState(envelope, state);
     return alexaResponse(state.lastSpeech, true);
