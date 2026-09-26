@@ -4,6 +4,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dyn
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { BedrockNovaVisionClient } from "../packages/vision/src/bedrock.js";
+import type { TrackedEntityHint } from "../packages/vision/src/contracts.js";
 import { CheckpointService, DynamoCheckpointStore, summarizeCheckpoint } from "../packages/checkpoints/src/index.js";
 import type { Checkpoint } from "../packages/checkpoints/src/contracts.js";
 import { compareStates, calculateMatch } from "../packages/diff-engine/src/index.js";
@@ -445,6 +446,63 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
   return alexaResponse("I can remember an analyzed scene, rewind to it, check progress, or tell you the next restore step.");
 }
 
+function missingTrackedPresenceHints(
+  referenceState: PhysicalState | undefined,
+  trackedEntities: TrackedEntityHint[] | undefined,
+  observedState: PhysicalState,
+): TrackedEntityHint[] {
+  if (!referenceState || !trackedEntities?.length) return [];
+
+  const observedKeys = new Set(observedState.entities.map(entity => entity.key));
+  const referenceByKey = new Map(referenceState.entities.map(entity => [entity.key, entity]));
+
+  return trackedEntities
+    .filter(hint => {
+      const reference = referenceByKey.get(hint.key);
+      return reference?.attributes?.present === true
+        && !observedKeys.has(hint.key)
+        && Boolean(hint.observableAttributes?.present);
+    })
+    .map(hint => ({
+      ...hint,
+      description: [
+        hint.description ?? "",
+        "FOCUSED PRESENCE AUDIT: return this exact tracked key even when the object is absent. Emit present=false with confidence >= 0.85 only when the saved support/location area is visible and unoccluded and the saved object is clearly absent. If identity or visibility is uncertain, return the exact key below 0.60 confidence and omit present.",
+      ].filter(Boolean).join(" "),
+    }));
+}
+
+function mergeAuditedPresence(
+  state: PhysicalState,
+  hints: TrackedEntityHint[],
+  auditState: PhysicalState,
+): PhysicalState {
+  if (!hints.length) return state;
+  const allowed = new Map(hints.map(hint => [hint.key, hint.category]));
+  const existing = new Set(state.entities.map(entity => entity.key));
+
+  const audited = auditState.entities.filter(entity => {
+    const expectedCategory = allowed.get(entity.key);
+    return expectedCategory === entity.category
+      && !existing.has(entity.key)
+      && typeof entity.attributes?.present === "boolean"
+      && entity.confidence >= 0.85;
+  });
+
+  if (!audited.length) return state;
+  return {
+    ...state,
+    entities: [
+      ...state.entities,
+      ...audited.map(entity => ({
+        ...entity,
+        attributes: { present: entity.attributes!.present as boolean },
+        relations: entity.relations ?? [],
+      })),
+    ],
+  };
+}
+
 async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void> {
   const body = parseBody(req);
   if (!validSpaceId(body.spaceId) || typeof body.capturedAt !== "string" || !Number.isFinite(Date.parse(body.capturedAt))) {
@@ -485,13 +543,34 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
       ...(trackedEntities ? { trackedEntities } : {}),
     },
   });
+
+  let finalState = result.state;
+  let totalLatencyMs = result.latencyMs;
+  let presenceAuditCount = 0;
+  const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
+  if (missingPresence.length > 0) {
+    const audit = await nova.observe({
+      imageBytes: bytes,
+      format: "jpeg",
+      context: {
+        spaceId: body.spaceId,
+        capturedAt: body.capturedAt,
+        trackedEntities: missingPresence,
+      },
+    });
+    totalLatencyMs += audit.latencyMs;
+    const merged = mergeAuditedPresence(finalState, missingPresence, audit.state);
+    presenceAuditCount = merged.entities.length - finalState.entities.length;
+    finalState = merged;
+  }
+
   const observation: RuntimeObservation = {
     spaceId: body.spaceId,
     observationId: `vercel-photo-${randomUUID()}`,
-    state: result.state,
+    state: finalState,
     evidenceMode: "vision",
     ...(result.modelId ? { modelId: result.modelId } : {}),
-    ...(typeof result.latencyMs === "number" ? { latencyMs: result.latencyMs } : {}),
+    ...(typeof totalLatencyMs === "number" ? { latencyMs: totalLatencyMs } : {}),
     updatedAt: new Date().toISOString(),
   };
   await saveLatestObservation(observation);
@@ -500,6 +579,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
     state: observation.state,
     modelId: observation.modelId,
     latencyMs: observation.latencyMs,
+    presenceAuditCount,
     source: "photo",
     persisted: "semantic-state-only",
   });
