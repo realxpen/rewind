@@ -1,10 +1,11 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { BedrockNovaVisionClient } from "../packages/vision/src/bedrock.js";
 import type { TrackedEntityHint } from "../packages/vision/src/contracts.js";
+import { extractJsonObject } from "../packages/vision/src/extract-json.js";
 import { CheckpointService, DynamoCheckpointStore, summarizeCheckpoint } from "../packages/checkpoints/src/index.js";
 import type { Checkpoint } from "../packages/checkpoints/src/contracts.js";
 import { compareStates, calculateMatch } from "../packages/diff-engine/src/index.js";
@@ -472,28 +473,104 @@ function missingTrackedPresenceHints(
     }));
 }
 
-function mergeAuditedAbsence(
+interface PresenceAuditResult {
+  key: string;
+  status: "PRESENT" | "ABSENT" | "UNCERTAIN";
+  supportVisible: boolean;
+  confidence: number;
+}
+
+async function auditTrackedAbsence(
+  imageBytes: Uint8Array,
+  hint: TrackedEntityHint,
+): Promise<{ result?: PresenceAuditResult; latencyMs: number }> {
+  const prompt = [
+    "You are REWIND's focused visual presence auditor.",
+    "Inspect the current image only. The checkpoint description is a search hint, not evidence that the object is currently present.",
+    "Decide whether this exact saved object is PRESENT, ABSENT, or UNCERTAIN.",
+    "Use ABSENT only when the saved support/location area is clearly visible and unoccluded and the exact saved object is not there.",
+    "A different object, different color, or merely similar category does not count as the saved object.",
+    "Use UNCERTAIN if the support area is hidden, cropped, ambiguous, or identity cannot be resolved.",
+    "Return exactly one JSON object and no prose.",
+    `Tracked key: ${hint.key}`,
+    `Category: ${hint.category}`,
+    `Saved identity/location hints: ${hint.description ?? "none"}`,
+    'JSON shape: {"key":"exact.key","status":"PRESENT|ABSENT|UNCERTAIN","supportVisible":true,"confidence":0.0}',
+  ].join("\n");
+
+  const startedAt = Date.now();
+  const response = await bedrockClient.send(new ConverseCommand({
+    modelId,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          image: {
+            format: "jpeg",
+            source: { bytes: imageBytes },
+          },
+        },
+        { text: prompt },
+      ],
+    }],
+    inferenceConfig: {
+      maxTokens: 300,
+      temperature: 0,
+      topP: 0.1,
+    },
+  }));
+  const latencyMs = Date.now() - startedAt;
+
+  const content = response.output?.message?.content ?? [];
+  const textBlock = content.find(block => "text" in block && typeof block.text === "string");
+  if (!textBlock || !("text" in textBlock) || typeof textBlock.text !== "string") {
+    return { latencyMs };
+  }
+
+  try {
+    const parsed = JSON.parse(extractJsonObject(textBlock.text)) as Partial<PresenceAuditResult>;
+    if (
+      parsed.key !== hint.key
+      || (parsed.status !== "PRESENT" && parsed.status !== "ABSENT" && parsed.status !== "UNCERTAIN")
+      || typeof parsed.supportVisible !== "boolean"
+      || typeof parsed.confidence !== "number"
+      || !Number.isFinite(parsed.confidence)
+      || parsed.confidence < 0
+      || parsed.confidence > 1
+    ) {
+      return { latencyMs };
+    }
+    return { result: parsed as PresenceAuditResult, latencyMs };
+  } catch {
+    return { latencyMs };
+  }
+}
+
+function mergeExplicitAbsence(
   state: PhysicalState,
   hint: TrackedEntityHint,
-  auditState: PhysicalState,
+  audit: PresenceAuditResult | undefined,
 ): PhysicalState {
   if (state.entities.some(entity => entity.key === hint.key)) return state;
+  if (
+    !audit
+    || audit.status !== "ABSENT"
+    || audit.supportVisible !== true
+    || audit.confidence < 0.85
+  ) {
+    return state;
+  }
 
-  const audited = auditState.entities.find(entity =>
-    entity.key === hint.key
-    && entity.category === hint.category
-    && entity.attributes?.present === false
-    && entity.confidence >= 0.85);
-
-  if (!audited) return state;
   return {
     ...state,
     entities: [
       ...state.entities,
       {
-        ...audited,
+        key: hint.key,
+        category: hint.category,
+        confidence: audit.confidence,
         attributes: { present: false },
-        relations: audited.relations ?? [],
+        relations: [],
       },
     ],
   };
@@ -546,17 +623,9 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
   if (missingPresence.length > 0) {
     for (const hint of missingPresence) {
-      const audit = await nova.observe({
-        imageBytes: bytes,
-        format: "jpeg",
-        context: {
-          spaceId: body.spaceId,
-          capturedAt: body.capturedAt,
-          trackedEntities: [hint],
-        },
-      });
+      const audit = await auditTrackedAbsence(bytes, hint);
       totalLatencyMs += audit.latencyMs;
-      const merged = mergeAuditedAbsence(finalState, hint, audit.state);
+      const merged = mergeExplicitAbsence(finalState, hint, audit.result);
       presenceAuditCount += merged.entities.length - finalState.entities.length;
       finalState = merged;
     }
