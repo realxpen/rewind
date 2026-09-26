@@ -513,6 +513,7 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
         defaultSpaceId,
         storageConfigured: Boolean(tableName),
         awsAuth: roleArn ? "vercel-oidc" : "default-provider-chain",
+        alexaRelayConfigured: Boolean(process.env.REWIND_ALEXA_RELAY_SECRET?.trim()),
         photoPersistence: "semantic-state-only",
       });
       return;
