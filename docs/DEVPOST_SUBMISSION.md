@@ -112,7 +112,8 @@ Ring Developer APIs / Playground, WHEP/WebRTC, Amazon Bedrock, Amazon Nova 2 Lit
 - Repository URL: https://github.com/realxpen/rewind
 - Project status: New
 - AWS Builder: Yes
-- Open Source: Yes, but confirm the final direct contribution URL before submission
+- Open Source: Yes
+- Open Source contribution URL: https://github.com/realxpen/rewind/pull/21
 - Open Source project repo: https://github.com/realxpen/rewind
 - GitHub username: realxpen
 - Testing link: https://rewind-rho-dun.vercel.app
@@ -127,7 +128,9 @@ REWIND uses Amazon Bedrock/Nova 2 Lite for visual state extraction, DynamoDB for
 
 REWIND introduces **Physical State Protocol v0.1**, an open semantic representation for describing, comparing, and restoring physical environments. The repository contains JSON schema, TypeScript types, normalization/validation, deterministic diffing, restoration planning, fixtures, tests, and documentation.
 
-Before final submission, provide a direct contribution URL that clearly satisfies the mini-challenge wording.
+Direct contribution: https://github.com/realxpen/rewind/pull/21
+
+The PR publishes a standalone PSP v0.1 guide on a public branch and is intentionally left open as a distinct hackathon contribution.
 
 ## Feedback
 

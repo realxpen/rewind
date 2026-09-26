@@ -89,8 +89,8 @@ Project: **REWIND** / rewind-vk4mdr
 - [x] project status: New
 - [x] AWS Builder: Yes
 - [x] AWS Builder explanation
-- [x] Open Source: Yes, subject to final contribution URL
-- [ ] Open Source direct contribution URL
+- [x] Open Source: Yes
+- [x] Open Source direct contribution URL: https://github.com/realxpen/rewind/pull/21
 - [x] Open Source project repository URL
 - [x] GitHub username: realxpen
 - [x] feature requests
@@ -122,7 +122,7 @@ Project: **REWIND** / rewind-vk4mdr
 
 - [x] MIT public repository
 - [x] PSP schema/types/normalizer/diff/restore/tests/docs
-- [ ] confirm direct contribution URL satisfies mini-challenge wording
+- [x] public PSP contribution PR opened: https://github.com/realxpen/rewind/pull/21
 
 ## Final public checks
 
@@ -138,4 +138,4 @@ Then verify repo opens logged out, LICENSE visible, diagrams render, live demo l
 
 ## Gate
 
-Phase 12 is not fully closed until public video, clean screenshots, Open Source contribution URL, human attestations, and final Devpost submission are complete.
+Phase 12 is not fully closed until public video, clean screenshots, human attestations, and final Devpost submission are complete.

@@ -485,12 +485,12 @@ Phase 11 gate: **PASS**.
 - [x] AWS Builder explanation.
 - [x] Open Source explanation.
 - [x] exact Devpost custom-field checklist prepared.
-- [ ] Open Source direct contribution URL confirmed.
+- [x] Open Source direct contribution URL confirmed: https://github.com/realxpen/rewind/pull/21.
 - [ ] required human attestations completed.
 - [ ] final Devpost submission.
 
 Phase 12 repository package: **READY**.  
-Phase 12 final submission gate: **IN PROGRESS** — blocked only on clean media, final Open Source contribution URL, user attestations, and Devpost submit action.
+Phase 12 final submission gate: **IN PROGRESS** — blocked only on clean media, user attestations, and Devpost submit action.
 
 ## MVP completion gate
 
