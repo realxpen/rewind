@@ -162,8 +162,26 @@ async function saveLatestObservation(observation: RuntimeObservation): Promise<v
 
 async function latestObservation(spaceId: string): Promise<RuntimeObservation> {
   const observation = await getRuntime<RuntimeObservation>(runtimePartition("scene", spaceId), "latest");
-  if (!observation) throw new Error("Analyze a photo for this space first.");
-  return observation;
+  if (observation) return observation;
+
+  // Compatibility path for observations written before runtime partition keys
+  // were made authoritative. Migrate the legacy row forward on first read.
+  const legacy = await getRuntime<RuntimeObservation & { kind?: string }>(spaceId, "latest");
+  if (legacy?.kind === "LATEST_OBSERVATION" && legacy.observationId && legacy.state) {
+    const migrated: RuntimeObservation = {
+      spaceId,
+      observationId: legacy.observationId,
+      state: legacy.state,
+      evidenceMode: "vision",
+      ...(legacy.modelId ? { modelId: legacy.modelId } : {}),
+      ...(typeof legacy.latencyMs === "number" ? { latencyMs: legacy.latencyMs } : {}),
+      updatedAt: legacy.updatedAt ?? new Date().toISOString(),
+    };
+    await saveLatestObservation(migrated);
+    return migrated;
+  }
+
+  throw new Error("Analyze a photo for this space first.");
 }
 
 function voiceKey(envelope: AlexaRequestEnvelope): string {
