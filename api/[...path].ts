@@ -315,6 +315,13 @@ function secretMatches(provided: string | undefined, expected: string): boolean 
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function relayAuthorized(req: RequestLike): boolean {
+  const expected = process.env.REWIND_ALEXA_RELAY_SECRET?.trim();
+  const raw = req.headers["x-rewind-relay-secret"];
+  const supplied = Array.isArray(raw) ? raw[0] : raw;
+  return Boolean(expected && secretMatches(supplied, expected));
+}
+
 async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaResponseEnvelope> {
   const expectedSkillId = process.env.REWIND_ALEXA_SKILL_ID?.trim();
   const actualSkillId = envelope.context?.System?.application?.applicationId
@@ -334,11 +341,6 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
   if (type !== "IntentRequest") return alexaResponse("I didn't understand that REWIND request.");
 
   const intent = envelope.request?.intent?.name;
-  console.info("Alexa request", {
-    type,
-    intent: intent ?? null,
-    checkpointName: checkpointSlot(envelope) ?? null,
-  });
   if (intent === "AMAZON.StopIntent" || intent === "AMAZON.CancelIntent") {
     return alexaResponse("Okay. REWIND will stop talking for now.", true);
   }
@@ -770,6 +772,10 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
     }
 
     if (path === "current-scene" && req.method === "GET") {
+      if (!relayAuthorized(req)) {
+        send(res, 401, { error: "Unauthorized." });
+        return;
+      }
       const spaceId = queryValue(req, "spaceId");
       if (!validSpaceId(spaceId)) {
         send(res, 400, { error: "Space ID is invalid." });
@@ -798,6 +804,10 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
     }
 
     if (path === "checkpoint-diagnostic" && req.method === "GET") {
+      if (!relayAuthorized(req)) {
+        send(res, 401, { error: "Unauthorized." });
+        return;
+      }
       const spaceId = queryValue(req, "spaceId");
       const checkpointId = queryValue(req, "checkpointId");
       if (!validSpaceId(spaceId) || !validOpaqueId(checkpointId)) {
@@ -835,10 +845,7 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
     }
 
     if (path === "alexa-relay" && req.method === "POST") {
-      const expected = process.env.REWIND_ALEXA_RELAY_SECRET?.trim();
-      const raw = req.headers["x-rewind-relay-secret"];
-      const supplied = Array.isArray(raw) ? raw[0] : raw;
-      if (!expected || !secretMatches(supplied, expected)) {
+      if (!relayAuthorized(req)) {
         send(res, 401, { error: "Unauthorized." });
         return;
       }

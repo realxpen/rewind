@@ -85,3 +85,42 @@ Final aggregate results:
 Controlled Demo evidence validates the SAVE → DIFF → REWIND → VERIFY loop. Live Ring evidence validates the real Ring Playground → frame → Nova → semantic-state → compare path. The Live Ring runs do not claim physical rearrangement testing.
 
 Phase 11 gate: **PASS**.
+
+
+## Submission Image + Alexa reliability gate — 2026-09-26
+
+This acceptance run is separate from the 7-trial aggregate above and is not counted as Live Ring evidence. It validates the production Vercel photo adapter plus the real Alexa custom skill relay:
+
+```text
+Image → Nova 2 Lite → validated semantic state → deterministic DIFF/REWIND → Alexa → VERIFY
+```
+
+Test sequence:
+
+1. Saved `vercel desk baseline` from the original desk image.
+2. Baseline semantic state contained six entities, including `notebook.red` and `notebook.turquoise` with `present=true`.
+3. Re-analyzed a changed image with both tracked notebooks removed.
+4. The generic contrastive consensus absence audit produced explicit high-confidence negative evidence for both tracked objects:
+   - `notebook.red present=false confidence=0.95`
+   - `notebook.turquoise present=false confidence=0.95`
+5. Deterministic comparison produced **2 important changes**.
+6. Alexa reported two changes, delivered the first restore instruction, and `next step` delivered the second restore action.
+7. Partial restoration verified that one completed action disappears while the remaining action stays pending.
+8. Re-analyzing the original baseline image restored both tracked objects to `present=true`.
+9. Alexa verification reached: **“The important visible parts of vercel desk baseline are restored.”**
+
+Reliability hardening performed before the passing run:
+
+- omission alone remains `UNKNOWN`; it never becomes a deterministic removal;
+- tracked absence is generic and checkpoint-driven, not keyed to notebook names, colors, or a specific image;
+- omitted tracked objects receive two independent focused Nova audits;
+- both audits must agree on `ABSENT`, support visibility, and confidence >= 0.85 before `present=false` is admitted into deterministic truth;
+- visible same-category objects are supplied as contrastive candidates to reduce identity confusion;
+- positive presence still comes from direct visual evidence rather than the absence fallback;
+- the two-object removal → two actions → partial verify → full restore sequence is preserved as an automated regression test.
+
+Temporary production diagnostics are now protected by the existing relay secret, and temporary Alexa intent debug logging has been removed.
+
+This gate proves the photo-first submission path and real Alexa guidance path. It does **not** relabel photo evidence as Live Ring evidence.
+
+Phase 11 submission reliability gate: **PASS**.

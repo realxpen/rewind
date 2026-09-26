@@ -186,6 +186,10 @@ Final hackathon validation set:
 
 The two Live Ring runs validate the real Ring → frame → Nova → semantic-state → compare path on an unchanged scene. They do **not** claim physical rearrangement testing.
 
+A separate production **Image + Alexa** acceptance run on 2026-09-26 validated the submission path with two simultaneously removed tracked objects. Nova produced explicit `present=false` evidence for both at 0.95 confidence through a generic two-pass contrastive absence audit; deterministic comparison produced two changes; Alexa guided both restore actions; partial verification reduced the pending work; and the restored baseline reached the final RESTORED response. This photo-first acceptance is intentionally not presented as Live Ring evidence.
+
+The tracked-absence mechanism is checkpoint-driven rather than object/image hardcoded: omission remains UNKNOWN, and a missing tracked object is admitted as absent only when two focused audits agree that its support area is visible and the object is absent at confidence >= 0.85.
+
 See `docs/PHASE11_EVALUATION.md` and `docs/FRICTION_LOG.md` for the evaluation protocol, final run set, limitations, and developer friction observed during the build.
 
 ## Quick start

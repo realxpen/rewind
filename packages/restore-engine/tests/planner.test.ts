@@ -1,4 +1,5 @@
 import { demoReady, messy, partial, restored } from "../../physical-state-protocol/fixtures/studio.js";
+import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
 import { compareStates } from "../../diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress } from "../src/index.js";
 
@@ -54,6 +55,95 @@ const explicitRemovedPlan = buildRestorePlan([{
 assert(
   explicitRemovedPlan.actions[0]?.instruction === "Move notebook left on table main.",
   "Explicit removed movable objects should get object-level restore guidance anchored to the saved relation.",
+);
+
+
+const twoNotebookBaseline: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "two-object-regression",
+  capturedAt: "2026-09-26T16:00:00.000Z",
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.99 },
+    {
+      key: "notebook.red",
+      category: "notebook",
+      confidence: 0.99,
+      attributes: { present: true, color: "red" },
+      relations: [{ type: "ON", target: "table.main", confidence: 0.99 }],
+    },
+    {
+      key: "notebook.turquoise",
+      category: "notebook",
+      confidence: 0.99,
+      attributes: { present: true, color: "turquoise" },
+      relations: [{ type: "ON", target: "table.main", confidence: 0.99 }],
+    },
+  ],
+};
+const twoNotebookChanged: PhysicalState = {
+  ...twoNotebookBaseline,
+  capturedAt: "2026-09-26T16:01:00.000Z",
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.99 },
+    { key: "notebook.red", category: "notebook", confidence: 0.95, attributes: { present: false } },
+    { key: "notebook.turquoise", category: "notebook", confidence: 0.95, attributes: { present: false } },
+  ],
+};
+const twoNotebookDiffs = compareStates(twoNotebookBaseline, twoNotebookChanged, { evidenceMode: "vision" });
+const twoNotebookRemoved = twoNotebookDiffs.filter(diff => diff.type === "REMOVED");
+assert(twoNotebookRemoved.length === 2, `Expected two confirmed removals, got ${twoNotebookRemoved.length}.`);
+assert(twoNotebookRemoved.some(diff => diff.entity === "notebook.red"), "Expected red notebook removal.");
+assert(twoNotebookRemoved.some(diff => diff.entity === "notebook.turquoise"), "Expected turquoise notebook removal.");
+
+const twoNotebookPlan = buildRestorePlan(twoNotebookDiffs);
+assert(twoNotebookPlan.actions.length === 2, `Expected two restore actions, got ${twoNotebookPlan.actions.length}.`);
+assert(
+  twoNotebookPlan.actions.some(action => action.instruction === "Move notebook red on table main."),
+  "Expected red notebook restore guidance.",
+);
+assert(
+  twoNotebookPlan.actions.some(action => action.instruction === "Move notebook turquoise on table main."),
+  "Expected turquoise notebook restore guidance.",
+);
+
+const twoNotebookPartial: PhysicalState = {
+  ...twoNotebookBaseline,
+  capturedAt: "2026-09-26T16:02:00.000Z",
+  entities: [
+    { key: "table.main", category: "table", confidence: 0.99 },
+    {
+      key: "notebook.red",
+      category: "notebook",
+      confidence: 0.95,
+      attributes: { present: true, color: "red" },
+      relations: [{ type: "ON", target: "table.main", confidence: 0.95 }],
+    },
+    { key: "notebook.turquoise", category: "notebook", confidence: 0.95, attributes: { present: false } },
+  ],
+};
+const twoNotebookPartialProgress = updateRestoreProgress(
+  twoNotebookPlan,
+  compareStates(twoNotebookBaseline, twoNotebookPartial, { evidenceMode: "vision" }),
+);
+assert(
+  twoNotebookPartialProgress.actions.filter(action => action.status === "VERIFIED").length === 1
+  && twoNotebookPartialProgress.actions.filter(action => action.status === "PENDING").length === 1,
+  "Partial two-object restore must verify one action and leave one pending.",
+);
+assert(!twoNotebookPartialProgress.restored, "Partial two-object restore must not be RESTORED.");
+
+const twoNotebookRestored: PhysicalState = {
+  ...twoNotebookBaseline,
+  capturedAt: "2026-09-26T16:03:00.000Z",
+};
+const twoNotebookFinalProgress = updateRestoreProgress(
+  twoNotebookPlan,
+  compareStates(twoNotebookBaseline, twoNotebookRestored, { evidenceMode: "vision" }),
+);
+assert(twoNotebookFinalProgress.restored, "Full two-object restore must reach RESTORED.");
+assert(
+  twoNotebookFinalProgress.actions.every(action => action.status === "VERIFIED"),
+  "Full two-object restore must verify both actions.",
 );
 
 const partialProgress = updateRestoreProgress(plan, compareStates(demoReady, partial));

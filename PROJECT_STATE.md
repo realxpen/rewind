@@ -434,15 +434,37 @@ Phase 10 gate: **PASS**.
 
 ## Phase 11 — Evaluation
 
-- [ ] repeat the complete demo many times.
-- [ ] record object accuracy.
-- [ ] record diff accuracy.
-- [ ] record latency.
-- [ ] record Nova failures.
-- [ ] record Ring failures.
-- [ ] record tool failures.
-- [ ] record verification failures.
-- [ ] keep `docs/FRICTION_LOG.md` current with meaningful Amazon developer friction.
+- [x] repeat the complete demo many times.
+- [x] record object accuracy.
+- [x] record diff accuracy.
+- [x] record latency.
+- [x] record Nova failures.
+- [x] record Ring failures.
+- [x] record tool failures.
+- [x] record verification failures.
+- [x] keep `docs/FRICTION_LOG.md` current with meaningful Amazon developer friction.
+- [x] validate the production Image + Alexa submission path end-to-end.
+- [x] preserve the two-object tracked-removal regression as automated coverage.
+- [x] protect temporary semantic diagnostic routes with the relay secret and remove temporary Alexa request logging.
+
+Final production Image + Alexa reliability acceptance on 2026-09-26:
+
+```text
+SAVE baseline
+→ remove red + turquoise tracked notebooks
+→ Nova consensus absence audit
+→ notebook.red present=false @ 0.95
+→ notebook.turquoise present=false @ 0.95
+→ deterministic DIFF = 2 important changes
+→ Alexa REWIND gives first instruction
+→ Alexa next step gives second instruction
+→ partial restore verifies one action and leaves one pending
+→ original baseline image re-analyzed
+→ both tracked notebooks present=true
+→ VERIFY reaches RESTORED
+```
+
+The photo acceptance run is separate from Live Ring evidence. Production absence handling is checkpoint-driven and generic; object omission alone remains UNKNOWN and two high-confidence focused audits must agree before a tracked object becomes `present=false`.
 
 Phase 11 gate: **PASS**.
 
