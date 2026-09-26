@@ -38,7 +38,7 @@ jobs:
           FUNCTION_NAME: rewind-alexa-relay
           EXECUTION_ROLE_ARN: arn:aws:iam::707859598737:role/rewind-alexa-lambda-role
           SKILL_ID: amzn1.ask.skill.ed4d68b4-0177-4107-b07d-1730db88da2a
-          RELAY_URL: https://holophrastic-bendwise-sherman.ngrok-free.dev/alexa-relay
+          RELAY_URL: https://rewind-rho-dun.vercel.app/api/alexa-relay
         run: |
           set -euo pipefail
 
