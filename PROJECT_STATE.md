@@ -476,7 +476,7 @@ Phase 11 gate: **PASS**.
 - [x] public repo verification.
 - [x] license verification.
 - [x] setup steps.
-- [x] demo script.
+- [x] demo script updated for native REWIND Voice + separate actual Alexa proof.
 - [ ] demo video recorded/uploaded.
 - [x] Devpost story drafted.
 - [x] product feedback drafted.
@@ -489,7 +489,10 @@ Phase 11 gate: **PASS**.
 - [ ] required human attestations completed.
 - [ ] final Devpost submission.
 
-Phase 12 repository package: **READY**.  
+Phase 12 repository package: **READY**.
+- [x] REWIND Voice integrated into the public submission UI with microphone + typed fallback + browser speech playback.
+- [x] external Alexa Custom Skill preserved as a separate real integration proof.
+- [x] Ring remains the primary observation integration and primary hackathon track.  
 Phase 12 final submission gate: **IN PROGRESS** — blocked only on clean media, user attestations, and Devpost submit action.
 
 ## MVP completion gate

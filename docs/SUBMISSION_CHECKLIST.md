@@ -38,9 +38,9 @@ Current official phase: submissions open.
 ## Screenshots
 
 - [ ] clean hero screenshot
-- [ ] Alexa “2 important changes” screenshot
-- [ ] second next-step instruction screenshot
-- [ ] final RESTORED screenshot
+- [ ] REWIND Voice “2 important changes” screenshot
+- [ ] REWIND Voice second next-step instruction screenshot
+- [ ] final REWIND Voice RESTORED screenshot
 - [ ] Live Ring Playground proof screenshot
 - [ ] architecture export if desired
 - [ ] PSP/open-source screenshot
@@ -51,10 +51,11 @@ Current official phase: submissions open.
 Devpost requires a public YouTube or Vimeo video, in English, under 3 minutes.
 
 - [ ] record clean product footage
-- [ ] show 2-change REWIND result
-- [ ] show first + second restore instructions
+- [ ] show 2-change REWIND Voice result
+- [ ] show first + second REWIND Voice restore instructions
 - [ ] show partial verify
-- [ ] show full restored response
+- [ ] show full REWIND Voice restored response
+- [ ] briefly show actual Alexa Custom Skill integration
 - [ ] show real Ring Playground integration
 - [ ] show architecture
 - [ ] show PSP/open-source contribution

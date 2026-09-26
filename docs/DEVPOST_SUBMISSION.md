@@ -53,7 +53,7 @@ Ring Playground
 → fresh verification
 ~~~
 
-The judge-facing submission adapter provides a repeatable Image + Alexa version of the same restoration loop and is labeled separately from Live Ring proof.
+The judge-facing submission adapter provides a repeatable Image + REWIND Voice version of the same restoration loop in one coherent product UI. The separately implemented Alexa Custom Skill remains a real external voice integration through AWS Lambda.
 
 The core architecture rule is:
 
@@ -82,7 +82,8 @@ The demo video will show this live Ring Playground proof directly.
 The Ring Playground does not expose deterministic physical rearrangement controls. We solved this by keeping evidence boundaries explicit:
 
 - Live Ring proves the real Ring transport/perception path.
-- Image + Alexa proves the repeatable production restoration interaction.
+- Image + REWIND Voice proves the repeatable production restoration interaction inside the REWIND UI.
+- The actual Alexa Custom Skill separately proves external Alexa → Lambda → REWIND integration.
 - Controlled fixtures prove deterministic behavior under known ground truth.
 
 A second challenge was negative visual evidence, solved by keeping omission UNKNOWN and requiring explicit high-confidence consensus before absence becomes deterministic truth.
