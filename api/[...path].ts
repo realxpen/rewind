@@ -1,8 +1,10 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { BedrockNovaVisionClient } from "../packages/vision/src/bedrock.js";
-import { CheckpointService, createDynamoCheckpointStoreFromEnv, summarizeCheckpoint } from "../packages/checkpoints/src/index.js";
+import { CheckpointService, DynamoCheckpointStore, summarizeCheckpoint } from "../packages/checkpoints/src/index.js";
 import type { Checkpoint } from "../packages/checkpoints/src/contracts.js";
 import { compareStates, calculateMatch } from "../packages/diff-engine/src/index.js";
 import { buildRestorePlan, updateRestoreProgress } from "../packages/restore-engine/src/index.js";
@@ -53,10 +55,21 @@ const modelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0"
 const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "phone-my-room";
 const tableName = process.env.DYNAMODB_CHECKPOINTS_TABLE?.trim() || "";
 
-const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
-const nova = new BedrockNovaVisionClient({ region, modelId });
+const roleArn = process.env.AWS_ROLE_ARN?.trim();
+const credentials = roleArn
+  ? awsCredentialsProvider({ roleArn })
+  : undefined;
+
+const awsClientConfig = {
+  region,
+  ...(credentials ? { credentials } : {}),
+};
+
+const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient(awsClientConfig));
+const bedrockClient = new BedrockRuntimeClient(awsClientConfig);
+const nova = new BedrockNovaVisionClient({ region, modelId, client: bedrockClient });
 const checkpoints = tableName
-  ? new CheckpointService(createDynamoCheckpointStoreFromEnv())
+  ? new CheckpointService(new DynamoCheckpointStore(tableName, documentClient))
   : undefined;
 
 function requireConfigured(): CheckpointService {
@@ -499,6 +512,7 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
         modelId,
         defaultSpaceId,
         storageConfigured: Boolean(tableName),
+        awsAuth: roleArn ? "vercel-oidc" : "default-provider-chain",
         photoPersistence: "semantic-state-only",
       });
       return;
