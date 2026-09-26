@@ -578,6 +578,17 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
         observationId: observation.observationId,
         entityCount: observation.state.entities.length,
         updatedAt: observation.updatedAt,
+        entities: observation.state.entities.map(entity => ({
+          key: entity.key,
+          category: entity.category,
+          confidence: entity.confidence,
+          present: entity.attributes?.present,
+          relations: entity.relations.map(relation => ({
+            type: relation.type,
+            target: relation.target,
+            confidence: relation.confidence,
+          })),
+        })),
       });
       return;
     }
