@@ -543,6 +543,23 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
       return;
     }
 
+    if (path === "current-scene" && req.method === "GET") {
+      const spaceId = queryValue(req, "spaceId");
+      if (!validSpaceId(spaceId)) {
+        send(res, 400, { error: "Space ID is invalid." });
+        return;
+      }
+      const observation = await latestObservation(spaceId);
+      send(res, 200, {
+        ready: true,
+        spaceId: observation.spaceId,
+        observationId: observation.observationId,
+        entityCount: observation.state.entities.length,
+        updatedAt: observation.updatedAt,
+      });
+      return;
+    }
+
     if (path === "checkpoints" && (req.method === "GET" || req.method === "POST")) {
       await handleCheckpoints(req, res);
       return;
