@@ -1,0 +1,535 @@
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { BedrockNovaVisionClient } from "../packages/vision/src/bedrock.js";
+import { CheckpointService, createDynamoCheckpointStoreFromEnv, summarizeCheckpoint } from "../packages/checkpoints/src/index.js";
+import type { Checkpoint } from "../packages/checkpoints/src/contracts.js";
+import { compareStates, calculateMatch } from "../packages/diff-engine/src/index.js";
+import { buildRestorePlan, updateRestoreProgress } from "../packages/restore-engine/src/index.js";
+import type { RewindToolResult } from "../packages/agent-tools/src/contracts.js";
+import type { PhysicalState } from "../packages/physical-state-protocol/src/index.js";
+import { trackedEntitiesFromReferenceState } from "../packages/ring/src/tracked-entities.js";
+import type { AlexaRequestEnvelope, AlexaResponseEnvelope } from "../packages/alexa-skill/src/types.js";
+
+interface RequestLike {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+  body?: unknown;
+  query?: Record<string, string | string[] | undefined>;
+}
+
+interface ResponseLike {
+  status(code: number): ResponseLike;
+  setHeader(name: string, value: string): void;
+  json(value: unknown): void;
+  end(value?: string): void;
+}
+
+interface RuntimeObservation {
+  spaceId: string;
+  observationId: string;
+  state: PhysicalState;
+  evidenceMode: "vision";
+  modelId?: string;
+  latencyMs?: number;
+  updatedAt: string;
+}
+
+interface PersistentVoiceState {
+  spaceId: string;
+  checkpointId?: string;
+  checkpointName?: string;
+  rewindSessionId?: string;
+  latestResult?: RewindToolResult;
+  actionIndex: number;
+  statusMessage?: string;
+  lastSpeech?: string;
+  updatedAt: string;
+}
+
+const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1";
+const modelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0";
+const defaultSpaceId = process.env.REWIND_DEFAULT_SPACE_ID?.trim() || "phone-my-room";
+const tableName = process.env.DYNAMODB_CHECKPOINTS_TABLE?.trim() || "";
+
+const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
+const nova = new BedrockNovaVisionClient({ region, modelId });
+const checkpoints = tableName
+  ? new CheckpointService(createDynamoCheckpointStoreFromEnv())
+  : undefined;
+
+function requireConfigured(): CheckpointService {
+  if (!tableName || !checkpoints) throw new Error("DYNAMODB_CHECKPOINTS_TABLE is not configured.");
+  return checkpoints;
+}
+
+function validSpaceId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-zA-Z0-9._-]{1,80}$/.test(value);
+}
+
+function validOpaqueId(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= 120;
+}
+
+function send(res: ResponseLike, status: number, value: unknown): void {
+  res.status(status);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.json(value);
+}
+
+function safeMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/checkpoint not found/i.test(message)) return "Checkpoint not found.";
+  if (/DYNAMODB_CHECKPOINTS_TABLE/i.test(message)) return "Server storage is not configured.";
+  if (/credentials|credential/i.test(message)) return "AWS credentials are not configured for this deployment.";
+  if (/access denied|not authorized/i.test(message)) return "AWS rejected this deployment's permissions.";
+  if (/Nova returned no text/i.test(message)) return "Nova did not return a usable observation.";
+  return "REWIND could not complete this request.";
+}
+
+function parseBody(req: RequestLike): Record<string, unknown> {
+  if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+    return req.body as Record<string, unknown>;
+  }
+  if (typeof req.body === "string" && req.body.trim()) {
+    return JSON.parse(req.body) as Record<string, unknown>;
+  }
+  return {};
+}
+
+function routePath(req: RequestLike): string {
+  const hostHeader = req.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  const url = new URL(req.url ?? "/", `https://${host || "localhost"}`);
+  return url.pathname.replace(/^\/api\/?/, "").replace(/\/+$/, "");
+}
+
+function queryValue(req: RequestLike, name: string): string | undefined {
+  const value = req.query?.[name];
+  if (Array.isArray(value)) return value[0];
+  if (typeof value === "string") return value;
+  const hostHeader = req.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  const url = new URL(req.url ?? "/", `https://${host || "localhost"}`);
+  return url.searchParams.get(name) ?? undefined;
+}
+
+function runtimePartition(kind: "scene" | "voice", value: string): string {
+  return `__rewind_runtime__:${kind}:${value}`;
+}
+
+async function putRuntime(spaceId: string, id: string, item: Record<string, unknown>): Promise<void> {
+  if (!tableName) throw new Error("DYNAMODB_CHECKPOINTS_TABLE is not configured.");
+  await documentClient.send(new PutCommand({
+    TableName: tableName,
+    Item: { spaceId, id, ...item },
+  }));
+}
+
+async function getRuntime<T>(spaceId: string, id: string): Promise<T | undefined> {
+  if (!tableName) throw new Error("DYNAMODB_CHECKPOINTS_TABLE is not configured.");
+  const result = await documentClient.send(new GetCommand({
+    TableName: tableName,
+    Key: { spaceId, id },
+  })) as { Item?: Record<string, unknown> };
+  if (!result.Item) return undefined;
+  const { spaceId: _spaceId, id: _id, ...rest } = result.Item;
+  return rest as T;
+}
+
+async function saveLatestObservation(observation: RuntimeObservation): Promise<void> {
+  await putRuntime(runtimePartition("scene", observation.spaceId), "latest", {
+    kind: "LATEST_OBSERVATION",
+    ...observation,
+  });
+}
+
+async function latestObservation(spaceId: string): Promise<RuntimeObservation> {
+  const observation = await getRuntime<RuntimeObservation>(runtimePartition("scene", spaceId), "latest");
+  if (!observation) throw new Error("Analyze a photo for this space first.");
+  return observation;
+}
+
+function voiceKey(envelope: AlexaRequestEnvelope): string {
+  const userId = envelope.context?.System?.user?.userId
+    ?? envelope.session?.user?.userId
+    ?? "rewind-alexa-demo-user";
+  return createHash("sha256").update(userId).digest("hex");
+}
+
+async function loadVoiceState(envelope: AlexaRequestEnvelope): Promise<PersistentVoiceState> {
+  const key = voiceKey(envelope);
+  const stored = await getRuntime<PersistentVoiceState>(runtimePartition("voice", key), "state");
+  return stored ?? {
+    spaceId: defaultSpaceId,
+    actionIndex: 0,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function saveVoiceState(envelope: AlexaRequestEnvelope, state: PersistentVoiceState): Promise<void> {
+  state.updatedAt = new Date().toISOString();
+  await putRuntime(runtimePartition("voice", voiceKey(envelope)), "state", state as unknown as Record<string, unknown>);
+}
+
+function alexaResponse(text: string, shouldEndSession = false, reprompt?: string): AlexaResponseEnvelope {
+  return {
+    version: "1.0",
+    response: {
+      outputSpeech: { type: "PlainText", text },
+      ...(reprompt ? {
+        reprompt: { outputSpeech: { type: "PlainText", text: reprompt } },
+      } : {}),
+      shouldEndSession,
+    },
+  };
+}
+
+function humanEntityKey(value: string): string {
+  return value.replace(/[._-]+/g, " ").replace(/\bmain\b/gi, "").replace(/\s+/g, " ").trim();
+}
+
+function normalized(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function checkpointSlot(envelope: AlexaRequestEnvelope): string | undefined {
+  const slots = envelope.request?.intent?.slots;
+  return slots?.checkpointName?.value?.trim()
+    || slots?.stateName?.value?.trim()
+    || slots?.checkpoint?.value?.trim();
+}
+
+function pendingActions(result: RewindToolResult | undefined) {
+  return result?.plan.actions.filter(action => action.status === "PENDING") ?? [];
+}
+
+function resultSpeech(result: RewindToolResult, checkpointName?: string): string {
+  const name = checkpointName || result.checkpoint.name;
+  const actions = pendingActions(result);
+  if (actions.length > 0) {
+    return `I found ${actions.length} important ${actions.length === 1 ? "change" : "changes"} from ${name}. First, ${actions[0]!.instruction} Say next step to hear another instruction, or analyze another photo and say check again.`;
+  }
+  if (result.state === "LOW_CONFIDENCE" || result.plan.blockedUnknowns.length > 0) {
+    const blocked = result.plan.blockedUnknowns.map(humanEntityKey).filter(Boolean);
+    const named = blocked.slice(0, 2);
+    const itemPhrase = named.length
+      ? ` I couldn't confidently verify ${named.join(named.length === 2 ? " and " : "")}${blocked.length > 2 ? ` and ${blocked.length - 2} more` : ""}.`
+      : "";
+    return `I don't see a confirmed important change from ${name}, but I don't have enough visual evidence to call it fully restored yet.${itemPhrase} Analyze a clearer photo and ask me to check again.`;
+  }
+  return `The important visible parts of ${name} are restored. I don't need a perfect pixel match to stop guiding you.`;
+}
+
+function stateFromResult(match: ReturnType<typeof calculateMatch>, plan: ReturnType<typeof buildRestorePlan>) {
+  if (match.restored) return "RESTORED" as const;
+  if (plan.actions.length === 0 && plan.blockedUnknowns.length > 0) return "LOW_CONFIDENCE" as const;
+  return "GUIDING" as const;
+}
+
+function computeResult(checkpoint: Checkpoint, observation: RuntimeObservation, rewindSessionId?: string): RewindToolResult {
+  const diffs = compareStates(checkpoint.state, observation.state, { evidenceMode: "vision" });
+  const match = calculateMatch(diffs);
+  const plan = buildRestorePlan(diffs);
+  const progress = updateRestoreProgress(plan, diffs);
+  const finalPlan = { actions: progress.actions, blockedUnknowns: plan.blockedUnknowns };
+  const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
+  return {
+    rewindSessionId: rewindSessionId ?? randomUUID(),
+    checkpoint: summarizeCheckpoint(checkpoint),
+    state: stateFromResult(match, finalPlan),
+    match,
+    plan: finalPlan,
+    changeCount: changes.length,
+    changes,
+    progress,
+  };
+}
+
+async function findCheckpoint(spaceId: string, spokenName?: string): Promise<Checkpoint | undefined> {
+  const all = await requireConfigured().list(spaceId);
+  if (!all.length) return undefined;
+  if (!spokenName) return all[0];
+  const wanted = normalized(spokenName);
+  return all.find(item => normalized(item.name) === wanted)
+    ?? all.find(item => normalized(item.name).includes(wanted) || wanted.includes(normalized(item.name)));
+}
+
+function secretMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaResponseEnvelope> {
+  const expectedSkillId = process.env.REWIND_ALEXA_SKILL_ID?.trim();
+  const actualSkillId = envelope.context?.System?.application?.applicationId
+    ?? envelope.session?.application?.applicationId;
+  if (expectedSkillId && actualSkillId !== expectedSkillId) {
+    return alexaResponse("This request was not intended for this REWIND skill.", true);
+  }
+
+  const state = await loadVoiceState(envelope);
+  const type = envelope.request?.type;
+  if (type === "LaunchRequest") {
+    state.lastSpeech = "REWIND is ready. Analyze a scene on the REWIND web app, then ask me to remember it or rewind to a saved setup.";
+    await saveVoiceState(envelope, state);
+    return alexaResponse(state.lastSpeech, false, "Try saying, remember this room as desk baseline.");
+  }
+  if (type === "SessionEndedRequest") return alexaResponse("", true);
+  if (type !== "IntentRequest") return alexaResponse("I didn't understand that REWIND request.");
+
+  const intent = envelope.request?.intent?.name;
+  if (intent === "AMAZON.StopIntent" || intent === "AMAZON.CancelIntent") {
+    return alexaResponse("Okay. REWIND will stop talking for now.", true);
+  }
+  if (intent === "AMAZON.HelpIntent") {
+    return alexaResponse("Analyze a photo in the REWIND web app. Then say remember this room as desk baseline, rewind to desk baseline, check again, or what's next.");
+  }
+  if (intent === "RepeatStepIntent" || intent === "AMAZON.RepeatIntent") {
+    return alexaResponse(state.lastSpeech ?? "There isn't a REWIND instruction to repeat yet.");
+  }
+
+  if (intent === "ListCheckpointsIntent") {
+    const items = await requireConfigured().list(state.spaceId);
+    const text = items.length
+      ? `Your saved states are ${items.slice(0, 5).map(item => item.name).join(", ")}.`
+      : "You don't have any saved REWIND states for this space yet.";
+    state.lastSpeech = text;
+    await saveVoiceState(envelope, state);
+    return alexaResponse(text);
+  }
+
+  if (intent === "SaveCheckpointIntent") {
+    const name = checkpointSlot(envelope);
+    if (!name) return alexaResponse("What should I call this setup?", false, "For example, say desk baseline.");
+    const observation = await latestObservation(state.spaceId);
+    const checkpoint = await requireConfigured().save({
+      spaceId: state.spaceId,
+      name,
+      observationId: observation.observationId,
+      state: observation.state,
+    });
+    state.checkpointId = checkpoint.id;
+    state.checkpointName = checkpoint.name;
+    state.rewindSessionId = undefined;
+    state.latestResult = undefined;
+    state.actionIndex = 0;
+    state.statusMessage = `Saved ${checkpoint.name}. REWIND now remembers its semantic state.`;
+    state.lastSpeech = `I'm saving the analyzed scene as ${checkpoint.name}. Ask me for status in a moment.`;
+    await saveVoiceState(envelope, state);
+    return alexaResponse(state.lastSpeech, true);
+  }
+
+  if (intent === "StartRewindIntent") {
+    const spokenName = checkpointSlot(envelope);
+    const checkpoint = await findCheckpoint(state.spaceId, spokenName);
+    if (!checkpoint) {
+      const text = spokenName
+        ? `I couldn't find a saved state called ${spokenName}.`
+        : "You don't have a saved state for this space yet.";
+      state.lastSpeech = text;
+      await saveVoiceState(envelope, state);
+      return alexaResponse(text);
+    }
+    const observation = await latestObservation(state.spaceId);
+    const result = computeResult(checkpoint, observation);
+    state.checkpointId = checkpoint.id;
+    state.checkpointName = checkpoint.name;
+    state.rewindSessionId = result.rewindSessionId;
+    state.latestResult = result;
+    state.actionIndex = 0;
+    state.statusMessage = undefined;
+    state.lastSpeech = `I'm checking the analyzed scene against ${checkpoint.name}. Ask me what's the status in a moment.`;
+    await saveVoiceState(envelope, state);
+    return alexaResponse(state.lastSpeech, true);
+  }
+
+  if (intent === "CheckAgainIntent") {
+    if (!state.checkpointId || !state.rewindSessionId) {
+      return alexaResponse("Start a rewind first, then I can check your progress.");
+    }
+    const checkpoint = await requireConfigured().get(state.spaceId, state.checkpointId);
+    if (!checkpoint) return alexaResponse("I couldn't find that saved state.");
+    const observation = await latestObservation(state.spaceId);
+    state.latestResult = computeResult(checkpoint, observation, state.rewindSessionId);
+    state.actionIndex = 0;
+    state.statusMessage = undefined;
+    state.lastSpeech = "I'm checking the latest analyzed photo. Ask me what's the status in a moment.";
+    await saveVoiceState(envelope, state);
+    return alexaResponse(state.lastSpeech, true);
+  }
+
+  if (intent === "StatusIntent") {
+    const text = state.statusMessage
+      ?? (state.latestResult ? resultSpeech(state.latestResult, state.checkpointName) : "REWIND isn't restoring anything right now.");
+    state.lastSpeech = text;
+    await saveVoiceState(envelope, state);
+    return alexaResponse(text);
+  }
+
+  if (intent === "NextStepIntent") {
+    const actions = pendingActions(state.latestResult);
+    if (!actions.length) {
+      const text = state.latestResult
+        ? resultSpeech(state.latestResult, state.checkpointName)
+        : "Start a rewind first and I'll guide you one step at a time.";
+      state.lastSpeech = text;
+      await saveVoiceState(envelope, state);
+      return alexaResponse(text);
+    }
+    state.actionIndex = Math.min(state.actionIndex + 1, actions.length - 1);
+    const text = `Next, ${actions[state.actionIndex]!.instruction} Analyze another photo and say check again when you want me to verify it.`;
+    state.lastSpeech = text;
+    await saveVoiceState(envelope, state);
+    return alexaResponse(text);
+  }
+
+  return alexaResponse("I can remember an analyzed scene, rewind to it, check progress, or tell you the next restore step.");
+}
+
+async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void> {
+  const body = parseBody(req);
+  if (!validSpaceId(body.spaceId) || typeof body.capturedAt !== "string" || !Number.isFinite(Date.parse(body.capturedAt))) {
+    send(res, 400, { error: "A valid space and capture time are required." });
+    return;
+  }
+  if (typeof body.image !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.image)) {
+    send(res, 400, { error: "A base64 JPEG is required." });
+    return;
+  }
+  const bytes = Buffer.from(body.image, "base64");
+  if (bytes.length < 4 || bytes.length > 3_500_000 || bytes[0] !== 255 || bytes[1] !== 216 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) {
+    send(res, 400, { error: "Upload a JPEG under 3.5 MB." });
+    return;
+  }
+
+  let referenceState: PhysicalState | undefined;
+  if (body.checkpointId !== undefined) {
+    if (!validOpaqueId(body.checkpointId)) {
+      send(res, 400, { error: "Checkpoint ID is invalid." });
+      return;
+    }
+    const checkpoint = await requireConfigured().get(body.spaceId, body.checkpointId);
+    if (!checkpoint) {
+      send(res, 404, { error: "Checkpoint not found." });
+      return;
+    }
+    referenceState = checkpoint.state;
+  }
+
+  const trackedEntities = trackedEntitiesFromReferenceState(referenceState);
+  const result = await nova.observe({
+    imageBytes: bytes,
+    format: "jpeg",
+    context: {
+      spaceId: body.spaceId,
+      capturedAt: body.capturedAt,
+      ...(trackedEntities ? { trackedEntities } : {}),
+    },
+  });
+  const observation: RuntimeObservation = {
+    spaceId: body.spaceId,
+    observationId: `vercel-photo-${randomUUID()}`,
+    state: result.state,
+    evidenceMode: "vision",
+    ...(result.modelId ? { modelId: result.modelId } : {}),
+    ...(typeof result.latencyMs === "number" ? { latencyMs: result.latencyMs } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  await saveLatestObservation(observation);
+  send(res, 200, {
+    observationId: observation.observationId,
+    state: observation.state,
+    modelId: observation.modelId,
+    latencyMs: observation.latencyMs,
+    source: "photo",
+    persisted: "semantic-state-only",
+  });
+}
+
+async function handleCheckpoints(req: RequestLike, res: ResponseLike): Promise<void> {
+  if (req.method === "GET") {
+    const spaceId = queryValue(req, "spaceId");
+    if (!validSpaceId(spaceId)) {
+      send(res, 400, { error: "Space ID is invalid." });
+      return;
+    }
+    const items = await requireConfigured().list(spaceId);
+    send(res, 200, items.map(summarizeCheckpoint));
+    return;
+  }
+
+  const body = parseBody(req);
+  if (!validSpaceId(body.spaceId) || typeof body.name !== "string" || !body.name.trim()) {
+    send(res, 400, { error: "Space and checkpoint name are required." });
+    return;
+  }
+  const observation = await latestObservation(body.spaceId);
+  if (body.observationId && body.observationId !== observation.observationId) {
+    send(res, 409, { error: "Analyze the current photo again before saving it." });
+    return;
+  }
+  const checkpoint = await requireConfigured().save({
+    spaceId: body.spaceId,
+    name: body.name.trim(),
+    observationId: observation.observationId,
+    state: observation.state,
+  });
+  send(res, 201, summarizeCheckpoint(checkpoint));
+}
+
+export default async function handler(req: RequestLike, res: ResponseLike): Promise<void> {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  try {
+    const path = routePath(req);
+    if (path === "health" && req.method === "GET") {
+      send(res, 200, {
+        ok: true,
+        service: "REWIND Vercel Submission Runtime",
+        region,
+        modelId,
+        defaultSpaceId,
+        storageConfigured: Boolean(tableName),
+        photoPersistence: "semantic-state-only",
+      });
+      return;
+    }
+
+    if (path === "observe" && req.method === "POST") {
+      await handleObserve(req, res);
+      return;
+    }
+
+    if (path === "checkpoints" && (req.method === "GET" || req.method === "POST")) {
+      await handleCheckpoints(req, res);
+      return;
+    }
+
+    if (path === "alexa-relay" && req.method === "POST") {
+      const expected = process.env.REWIND_ALEXA_RELAY_SECRET?.trim();
+      const raw = req.headers["x-rewind-relay-secret"];
+      const supplied = Array.isArray(raw) ? raw[0] : raw;
+      if (!expected || !secretMatches(supplied, expected)) {
+        send(res, 401, { error: "Unauthorized." });
+        return;
+      }
+      const envelope = parseBody(req) as unknown as AlexaRequestEnvelope;
+      send(res, 200, await handleAlexa(envelope));
+      return;
+    }
+
+    send(res, 404, { error: "Not found." });
+  } catch (error) {
+    console.error("REWIND Vercel request failed:", error instanceof Error ? error.message : "unknown error");
+    send(res, 500, { error: safeMessage(error) });
+  }
+}
