@@ -39,8 +39,8 @@ export class DynamoCheckpointStore implements CheckpointStore {
 
     // Checkpoint partitions are canonical, but tolerate and ignore malformed/non-checkpoint
     // rows so one bad write cannot break every list operation for the space.
-    return (result.Items ?? [])
-      .filter((item): item is unknown as Checkpoint =>
+    const checkpoints = (result.Items ?? [])
+      .filter((item) =>
         typeof item.id === "string"
         && typeof item.spaceId === "string"
         && typeof item.name === "string"
@@ -48,7 +48,9 @@ export class DynamoCheckpointStore implements CheckpointStore {
         && typeof item.stateHash === "string"
         && typeof item.createdAt === "string"
         && typeof item.state === "object"
-        && item.state !== null)
+        && item.state !== null);
+
+    return (checkpoints as unknown as Checkpoint[])
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
