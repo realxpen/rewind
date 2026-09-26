@@ -11,13 +11,13 @@ const vercel = JSON.parse(await readFile("vercel.json", "utf8")) as {
 };
 
 assert.match(html, /Ctrl\+Z for reality/);
-assert.match(html, /Image \+ Alexa/);
+assert.match(html, /Image \+ REWIND Voice/);
 assert.match(html, /Take photo/);
 assert.match(html, /Analyze with Nova/);
 assert.match(html, /semantic state only/i);
 assert.match(app, /api\("observe"/);
 assert.match(app, /capture="environment"|cameraInput/);
-assert.match(app, /ask rewind memory to remember this room as desk baseline/i);
+assert.match(html, /remember this room as desk baseline/i);
 assert.match(api, /LATEST_OBSERVATION/);
 assert.match(api, /persisted: "semantic-state-only"/);
 assert.match(api, /alexa-relay/);
@@ -38,7 +38,7 @@ assert.equal(vercel.functions?.["api/[...path].ts"]?.maxDuration, 60);
 // Browser JS syntax remains valid.
 new Function(app);
 
-console.log("PASS Vercel submission contract: public photo UI + semantic-only persistence + Alexa relay + deterministic REWIND.");
+console.log("PASS Vercel submission contract: public photo UI + REWIND Voice + semantic-only persistence + Alexa relay + deterministic REWIND.");
 
 const voiceApiSource = api;
 assert.match(voiceApiSource, /path === "voice"/, "Submission runtime must expose REWIND Voice.");
