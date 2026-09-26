@@ -149,6 +149,11 @@ async function getRuntime<T>(spaceId: string, id: string): Promise<T | undefined
     Key: { spaceId, id },
   })) as { Item?: Record<string, unknown> };
   if (!result.Item) return undefined;
+  if (result.Item.payload && typeof result.Item.payload === "object") {
+    return result.Item.payload as T;
+  }
+
+  // Backward compatibility for runtime rows written before payload wrapping.
   const { spaceId: _spaceId, id: _id, ...rest } = result.Item;
   return rest as T;
 }
@@ -162,7 +167,12 @@ async function saveLatestObservation(observation: RuntimeObservation): Promise<v
 
 async function latestObservation(spaceId: string): Promise<RuntimeObservation> {
   const observation = await getRuntime<RuntimeObservation>(runtimePartition("scene", spaceId), "latest");
-  if (observation) return observation;
+  if (observation) {
+    return {
+      ...observation,
+      spaceId: validSpaceId(observation.spaceId) ? observation.spaceId : spaceId,
+    };
+  }
 
   // Compatibility path for observations written before runtime partition keys
   // were made authoritative. Migrate the legacy row forward on first read.
@@ -194,7 +204,14 @@ function voiceKey(envelope: AlexaRequestEnvelope): string {
 async function loadVoiceState(envelope: AlexaRequestEnvelope): Promise<PersistentVoiceState> {
   const key = voiceKey(envelope);
   const stored = await getRuntime<PersistentVoiceState>(runtimePartition("voice", key), "state");
-  return stored ?? {
+  if (stored) {
+    return {
+      ...stored,
+      spaceId: validSpaceId(stored.spaceId) ? stored.spaceId : defaultSpaceId,
+      actionIndex: Number.isInteger(stored.actionIndex) ? stored.actionIndex : 0,
+    };
+  }
+  return {
     spaceId: defaultSpaceId,
     actionIndex: 0,
     updatedAt: new Date().toISOString(),
