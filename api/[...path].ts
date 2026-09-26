@@ -593,6 +593,38 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
       return;
     }
 
+    if (path === "checkpoint-diagnostic" && req.method === "GET") {
+      const spaceId = queryValue(req, "spaceId");
+      const checkpointId = queryValue(req, "checkpointId");
+      if (!validSpaceId(spaceId) || !validOpaqueId(checkpointId)) {
+        send(res, 400, { error: "Space ID or checkpoint ID is invalid." });
+        return;
+      }
+      const checkpoint = await requireConfigured().get(spaceId, checkpointId);
+      if (!checkpoint) {
+        send(res, 404, { error: "Checkpoint not found." });
+        return;
+      }
+      send(res, 200, {
+        id: checkpoint.id,
+        name: checkpoint.name,
+        entities: checkpoint.state.entities.map(entity => ({
+          key: entity.key,
+          category: entity.category,
+          confidence: entity.confidence,
+          present: entity.attributes?.present,
+          color: entity.attributes?.color ?? entity.attributes?.colour,
+          appearance: entity.attributes?.appearance,
+          relations: (entity.relations ?? []).map(relation => ({
+            type: relation.type,
+            target: relation.target,
+            confidence: relation.confidence,
+          })),
+        })),
+      });
+      return;
+    }
+
     if (path === "checkpoints" && (req.method === "GET" || req.method === "POST")) {
       await handleCheckpoints(req, res);
       return;
