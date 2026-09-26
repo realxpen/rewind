@@ -1,5 +1,12 @@
 {
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "functions": {
+    "api/[...path].ts": {
+      "maxDuration": 60
+    }
   }
 }
