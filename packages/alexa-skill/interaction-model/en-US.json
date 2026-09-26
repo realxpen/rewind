@@ -35,7 +35,10 @@
             "rewind this room to {checkpointName}",
             "rewind the room to {checkpointName}",
             "rewind my room back to {checkpointName}",
-            "rewind this room back to {checkpointName}"
+            "rewind this room back to {checkpointName}",
+            "rewind to vercel desk baseline",
+            "restore vercel desk baseline",
+            "restore the room to vercel desk baseline"
           ]
         },
         {
@@ -149,6 +152,15 @@
             {
               "name": {
                 "value": "Fresh Buffered Setup"
+              }
+            },
+            {
+              "name": {
+                "value": "Vercel Desk Baseline",
+                "synonyms": [
+                  "vercel baseline",
+                  "vercel desk setup"
+                ]
               }
             }
           ]
