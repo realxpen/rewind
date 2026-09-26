@@ -467,38 +467,34 @@ function missingTrackedPresenceHints(
       ...hint,
       description: [
         hint.description ?? "",
-        "FOCUSED PRESENCE AUDIT: return this exact tracked key even when the object is absent. Emit present=false with confidence >= 0.85 only when the saved support/location area is visible and unoccluded and the saved object is clearly absent. If identity or visibility is uncertain, return the exact key below 0.60 confidence and omit present.",
+        "FOCUSED ABSENCE AUDIT: inspect only this saved object against the current image. Return this exact tracked key. Emit present=false with confidence >= 0.85 only when the saved support/location area is visible and unoccluded and this exact saved object is clearly absent. If the object appears visible, do not use this fallback to assert presence; return the key below 0.60 confidence and omit present. If identity or visibility is uncertain, also omit present.",
       ].filter(Boolean).join(" "),
     }));
 }
 
-function mergeAuditedPresence(
+function mergeAuditedAbsence(
   state: PhysicalState,
-  hints: TrackedEntityHint[],
+  hint: TrackedEntityHint,
   auditState: PhysicalState,
 ): PhysicalState {
-  if (!hints.length) return state;
-  const allowed = new Map(hints.map(hint => [hint.key, hint.category]));
-  const existing = new Set(state.entities.map(entity => entity.key));
+  if (state.entities.some(entity => entity.key === hint.key)) return state;
 
-  const audited = auditState.entities.filter(entity => {
-    const expectedCategory = allowed.get(entity.key);
-    return expectedCategory === entity.category
-      && !existing.has(entity.key)
-      && typeof entity.attributes?.present === "boolean"
-      && entity.confidence >= 0.85;
-  });
+  const audited = auditState.entities.find(entity =>
+    entity.key === hint.key
+    && entity.category === hint.category
+    && entity.attributes?.present === false
+    && entity.confidence >= 0.85);
 
-  if (!audited.length) return state;
+  if (!audited) return state;
   return {
     ...state,
     entities: [
       ...state.entities,
-      ...audited.map(entity => ({
-        ...entity,
-        attributes: { present: entity.attributes!.present as boolean },
-        relations: entity.relations ?? [],
-      })),
+      {
+        ...audited,
+        attributes: { present: false },
+        relations: audited.relations ?? [],
+      },
     ],
   };
 }
@@ -549,19 +545,21 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   let presenceAuditCount = 0;
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
   if (missingPresence.length > 0) {
-    const audit = await nova.observe({
-      imageBytes: bytes,
-      format: "jpeg",
-      context: {
-        spaceId: body.spaceId,
-        capturedAt: body.capturedAt,
-        trackedEntities: missingPresence,
-      },
-    });
-    totalLatencyMs += audit.latencyMs;
-    const merged = mergeAuditedPresence(finalState, missingPresence, audit.state);
-    presenceAuditCount = merged.entities.length - finalState.entities.length;
-    finalState = merged;
+    for (const hint of missingPresence) {
+      const audit = await nova.observe({
+        imageBytes: bytes,
+        format: "jpeg",
+        context: {
+          spaceId: body.spaceId,
+          capturedAt: body.capturedAt,
+          trackedEntities: [hint],
+        },
+      });
+      totalLatencyMs += audit.latencyMs;
+      const merged = mergeAuditedAbsence(finalState, hint, audit.state);
+      presenceAuditCount += merged.entities.length - finalState.entities.length;
+      finalState = merged;
+    }
   }
 
   const observation: RuntimeObservation = {
