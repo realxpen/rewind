@@ -332,6 +332,11 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
   if (type !== "IntentRequest") return alexaResponse("I didn't understand that REWIND request.");
 
   const intent = envelope.request?.intent?.name;
+  console.info("Alexa request", {
+    type,
+    intent: intent ?? null,
+    checkpointName: checkpointSlot(envelope) ?? null,
+  });
   if (intent === "AMAZON.StopIntent" || intent === "AMAZON.CancelIntent") {
     return alexaResponse("Okay. REWIND will stop talking for now.", true);
   }
