@@ -35,8 +35,21 @@ export class DynamoCheckpointStore implements CheckpointStore {
       TableName: this.tableName,
       KeyConditionExpression: "spaceId = :spaceId",
       ExpressionAttributeValues: { ":spaceId": spaceId },
-    })) as { Items?: Checkpoint[] };
-    return (result.Items ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    })) as { Items?: Array<Record<string, unknown>> };
+
+    // Checkpoint partitions are canonical, but tolerate and ignore malformed/non-checkpoint
+    // rows so one bad write cannot break every list operation for the space.
+    return (result.Items ?? [])
+      .filter((item): item is unknown as Checkpoint =>
+        typeof item.id === "string"
+        && typeof item.spaceId === "string"
+        && typeof item.name === "string"
+        && typeof item.observationId === "string"
+        && typeof item.stateHash === "string"
+        && typeof item.createdAt === "string"
+        && typeof item.state === "object"
+        && item.state !== null)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async get(spaceId: string, checkpointId: string): Promise<Checkpoint | undefined> {
