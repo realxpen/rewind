@@ -4,6 +4,8 @@ import { createPreviewServer } from "../src/preview-server.js";
 import type { VisionObservationRequest } from "../../vision/src/contracts.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
+import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
+import { reconcileTrackedEntityAliases } from "../src/tracked-entities.js";
 
 const spaceId = "identity-anchor-space";
 const checkpoint: Checkpoint = {
@@ -119,3 +121,69 @@ try {
   preview.server.close();
   preview.server.closeAllConnections();
 }
+
+
+const identityBaseline: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "identity-reconciliation",
+  capturedAt: "2026-09-26T18:00:00.000Z",
+  entities: [
+    { key: "chair.main", category: "chair", confidence: 0.99, attributes: { present: true } },
+    { key: "table.main", category: "table", confidence: 0.99 },
+  ],
+};
+
+const identityDrifted: PhysicalState = {
+  ...identityBaseline,
+  capturedAt: "2026-09-26T18:01:00.000Z",
+  entities: [
+    { key: "chair", category: "chair", confidence: 0.96, attributes: { present: true } },
+    {
+      key: "cup.main",
+      category: "cup",
+      confidence: 0.95,
+      relations: [{ type: "ON", target: "chair", confidence: 0.9 }],
+    },
+    { key: "table.main", category: "table", confidence: 0.99 },
+  ],
+};
+
+const agreedIdentity = new Map([
+  ["chair.main", {
+    key: "chair.main",
+    status: "PRESENT" as const,
+    confidence: 0.96,
+    matchedCurrentKey: "chair",
+  }],
+]);
+
+const reconciledIdentity = reconcileTrackedEntityAliases(
+  identityDrifted,
+  identityBaseline,
+  agreedIdentity,
+  agreedIdentity,
+);
+assert.equal(reconciledIdentity.reconciled, 1, "Expected one generic tracked-key reconciliation.");
+assert(reconciledIdentity.state.entities.some(entity => entity.key === "chair.main"), "Expected drifted chair key to reconcile to checkpoint identity.");
+assert(!reconciledIdentity.state.entities.some(entity => entity.key === "chair"), "Old drifted key must be removed after reconciliation.");
+assert.equal(
+  reconciledIdentity.state.entities.find(entity => entity.key === "cup.main")?.relations?.[0]?.target,
+  "chair.main",
+  "Relations targeting a reconciled alias must follow the checkpoint identity.",
+);
+
+const disagreeingIdentity = reconcileTrackedEntityAliases(
+  identityDrifted,
+  identityBaseline,
+  agreedIdentity,
+  new Map([
+    ["chair.main", {
+      key: "chair.main",
+      status: "PRESENT" as const,
+      confidence: 0.96,
+      matchedCurrentKey: "chair.other",
+    }],
+  ]),
+);
+assert.equal(disagreeingIdentity.reconciled, 0, "Audits must agree on the same candidate key before reconciliation.");
+assert(disagreeingIdentity.state.entities.some(entity => entity.key === "chair"), "Disagreement must preserve the observed key instead of guessing.");

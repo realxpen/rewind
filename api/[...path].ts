@@ -12,7 +12,7 @@ import { compareStates, calculateMatch } from "../packages/diff-engine/src/index
 import { buildRestorePlan, updateRestoreProgress } from "../packages/restore-engine/src/index.js";
 import type { RewindToolResult } from "../packages/agent-tools/src/contracts.js";
 import type { PhysicalState } from "../packages/physical-state-protocol/src/index.js";
-import { trackedEntitiesFromReferenceState } from "../packages/ring/src/tracked-entities.js";
+import { reconcileTrackedEntityAliases, trackedEntitiesFromReferenceState } from "../packages/ring/src/tracked-entities.js";
 import type { AlexaRequestEnvelope, AlexaResponseEnvelope } from "../packages/alexa-skill/src/types.js";
 
 interface RequestLike {
@@ -685,6 +685,7 @@ interface PresenceAuditResult {
   status: "PRESENT" | "ABSENT" | "UNCERTAIN";
   supportVisible: boolean;
   confidence: number;
+  matchedCurrentKey?: string | null;
 }
 
 function visiblePeerSummary(state: PhysicalState, hint: TrackedEntityHint): string {
@@ -729,10 +730,12 @@ async function runPresenceAudit(
     "The supplied visibleSameCategoryCandidates came from a separate whole-scene vision pass. Treat them as candidate distractors: compare them against the target identity instead of assuming they are the target.",
     "Use ABSENT only when the target's saved support/location area is clearly visible and unoccluded and the exact target object cannot be found there or elsewhere in the visible scene.",
     "Use PRESENT only when an exact identity match is visually supported.",
+    "If PRESENT and the matching object already appears in visibleSameCategoryCandidates under a different current key, return that exact candidate key as matchedCurrentKey. Never invent a candidate key. Use null when no listed candidate is the exact match.",
+    "For ABSENT or UNCERTAIN, matchedCurrentKey must be null.",
     "Use UNCERTAIN when the support area is cropped/occluded, identity is ambiguous, or evidence is insufficient.",
     "Return JSON only, no prose.",
     `Targets: ${JSON.stringify(targets)}`,
-    'JSON shape: {"results":[{"key":"exact.key","status":"PRESENT|ABSENT|UNCERTAIN","supportVisible":true,"confidence":0.0}]}',
+    'JSON shape: {"results":[{"key":"exact.saved.key","status":"PRESENT|ABSENT|UNCERTAIN","supportVisible":true,"confidence":0.0,"matchedCurrentKey":"candidate.key.or.null"}]}',
   ].join("\n");
 
   const startedAt = Date.now();
@@ -781,6 +784,11 @@ async function runPresenceAudit(
         || !Number.isFinite(item.confidence)
         || item.confidence < 0
         || item.confidence > 1
+        || (
+          item.matchedCurrentKey !== undefined
+          && item.matchedCurrentKey !== null
+          && (typeof item.matchedCurrentKey !== "string" || !validOpaqueId(item.matchedCurrentKey))
+        )
       ) {
         continue;
       }
@@ -878,6 +886,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   let finalState = result.state;
   let totalLatencyMs = result.latencyMs;
   let presenceAuditCount = 0;
+  let identityReconciliationCount = 0;
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
   if (missingPresence.length > 0) {
     const [absenceCheck, localizationCheck] = await Promise.all([
@@ -885,6 +894,18 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
       runPresenceAudit(bytes, missingPresence, result.state, "LOCALIZATION_CHECK"),
     ]);
     totalLatencyMs += Math.max(absenceCheck.latencyMs, localizationCheck.latencyMs);
+
+    if (referenceState) {
+      const identityConsensus = reconcileTrackedEntityAliases(
+        finalState,
+        referenceState,
+        absenceCheck.results,
+        localizationCheck.results,
+      );
+      identityReconciliationCount = identityConsensus.reconciled;
+      finalState = identityConsensus.state;
+    }
+
     const consensus = mergeConsensusAbsences(
       finalState,
       missingPresence,
@@ -911,6 +932,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
     modelId: observation.modelId,
     latencyMs: observation.latencyMs,
     presenceAuditCount,
+    identityReconciliationCount,
     source: "photo",
     persisted: "semantic-state-only",
   });

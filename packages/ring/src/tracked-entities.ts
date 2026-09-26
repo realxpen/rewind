@@ -73,3 +73,74 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
     return hint;
   });
 }
+
+
+export interface TrackedPresenceEvidence {
+  key: string;
+  status: "PRESENT" | "ABSENT" | "UNCERTAIN";
+  confidence: number;
+  matchedCurrentKey?: string | null;
+}
+
+export function reconcileTrackedEntityAliases(
+  state: PhysicalState,
+  referenceState: PhysicalState,
+  first: Map<string, TrackedPresenceEvidence>,
+  second: Map<string, TrackedPresenceEvidence>,
+): { state: PhysicalState; reconciled: number } {
+  const currentByKey = new Map(state.entities.map(entity => [entity.key, entity]));
+  const referenceByKey = new Map(referenceState.entities.map(entity => [entity.key, entity]));
+  const protectedReferenceKeys = new Set(referenceState.entities.map(entity => entity.key));
+  const replacements = new Map<string, string>();
+  const claimedCandidates = new Set<string>();
+
+  for (const [targetKey, reference] of referenceByKey) {
+    if (currentByKey.has(targetKey)) continue;
+
+    const a = first.get(targetKey);
+    const b = second.get(targetKey);
+    const candidateKey = a?.matchedCurrentKey?.trim();
+
+    if (
+      a?.status !== "PRESENT"
+      || b?.status !== "PRESENT"
+      || a.confidence < 0.9
+      || b.confidence < 0.9
+      || !candidateKey
+      || candidateKey !== b.matchedCurrentKey?.trim()
+      || claimedCandidates.has(candidateKey)
+      || protectedReferenceKeys.has(candidateKey)
+    ) {
+      continue;
+    }
+
+    const candidate = currentByKey.get(candidateKey);
+    if (!candidate || candidate.category !== reference.category) continue;
+
+    replacements.set(candidateKey, targetKey);
+    claimedCandidates.add(candidateKey);
+  }
+
+  if (!replacements.size) return { state, reconciled: 0 };
+
+  return {
+    state: {
+      ...state,
+      entities: state.entities.map(entity => {
+        const key = replacements.get(entity.key) ?? entity.key;
+        const relations = entity.relations?.map(relation => ({
+          ...relation,
+          ...(relation.target && replacements.has(relation.target)
+            ? { target: replacements.get(relation.target)! }
+            : {}),
+        }));
+        return {
+          ...entity,
+          key,
+          ...(relations ? { relations } : {}),
+        };
+      }),
+    },
+    reconciled: replacements.size,
+  };
+}

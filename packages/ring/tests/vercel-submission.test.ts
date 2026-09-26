@@ -52,3 +52,7 @@ assert.match(html, /External Alexa integration remains available/, "UI must dist
 assert.match(app, /SpeechRecognition|webkitSpeechRecognition/, "Public UI must support browser microphone recognition when available.");
 assert.match(app, /speechSynthesis/, "Public UI must speak REWIND Voice responses when available.");
 assert.match(app, /api\("voice"/, "Public UI must call the dedicated REWIND Voice endpoint.");
+
+assert.match(api, /reconcileTrackedEntityAliases/, "Production photo path must reconcile high-confidence tracked-key drift before deterministic DIFF.");
+assert.match(api, /matchedCurrentKey/, "Presence audits must return the current candidate key for identity reconciliation.");
+assert.match(api, /identityReconciliationCount/, "Observation responses should expose how many safe identity aliases were reconciled.");
