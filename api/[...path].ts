@@ -480,22 +480,52 @@ interface PresenceAuditResult {
   confidence: number;
 }
 
-async function auditTrackedAbsence(
+function visiblePeerSummary(state: PhysicalState, hint: TrackedEntityHint): string {
+  const peers = state.entities
+    .filter(entity => entity.category === hint.category && entity.key !== hint.key)
+    .slice(0, 8)
+    .map(entity => ({
+      key: entity.key,
+      category: entity.category,
+      confidence: entity.confidence,
+      attributes: entity.attributes ?? {},
+      relations: entity.relations ?? [],
+    }));
+  return JSON.stringify(peers);
+}
+
+async function runPresenceAudit(
   imageBytes: Uint8Array,
-  hint: TrackedEntityHint,
-): Promise<{ result?: PresenceAuditResult; latencyMs: number }> {
+  hints: TrackedEntityHint[],
+  observedState: PhysicalState,
+  mode: "ABSENCE_CHECK" | "LOCALIZATION_CHECK",
+): Promise<{ results: Map<string, PresenceAuditResult>; latencyMs: number }> {
+  if (!hints.length) return { results: new Map(), latencyMs: 0 };
+
+  const targets = hints.map(hint => ({
+    key: hint.key,
+    category: hint.category,
+    savedHints: hint.description ?? "",
+    visibleSameCategoryCandidates: JSON.parse(visiblePeerSummary(observedState, hint)) as unknown,
+  }));
+
+  const modeInstruction = mode === "ABSENCE_CHECK"
+    ? "For every target, actively test whether it is absent. Do not treat the checkpoint description as evidence that it is present."
+    : "For every target, actively try to locate an exact current-image match. If no exact match exists and its saved support/location area is clearly visible and unoccluded, classify it ABSENT.";
+
   const prompt = [
-    "You are REWIND's focused visual presence auditor.",
-    "Inspect the current image only. The checkpoint description is a search hint, not evidence that the object is currently present.",
-    "Decide whether this exact saved object is PRESENT, ABSENT, or UNCERTAIN.",
-    "Use ABSENT only when the saved support/location area is clearly visible and unoccluded and the exact saved object is not there.",
-    "A different object, different color, or merely similar category does not count as the saved object.",
-    "Use UNCERTAIN if the support area is hidden, cropped, ambiguous, or identity cannot be resolved.",
-    "Return exactly one JSON object and no prose.",
-    `Tracked key: ${hint.key}`,
-    `Category: ${hint.category}`,
-    `Saved identity/location hints: ${hint.description ?? "none"}`,
-    'JSON shape: {"key":"exact.key","status":"PRESENT|ABSENT|UNCERTAIN","supportVisible":true,"confidence":0.0}',
+    "You are REWIND's contrastive tracked-object presence auditor.",
+    "Inspect only the current image. Saved checkpoint details are search hints, never current-state evidence.",
+    modeInstruction,
+    "Evaluate EVERY target independently and return one result for every target key.",
+    "Do not match an object merely because it has the same category. Identity cues such as color, appearance, role, and saved location matter.",
+    "The supplied visibleSameCategoryCandidates came from a separate whole-scene vision pass. Treat them as candidate distractors: compare them against the target identity instead of assuming they are the target.",
+    "Use ABSENT only when the target's saved support/location area is clearly visible and unoccluded and the exact target object cannot be found there or elsewhere in the visible scene.",
+    "Use PRESENT only when an exact identity match is visually supported.",
+    "Use UNCERTAIN when the support area is cropped/occluded, identity is ambiguous, or evidence is insufficient.",
+    "Return JSON only, no prose.",
+    `Targets: ${JSON.stringify(targets)}`,
+    'JSON shape: {"results":[{"key":"exact.key","status":"PRESENT|ABSENT|UNCERTAIN","supportVisible":true,"confidence":0.0}]}',
   ].join("\n");
 
   const startedAt = Date.now();
@@ -514,65 +544,86 @@ async function auditTrackedAbsence(
       ],
     }],
     inferenceConfig: {
-      maxTokens: 300,
+      maxTokens: 900,
       temperature: 0,
       topP: 0.1,
     },
   }));
   const latencyMs = Date.now() - startedAt;
+  const out = new Map<string, PresenceAuditResult>();
 
   const content = response.output?.message?.content ?? [];
   const textBlock = content.find(block => "text" in block && typeof block.text === "string");
   if (!textBlock || !("text" in textBlock) || typeof textBlock.text !== "string") {
-    return { latencyMs };
+    return { results: out, latencyMs };
   }
 
   try {
-    const parsed = JSON.parse(extractJsonObject(textBlock.text)) as Partial<PresenceAuditResult>;
-    if (
-      parsed.key !== hint.key
-      || (parsed.status !== "PRESENT" && parsed.status !== "ABSENT" && parsed.status !== "UNCERTAIN")
-      || typeof parsed.supportVisible !== "boolean"
-      || typeof parsed.confidence !== "number"
-      || !Number.isFinite(parsed.confidence)
-      || parsed.confidence < 0
-      || parsed.confidence > 1
-    ) {
-      return { latencyMs };
+    const parsed = JSON.parse(extractJsonObject(textBlock.text)) as {
+      results?: Array<Partial<PresenceAuditResult>>;
+    };
+    const allowed = new Set(hints.map(hint => hint.key));
+
+    for (const item of parsed.results ?? []) {
+      if (
+        typeof item.key !== "string"
+        || !allowed.has(item.key)
+        || (item.status !== "PRESENT" && item.status !== "ABSENT" && item.status !== "UNCERTAIN")
+        || typeof item.supportVisible !== "boolean"
+        || typeof item.confidence !== "number"
+        || !Number.isFinite(item.confidence)
+        || item.confidence < 0
+        || item.confidence > 1
+      ) {
+        continue;
+      }
+      out.set(item.key, item as PresenceAuditResult);
     }
-    return { result: parsed as PresenceAuditResult, latencyMs };
   } catch {
-    return { latencyMs };
+    // Invalid focused-audit JSON contributes no evidence.
   }
+
+  return { results: out, latencyMs };
 }
 
-function mergeExplicitAbsence(
+function mergeConsensusAbsences(
   state: PhysicalState,
-  hint: TrackedEntityHint,
-  audit: PresenceAuditResult | undefined,
-): PhysicalState {
-  if (state.entities.some(entity => entity.key === hint.key)) return state;
-  if (
-    !audit
-    || audit.status !== "ABSENT"
-    || audit.supportVisible !== true
-    || audit.confidence < 0.85
-  ) {
-    return state;
-  }
+  hints: TrackedEntityHint[],
+  first: Map<string, PresenceAuditResult>,
+  second: Map<string, PresenceAuditResult>,
+): { state: PhysicalState; added: number } {
+  const existing = new Set(state.entities.map(entity => entity.key));
+  const additions = [];
 
-  return {
-    ...state,
-    entities: [
-      ...state.entities,
-      {
+  for (const hint of hints) {
+    if (existing.has(hint.key)) continue;
+    const a = first.get(hint.key);
+    const b = second.get(hint.key);
+    if (
+      a?.status === "ABSENT"
+      && b?.status === "ABSENT"
+      && a.supportVisible === true
+      && b.supportVisible === true
+      && a.confidence >= 0.85
+      && b.confidence >= 0.85
+    ) {
+      additions.push({
         key: hint.key,
         category: hint.category,
-        confidence: audit.confidence,
+        confidence: Math.min(a.confidence, b.confidence),
         attributes: { present: false },
         relations: [],
-      },
-    ],
+      });
+    }
+  }
+
+  if (!additions.length) return { state, added: 0 };
+  return {
+    state: {
+      ...state,
+      entities: [...state.entities, ...additions],
+    },
+    added: additions.length,
   };
 }
 
@@ -622,13 +673,19 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   let presenceAuditCount = 0;
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
   if (missingPresence.length > 0) {
-    for (const hint of missingPresence) {
-      const audit = await auditTrackedAbsence(bytes, hint);
-      totalLatencyMs += audit.latencyMs;
-      const merged = mergeExplicitAbsence(finalState, hint, audit.result);
-      presenceAuditCount += merged.entities.length - finalState.entities.length;
-      finalState = merged;
-    }
+    const [absenceCheck, localizationCheck] = await Promise.all([
+      runPresenceAudit(bytes, missingPresence, result.state, "ABSENCE_CHECK"),
+      runPresenceAudit(bytes, missingPresence, result.state, "LOCALIZATION_CHECK"),
+    ]);
+    totalLatencyMs += Math.max(absenceCheck.latencyMs, localizationCheck.latencyMs);
+    const consensus = mergeConsensusAbsences(
+      finalState,
+      missingPresence,
+      absenceCheck.results,
+      localizationCheck.results,
+    );
+    presenceAuditCount = consensus.added;
+    finalState = consensus.state;
   }
 
   const observation: RuntimeObservation = {
