@@ -653,7 +653,12 @@ async function handleWebVoice(req: RequestLike, res: ResponseLike): Promise<void
         : "Start a rewind first and I'll guide you one step at a time.");
       return;
     }
-    state.actionIndex = Math.min(state.actionIndex + 1, actions.length - 1);
+    const nextIndex = state.actionIndex + 1;
+    if (nextIndex >= actions.length) {
+      await respond("That was the last pending step. Analyze another photo and say check again when you want me to verify the restoration.");
+      return;
+    }
+    state.actionIndex = nextIndex;
     await respond(`Next, ${actions[state.actionIndex]!.instruction} Analyze another photo and say check again when you want me to verify it.`);
     return;
   }

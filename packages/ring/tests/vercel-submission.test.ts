@@ -72,3 +72,14 @@ assert.doesNotMatch(
   /const name = spokenName \|\| "desk baseline"/,
   "Remember must never silently fall back to an unrelated checkpoint name.",
 );
+
+assert.match(
+  api,
+  /That was the last pending step\./,
+  "REWIND Voice must stop at the end of the pending action list instead of repeating the last action forever.",
+);
+assert.match(
+  api,
+  /const nextIndex = state\.actionIndex \+ 1;/,
+  "Next-step navigation must advance explicitly through pending actions.",
+);
