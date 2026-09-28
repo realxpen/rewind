@@ -445,6 +445,7 @@ Phase 10 gate: **PASS**.
 - [x] keep `docs/FRICTION_LOG.md` current with meaningful Amazon developer friction.
 - [x] validate the production Image + Alexa submission path end-to-end.
 - [x] preserve the two-object tracked-removal regression as automated coverage.
+- [x] preserve an unrelated two-added-object kitchen regression: cup + kettle are admitted from candidate consensus, produce two deterministic ADDED changes, guide cup then kettle, and stop after the last pending step.
 - [x] protect temporary semantic diagnostic routes with the relay secret and remove temporary Alexa request logging.
 
 Final production Image + Alexa reliability acceptance on 2026-09-26:
@@ -465,6 +466,20 @@ SAVE baseline
 ```
 
 The photo acceptance run is separate from Live Ring evidence. Production absence handling is checkpoint-driven and generic; object omission alone remains UNKNOWN and two high-confidence focused audits must agree before a tracked object becomes `present=false`.
+
+Unrelated kitchen reliability acceptance on 2026-09-28:
+
+```text
+SAVE empty kitchen
+→ changed kitchen adds cup + kettle
+→ exact-candidate extra audits agree
+→ deterministic DIFF = 2 ADDED changes
+→ REWIND Voice: remove cup
+→ next step: remove kettle
+→ next step: last pending step / stop
+```
+
+This second scene proves category-agnostic added-object handling and final-step navigation outside the desk/notebook case. It remains Image + REWIND Voice evidence, not Live Ring evidence.
 
 Phase 11 gate: **PASS**.
 
