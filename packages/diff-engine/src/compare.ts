@@ -61,8 +61,13 @@ const VISION_ACTIONABLE_EXTRA_TERMS = new Set([
   "tripod", "box", "basket", "stool", "chair", "phone", "towel",
 ]);
 
-function isActionableVisionExtra(category: string): boolean {
-  const normalized = category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function isActionableVisionExtra(entity: PhysicalEntity): boolean {
+  if (entity.attributes?.present === true) return true;
+  if (entity.role === "MOVABLE" || entity.role === "CLUTTER") return true;
+
+  // Backward compatibility for older observations created before movable/restorable
+  // objects consistently carried present=true or a semantic role.
+  const normalized = entity.category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   if (!normalized) return false;
   return normalized.split(/\s+/).some(token => VISION_ACTIONABLE_EXTRA_TERMS.has(token));
 }
@@ -245,7 +250,7 @@ export function compareStates(
     const actual = actualByKey.get(key);
 
     if (!expected && actual) {
-      if (evidenceMode === "vision" && !isActionableVisionExtra(actual.category)) {
+      if (evidenceMode === "vision" && !isActionableVisionExtra(actual)) {
         // The checkpoint is intentionally a compact semantic memory. Do not turn later
         // decorative/background observations into fake restoration work merely because the
         // open checkpoint inventory omitted them.

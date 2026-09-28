@@ -249,3 +249,60 @@ const birdFeederDiffs = compareStates(birdFeederCheckpoint, birdFeederCurrent);
 assert(birdFeederDiffs.length === 1 && birdFeederDiffs[0]?.entity === "bird_feeder_1" && birdFeederDiffs[0]?.type === "UNCHANGED", "Bird motion must not create a restore action while the feeder remains tracked.");
 
 console.log("PASS diff-engine: deterministic demo + conservative vision relations/removals + actionable clutter + confirmed support moves + transient noise ignored");
+
+
+const genericMovableExtraCheckpoint = {
+  schemaVersion: "0.1" as const,
+  spaceId: "generic-movable-extra",
+  capturedAt: "2026-09-28T12:00:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+  ],
+};
+
+const genericMovableExtraCurrent = {
+  ...genericMovableExtraCheckpoint,
+  capturedAt: "2026-09-28T12:01:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+    {
+      key: "kettle.red",
+      category: "kettle",
+      confidence: 0.96,
+      attributes: { present: true, color: "red" },
+      relations: [{ type: "ON" as const, target: "countertop.main", confidence: 0.95 }],
+    },
+  ],
+};
+
+const genericMovableDiffs = compareStates(
+  genericMovableExtraCheckpoint,
+  genericMovableExtraCurrent,
+  { evidenceMode: "vision" },
+);
+assert(
+  genericMovableDiffs.some(diff => diff.type === "ADDED" && diff.entity === "kettle.red"),
+  "A high-confidence extra marked present=true must be actionable even when its category is not in the legacy noun whitelist.",
+);
+
+const genericDecorExtraCurrent = {
+  ...genericMovableExtraCheckpoint,
+  capturedAt: "2026-09-28T12:02:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+    {
+      key: "ornament.green",
+      category: "ornament",
+      confidence: 0.97,
+    },
+  ],
+};
+const genericDecorDiffs = compareStates(
+  genericMovableExtraCheckpoint,
+  genericDecorExtraCurrent,
+  { evidenceMode: "vision" },
+);
+assert(
+  !genericDecorDiffs.some(diff => diff.type === "ADDED" && diff.entity === "ornament.green"),
+  "Unmarked decorative extras must remain non-actionable in vision mode.",
+);
