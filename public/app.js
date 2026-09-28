@@ -176,7 +176,7 @@ async function runVoiceCommand(raw) {
         spaceId: $("spaceId").value.trim(),
         transcript,
         ...(mode === "rewind" && $("checkpoint").value ? { checkpointId: $("checkpoint").value } : {}),
-        ...(chosen?.name ? { checkpointName: chosen.name } : {}),
+        ...(mode === "rewind" && chosen?.name ? { checkpointName: chosen.name } : {}),
       }),
     });
     addVoiceBubble("assistant", data.text);

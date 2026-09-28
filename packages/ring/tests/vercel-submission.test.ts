@@ -56,3 +56,19 @@ assert.match(app, /api\("voice"/, "Public UI must call the dedicated REWIND Voic
 assert.match(api, /reconcileTrackedEntityAliases/, "Production photo path must reconcile high-confidence tracked-key drift before deterministic DIFF.");
 assert.match(api, /matchedCurrentKey/, "Presence audits must return the current candidate key for identity reconciliation.");
 assert.match(api, /identityReconciliationCount/, "Observation responses should expose how many safe identity aliases were reconciled.");
+
+assert.match(
+  app,
+  /mode === "rewind" && chosen\?\.name \? \{ checkpointName: chosen\.name \} : \{\}/,
+  "Hidden rewind checkpoint names must never be sent during Remember mode.",
+);
+assert.match(
+  api,
+  /command === "remember"\s*\? transcriptCheckpointName/,
+  "Remember commands must prefer the checkpoint name parsed from the user's transcript.",
+);
+assert.doesNotMatch(
+  api,
+  /const name = spokenName \|\| "desk baseline"/,
+  "Remember must never silently fall back to an unrelated checkpoint name.",
+);

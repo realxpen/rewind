@@ -530,7 +530,10 @@ async function handleWebVoice(req: RequestLike, res: ResponseLike): Promise<void
   state.spaceId = requestedSpaceId;
 
   const command = parseWebVoiceCommand(transcript);
-  const spokenName = body.checkpointName?.trim() || checkpointNameFromTranscript(transcript);
+  const transcriptCheckpointName = checkpointNameFromTranscript(transcript);
+  const spokenName = command === "remember"
+    ? transcriptCheckpointName
+    : (body.checkpointName?.trim() || transcriptCheckpointName);
   const respond = async (text: string, extra: Partial<WebVoiceResponse> = {}) => {
     state.lastSpeech = text;
     await saveVoiceStateByKey(key, state);
@@ -567,7 +570,11 @@ async function handleWebVoice(req: RequestLike, res: ResponseLike): Promise<void
   }
 
   if (command === "remember") {
-    const name = spokenName || "desk baseline";
+    if (!spokenName) {
+      await respond("Tell me what to call this saved state. For example, say remember this room as kitchen baseline.");
+      return;
+    }
+    const name = spokenName;
     const observation = await latestObservation(state.spaceId);
     const checkpoint = await requireConfigured().save({
       spaceId: state.spaceId,
