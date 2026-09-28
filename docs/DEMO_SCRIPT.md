@@ -84,7 +84,9 @@ Hold on the real restored response.
 
 **On-screen label:** **LIVE RING INTEGRATION PROOF**
 
-**Screen:** show Ring Developer Playground live WHEP video, then the captured frame and Nova semantic output.
+**Screen:** in the public REWIND page, switch from **Image + REWIND Voice** to the new **Live Ring Playground** proof mode. Then open the already-running local REWIND Ring console, show the Ring Developer Playground WHEP video moving, capture a frame, and click **Observe with Nova**. Hold briefly on the validated semantic output.
+
+**Before recording:** securely load the existing Ring environment in your shell and run `npm run ring:preview`. Do not show the terminal values; only show the clean browser console at `http://127.0.0.1:3002`.
 
 **Voiceover:**
 
@@ -140,7 +142,8 @@ Say:
 - [ ] partial verify
 - [ ] full REWIND Voice restored response
 - [ ] separate actual Alexa Custom Skill proof
-- [ ] Live Ring Playground WHEP video
+- [ ] public **Live Ring Playground** proof mode
+- [ ] Live Ring Playground WHEP video in the secure local console
 - [ ] Ring frame → Nova semantic output
 - [ ] architecture diagram
 - [ ] AWS stack
