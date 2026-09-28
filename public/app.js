@@ -27,6 +27,25 @@ function setStatus(title, text, kind = "") {
   box.querySelector("span").textContent = text;
 }
 
+function updateRestoreProgress(data) {
+  if (typeof data?.matchPercentage !== "number") return;
+  const percentage = Math.max(0, Math.min(100, Math.round(data.matchPercentage)));
+  const coverage = typeof data.coveragePercentage === "number"
+    ? Math.max(0, Math.min(100, Math.round(data.coveragePercentage)))
+    : 100;
+  const box = $("restoreProgress");
+  box.hidden = false;
+  box.classList.toggle("restored", data.state === "RESTORED");
+  $("restorePercent").textContent = `${percentage}%`;
+  $("restoreBar").style.width = `${percentage}%`;
+  const pending = typeof data.pendingActions === "number"
+    ? `${data.pendingActions} restore action${data.pendingActions === 1 ? "" : "s"} pending`
+    : "Deterministic semantic comparison";
+  $("restoreProgressNote").textContent = coverage < 100
+    ? `${pending} · ${coverage}% evidence coverage`
+    : pending;
+}
+
 function setDemoSource(next) {
   demoSource = next === "ring" ? "ring" : "image";
   document.querySelectorAll("[data-demo-source]").forEach(button => {
@@ -112,6 +131,7 @@ function setMode(next) {
   document.querySelectorAll("[data-mode]").forEach(button => button.classList.toggle("active", button.dataset.mode === mode));
   $("checkpointField").hidden = mode !== "rewind";
   $("sceneBox").hidden = true;
+  if (mode === "remember") $("restoreProgress").hidden = true;
   if (mode === "rewind") void loadCheckpoints();
   setStatus(mode === "remember" ? "Remember mode" : "Rewind mode",
     mode === "remember"
@@ -198,6 +218,7 @@ async function runVoiceCommand(raw) {
     addVoiceBubble("assistant", data.text);
     speak(data.text);
     setVoiceState(data.state ? data.state.replaceAll("_", " ") : "Ready");
+    updateRestoreProgress(data);
     if (data.command === "remember") await loadCheckpoints();
     if (typeof data.pendingActions === "number") {
       setStatus(
