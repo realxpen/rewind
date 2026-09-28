@@ -15,6 +15,7 @@ Current official phase: submissions open.
 - [x] actual Ring integration code
 - [x] PSP open-source code/tests
 - [x] Phase 11 reliability evidence
+- [x] unrelated kitchen two-added-object regression preserved in tests/docs
 - [x] judge-facing public demo URL
 
 ## Required repository documentation
@@ -38,11 +39,12 @@ Current official phase: submissions open.
 ## Screenshots
 
 - [ ] clean hero screenshot
-- [ ] REWIND Voice “2 important changes” screenshot
-- [ ] REWIND Voice second next-step instruction screenshot
+- [ ] kitchen REWIND Voice “2 important changes” + first cup instruction screenshot
+- [ ] kitchen second-step kettle instruction screenshot
+- [ ] kitchen final-step stop screenshot if gallery space permits
 - [ ] final REWIND Voice RESTORED screenshot
 - [ ] Live Ring Playground proof screenshot
-- [ ] architecture export if desired
+- [ ] architecture export
 - [ ] PSP/open-source screenshot
 - [ ] privacy review on every image
 
@@ -50,6 +52,7 @@ Current official phase: submissions open.
 
 Devpost requires a public YouTube or Vimeo video, in English, under 3 minutes.
 
+- [x] exact 2:40–2:50 recording script locked in docs/DEMO_SCRIPT.md
 - [ ] record clean product footage
 - [ ] show 2-change REWIND Voice result
 - [ ] show first + second REWIND Voice restore instructions
@@ -135,7 +138,7 @@ npm test
 npm run build
 ~~~
 
-Then verify repo opens logged out, LICENSE visible, diagrams render, live demo loads, no secrets are exposed, video plays logged out, duration is under 3:00, required Devpost fields are complete, and final status says Submitted rather than Draft.
+Then verify repo opens logged out, LICENSE visible, diagrams render, live demo loads, no secrets are exposed, the deployment is tied to the intended Git commit, video plays logged out, duration is under 3:00, required Devpost fields are complete, and final status says Submitted rather than Draft.
 
 ## Gate
 
