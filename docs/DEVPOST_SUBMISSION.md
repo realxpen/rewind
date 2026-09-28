@@ -69,7 +69,9 @@ REWIND refuses to interpret vision omission as proof of removal.
 
 For tracked checkpoint objects, a missing entity remains UNKNOWN unless focused contrastive Nova audits produce explicit high-confidence evidence that the saved support area is visible and the object is absent.
 
-The final production regression removed two tracked notebooks simultaneously and produced two explicit absent states, two deterministic restore actions, partial verification, and final restored verification.
+The final production removal regression removed two tracked notebooks simultaneously and produced two explicit absent states, two deterministic restore actions, partial verification, and final restored verification.
+
+A second unrelated kitchen regression tested the opposite direction: an `empty kitchen` checkpoint was compared with the same scene plus a cup and kettle. Independent audits voted on the exact current candidate keys, both extras became semantic movable/present evidence, deterministic DIFF produced two ADDED changes, REWIND Voice guided cup then kettle, and a third `next step` correctly stopped instead of repeating the last action. The production logic remains object-agnostic; the kitchen nouns exist only in test/demo evidence.
 
 ### Ring track proof
 
