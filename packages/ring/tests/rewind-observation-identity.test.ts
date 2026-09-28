@@ -10,6 +10,7 @@ import {
   mergeConsensusAdditions,
   reconcileTrackedEntityAliases,
 } from "../src/tracked-entities.js";
+import type { ObservedExtraCandidateEvidence } from "../src/tracked-entities.js";
 
 const spaceId = "identity-anchor-space";
 const checkpoint: Checkpoint = {
@@ -283,7 +284,7 @@ const observedCandidateState: PhysicalState = {
     { key: "kettle", category: "kettle", confidence: 0.97 },
   ],
 };
-const observedCandidateVotes = new Map([
+const observedCandidateVotes = new Map<string, ObservedExtraCandidateEvidence>([
   ["countertop", { candidateKey: "countertop", decision: "REPRESENTED" as const, confidence: 0.99 }],
   ["cup", { candidateKey: "cup", decision: "EXTRA" as const, confidence: 0.98 }],
   ["kettle", { candidateKey: "kettle", decision: "EXTRA" as const, confidence: 0.97 }],
@@ -310,7 +311,7 @@ assert.equal(
   "Consensus extra candidate must receive semantic MOVABLE role.",
 );
 
-const splitCandidateVotes = new Map(observedCandidateVotes);
+const splitCandidateVotes = new Map<string, ObservedExtraCandidateEvidence>(observedCandidateVotes);
 splitCandidateVotes.set("kettle", {
   candidateKey: "kettle",
   decision: "UNCERTAIN" as const,
