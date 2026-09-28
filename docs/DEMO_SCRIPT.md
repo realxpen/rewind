@@ -1,146 +1,152 @@
-# REWIND — Final Demo Script
+# REWIND — Final Demo Video
 
-Target: **2:40–2:55**. Hard limit: under 3:00.
+Target: **2:40–2:50**. Hard limit: **under 3:00**.
 
 Primary track: **Ring**  
 Mini challenges: **AWS Builder + Open Source**
 
-The video must clearly distinguish the repeatable Image + REWIND Voice product demo from separate Live Ring integration proof.
+The main product sequence is **Image → Nova → REWIND Voice → deterministic DIFF → REWIND → VERIFY**. Actual Alexa and Live Ring proof appear separately and are labeled separately.
 
 ## Recording rules
 
-- Start with working product behavior, not a title card.
-- Keep REWIND already open. The main restoration sequence stays inside the REWIND UI.
-- Cut loading/waiting.
-- Do not show secrets, AWS keys, Ring tokens, IDs, or relay secrets.
-- Do not imply the uploaded-image sequence is a live Ring feed.
-- Include the real Ring Playground path on-screen.
-- Use only original/cleared audio.
+- Start with the product already working; no title animation or biography.
+- Record clean product footage first, then add the exact voiceover below.
+- Cut every loading/waiting segment.
+- Never expose AWS keys, Ring tokens, relay secrets, private email, or account IDs.
+- Never call REWIND Voice “Alexa”.
+- Never present uploaded-photo evidence as Live Ring evidence.
+- Show actual Alexa and actual Live Ring proof as separate short segments.
+- End before 2:50 so platform encoding cannot push the video beyond 3:00.
 
-## 0:00–0:10 — Hook
+## Exact timeline and spoken script
 
-Screen: changed desk image already analyzed; red + turquoise notebooks absent.
+### 0:00–0:09 — Hook + command
 
-Say:
+**Screen:** changed desk image is already analyzed in the public REWIND UI. The selected checkpoint is `vercel desk baseline`.
 
-> “This room used to look different. REWIND is Ctrl+Z for reality.”
+**Action:** use the built-in REWIND Voice microphone and say:
 
-Use the built-in REWIND Voice microphone: “Rewind this room to Vercel desk baseline.” The response should immediately report the two changes.
+> “Rewind this room to vercel desk baseline.”
 
-Show:
+**Voiceover:**
 
-> “I found 2 important changes…”
+> “This room changed. REWIND is Ctrl+Z for reality.”
 
-## 0:10–0:38 — Real restore actions
+Hold long enough to show **2 important changes**.
 
-Show the first REWIND Voice instruction:
+### 0:09–0:28 — Two deterministic restore actions
 
-> “Move notebook red on table main.”
+**Screen:** show the first REWIND Voice restore instruction. Then say:
 
-Say “next step” in REWIND Voice and show the turquoise instruction.
+> “Next step.”
 
-Voiceover:
+Show the second instruction.
 
-> “Nova interprets the latest visual state. Deterministic code compares it with the saved checkpoint and generates the restore actions.”
+**Voiceover:**
 
-## 0:38–0:58 — Partial verification
+> “Nova interprets the latest visual state. Deterministic TypeScript compares it with the saved checkpoint and turns confirmed differences into restore actions.”
 
-Analyze the partial image: red restored, turquoise still missing.
+### 0:28–0:45 — Partial verification
 
-Say “check again” in REWIND Voice.
+**Screen:** analyze the partial-restoration image. Then say:
 
-Voiceover:
+> “Check again.”
 
-> “After a new observation, completed work disappears from the plan. REWIND doesn’t trust an old result.”
+Show that the completed action disappears and one action remains.
 
-## 0:58–1:13 — Full restore
+**Voiceover:**
 
-Analyze the original baseline image.
+> “Verification always uses a fresh observation. Completed work disappears from the plan instead of being trusted from memory.”
 
-Say “check again” in REWIND Voice.
+### 0:45–1:00 — RESTORED payoff
 
-Show the real final response:
+**Screen:** analyze the original baseline image, then say:
 
-> “The important visible parts of Vercel desk baseline are restored. I don’t need a perfect pixel match to stop guiding you.”
+> “Check again.”
 
-Voiceover:
+Hold on the real restored response.
 
-> “That is SAVE → DIFF → REWIND → VERIFY.”
+**Voiceover:**
 
-## 1:13–1:28 — Actual Alexa integration proof
+> “When no meaningful visible differences remain, deterministic verification ends the guidance. That is SAVE, DIFF, REWIND, VERIFY.”
 
-Briefly show the existing Alexa Custom Skill path and label it **ACTUAL ALEXA INTEGRATION**.
+### 1:00–1:13 — Separate actual Alexa proof
 
-Voiceover:
+**On-screen label:** **ACTUAL ALEXA INTEGRATION**
 
-> “REWIND Voice is the native web experience. We also built a real Alexa Custom Skill through AWS Lambda that calls the same deterministic REWIND engine.”
+**Screen:** show the Alexa Custom Skill / Lambda proof briefly.
 
-Do not spend the main demo switching back and forth to Alexa Tester.
+**Voiceover:**
 
-## 1:28–1:50 — Primary-track proof: Live Ring
+> “REWIND Voice is built into the website. Separately, we also built a real Alexa Custom Skill through AWS Lambda that calls the same deterministic REWIND engine.”
 
-Clearly label on screen: **LIVE RING INTEGRATION PROOF**
+### 1:13–1:34 — Primary-track proof: Live Ring
 
-Show:
+**On-screen label:** **LIVE RING INTEGRATION PROOF**
 
-~~~text
-Ring Developer Playground
-→ live WHEP video
-→ captured frame
-→ Nova semantic state
-~~~
+**Screen:** show Ring Developer Playground live WHEP video, then the captured frame and Nova semantic output.
 
-Voiceover:
+**Voiceover:**
 
-> “The repeatable restore sequence used controlled images, but REWIND’s primary observation integration is real Ring. The Ring Developer Playground provides the device, live WHEP video, and frame used by the same Nova physical-state pipeline.”
+> “The repeatable restore sequence used controlled images. The primary observation integration is real Ring: Developer Playground to WHEP live video, to a captured frame, to Nova, to the same Physical State Protocol.”
 
 Do not claim physical rearrangement in the Playground.
 
-## 1:50–2:08 — Architecture
+### 1:34–1:52 — Architecture rule
 
-Show docs/ARCHITECTURE.md.
+**Screen:** clean architecture diagram from `docs/ARCHITECTURE.md`.
 
-Voiceover:
+**Voiceover:**
 
-> “The core rule is simple: AI interprets state; deterministic code compares state. Nova never decides that the room is restored.”
+> “The trust boundary is simple: AI interprets state; deterministic code compares state. Nova can describe what it sees, but it never gets to declare reality restored.”
 
-## 2:08–2:25 — AWS Builder
+### 1:52–2:12 — AWS Builder
 
-Show Bedrock + Nova 2 Lite, DynamoDB, Strands, AgentCore Memory, and Lambda.
+**Screen:** highlight Bedrock / Nova 2 Lite, DynamoDB, Strands, AgentCore Memory, and Lambda.
 
-Voiceover:
+**Voiceover:**
 
-> “AWS handles perception, durable semantic checkpoints, agent orchestration, session continuity, and the Alexa relay while deterministic code keeps restoration truth auditable.”
+> “Bedrock and Nova handle multimodal perception. DynamoDB stores semantic checkpoints. Strands orchestrates approved tools. AgentCore Memory keeps session context. Lambda powers the separate Alexa relay.”
 
-## 2:25–2:40 — Open Source PSP
+### 2:12–2:31 — Open Source PSP
 
-Show packages/physical-state-protocol, diff engine, restore engine, and tests.
+**Screen:** show `packages/physical-state-protocol`, diff engine, restore engine, tests, and PR #21.
+
+**Voiceover:**
+
+> “We open-sourced Physical State Protocol version zero point one: a semantic contract for describing, comparing, and restoring physical environments, with deterministic diffing, restore planning, fixtures, and tests.”
+
+### 2:31–2:43 — Privacy + use cases
+
+**Screen:** privacy line and a clean product view.
+
+**Voiceover:**
+
+> “The privacy principle is: remember the state, forget the footage. The same idea can support studios, rentals, retail, classrooms, workshops, hospitality, and care environments.”
+
+### 2:43–2:48 — End
+
+**Screen:** REWIND end card.
 
 Say:
-
-> “We don’t store a room as just an image. The open Physical State Protocol represents environments as semantic state that software can validate, compare, and restore.”
-
-## 2:40–2:50 — Privacy + impact
-
-Say:
-
-> “Remember the state. Forget the footage. REWIND can support studios, rentals, retail, classrooms, workshops, hospitality, and care environments where returning a space to a known state matters.”
-
-## 2:50–2:55 — End
 
 > “REWIND. Ctrl+Z for reality.”
 
-## Required shots
+## Required footage checklist
 
 - [ ] 2-change REWIND Voice result
 - [ ] first restore action
-- [ ] second next-step action
+- [ ] second **Next step** action
 - [ ] partial verify
-- [ ] final REWIND Voice restored response
-- [ ] brief actual Alexa Custom Skill proof
-- [ ] Live Ring Playground video
+- [ ] full REWIND Voice restored response
+- [ ] separate actual Alexa Custom Skill proof
+- [ ] Live Ring Playground WHEP video
 - [ ] Ring frame → Nova semantic output
 - [ ] architecture diagram
-- [ ] PSP source/tests
 - [ ] AWS stack
-- [ ] final REWIND end card
+- [ ] PSP source/tests + PR #21
+- [ ] final end card
+
+## Optional evidence not required in the 2:48 cut
+
+The unrelated kitchen two-added-object regression is strong gallery/Devpost evidence, but it does not need to consume video time. If included, replace—not add to—another segment so the final cut stays under 2:50.
