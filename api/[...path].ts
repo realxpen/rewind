@@ -473,7 +473,14 @@ async function handleAlexa(envelope: AlexaRequestEnvelope): Promise<AlexaRespons
       await saveVoiceState(envelope, state);
       return alexaResponse(text);
     }
-    state.actionIndex = Math.min(state.actionIndex + 1, actions.length - 1);
+    const nextIndex = state.actionIndex + 1;
+    if (nextIndex >= actions.length) {
+      const text = "That was the last pending step. Analyze another photo and say check again when you want me to verify the restoration.";
+      state.lastSpeech = text;
+      await saveVoiceState(envelope, state);
+      return alexaResponse(text);
+    }
+    state.actionIndex = nextIndex;
     const text = `Next, ${actions[state.actionIndex]!.instruction} Analyze another photo and say check again when you want me to verify it.`;
     state.lastSpeech = text;
     await saveVoiceState(envelope, state);
