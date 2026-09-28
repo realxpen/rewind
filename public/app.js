@@ -7,6 +7,7 @@ let busy = false;
 let voiceBusy = false;
 let recognition;
 let listening = false;
+let demoSource = "image";
 
 const voiceSessionId = (() => {
   const key = "rewind.voice.session";
@@ -24,6 +25,21 @@ function setStatus(title, text, kind = "") {
   box.innerHTML = "<strong></strong><span></span>";
   box.querySelector("strong").textContent = title;
   box.querySelector("span").textContent = text;
+}
+
+function setDemoSource(next) {
+  demoSource = next === "ring" ? "ring" : "image";
+  document.querySelectorAll("[data-demo-source]").forEach(button => {
+    const active = button.dataset.demoSource === demoSource;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  $("imageDemo").hidden = demoSource !== "image";
+  $("ringDemo").hidden = demoSource !== "ring";
+  if (demoSource === "ring") {
+    window.speechSynthesis?.cancel?.();
+    recognition?.stop?.();
+  }
 }
 
 function setVoiceState(text) {
@@ -287,6 +303,7 @@ $("analyze").onclick = async () => {
   }
 };
 
+document.querySelectorAll("[data-demo-source]").forEach(button => button.onclick = () => setDemoSource(button.dataset.demoSource));
 document.querySelectorAll("[data-mode]").forEach(button => button.onclick = () => setMode(button.dataset.mode));
 document.querySelectorAll("[data-voice]").forEach(button => button.onclick = () => void runVoiceCommand(button.dataset.voice));
 $("takePhoto").onclick = () => $("cameraInput").click();
@@ -294,6 +311,16 @@ $("uploadPhoto").onclick = () => $("uploadInput").click();
 $("cameraInput").onchange = () => selectFile($("cameraInput").files?.[0]);
 $("uploadInput").onchange = () => selectFile($("uploadInput").files?.[0]);
 $("refresh").onclick = () => void loadCheckpoints();
+$("copyRingCommand").onclick = async () => {
+  const command = $("ringCommand").textContent.trim();
+  try {
+    await navigator.clipboard.writeText(command);
+    $("copyRingCommand").textContent = "Copied";
+    setTimeout(() => { $("copyRingCommand").textContent = "Copy launch command"; }, 1500);
+  } catch {
+    $("copyRingCommand").textContent = command;
+  }
+};
 $("spaceId").onchange = () => void loadCheckpoints();
 $("voiceSend").onclick = () => void runVoiceCommand($("voiceInput").value);
 $("voiceInput").onkeydown = event => {
@@ -313,5 +340,6 @@ window.addEventListener("beforeunload", () => {
   window.speechSynthesis?.cancel?.();
 });
 
+setDemoSource("image");
 setupSpeechRecognition();
 void health();
