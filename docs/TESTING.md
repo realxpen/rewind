@@ -161,3 +161,25 @@ Later phases add:
 2. restore-session state-machine tests;
 3. Ring motion-triggered verification;
 4. end-to-end SAVE → DIFF → REWIND → VERIFY tests.
+
+
+## Phase 11 — Unrelated kitchen added-object regression
+
+The 2026-09-28 kitchen run expands reliability coverage beyond the desk/notebook removal case:
+
+```text
+empty kitchen
+→ current kitchen adds cup + kettle
+→ exact current candidate audits agree EXTRA
+→ semantic present=true / MOVABLE admission
+→ deterministic DIFF = cup:ADDED + kettle:ADDED
+→ restore plan = remove cup, then remove kettle
+→ third next-step request stops instead of repeating kettle
+```
+
+Automated coverage is split deliberately across the existing trust boundaries:
+
+- `packages/ring/tests/rewind-observation-identity.test.ts` verifies generic candidate consensus, deterministic vision-mode DIFF, and ordered restore-plan output for the unrelated kitchen scene.
+- `packages/ring/tests/vercel-submission.test.ts` verifies the production REWIND Voice source advances with `nextIndex`, exits when `nextIndex >= actions.length`, and never reintroduces the old clamped-last-action behavior.
+
+The object names are fixture data only. Production extra admission remains semantic and category-agnostic.
