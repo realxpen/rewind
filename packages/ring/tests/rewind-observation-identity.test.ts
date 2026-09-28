@@ -5,6 +5,8 @@ import type { VisionObservationRequest } from "../../vision/src/contracts.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
 import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
+import { compareStates } from "../../diff-engine/src/index.js";
+import { buildRestorePlan } from "../../restore-engine/src/index.js";
 import {
   applyConsensusObservedExtras,
   mergeConsensusAdditions,
@@ -327,3 +329,60 @@ assert.equal(
   undefined,
   "Candidate disagreement must not invent actionable presence.",
 );
+
+
+/**
+ * Regression: an unrelated kitchen checkpoint must treat two high-confidence,
+ * consensus-classified current candidates as generic ADDED objects. The object
+ * names live only in this test fixture; production admission remains driven by
+ * semantic present/MOVABLE evidence rather than a noun whitelist.
+ */
+const kitchenBaseline: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "kitchen-added-regression",
+  capturedAt: "2026-09-28T13:00:00.000Z",
+  entities: [
+    { key: "basil.plant", category: "plant", confidence: 0.99 },
+    { key: "fruit.bowl", category: "bowl", confidence: 0.99 },
+    { key: "toaster", category: "toaster", confidence: 0.99 },
+  ],
+};
+const kitchenCurrentCandidates: PhysicalState = {
+  ...kitchenBaseline,
+  capturedAt: "2026-09-28T13:01:00.000Z",
+  entities: [
+    ...kitchenBaseline.entities,
+    { key: "cup", category: "cup", confidence: 0.98 },
+    { key: "kettle", category: "kettle", confidence: 0.97 },
+  ],
+};
+const kitchenCandidateVotes = new Map<string, ObservedExtraCandidateEvidence>([
+  ["cup", { candidateKey: "cup", decision: "EXTRA", confidence: 0.98 }],
+  ["kettle", { candidateKey: "kettle", decision: "EXTRA", confidence: 0.97 }],
+]);
+const kitchenConsensus = applyConsensusObservedExtras(
+  kitchenCurrentCandidates,
+  kitchenCandidateVotes,
+  kitchenCandidateVotes,
+);
+assert.equal(kitchenConsensus.marked, 2, "Kitchen regression must promote both agreed extra candidates.");
+
+const kitchenDiff = compareStates(kitchenBaseline, kitchenConsensus.state, { evidenceMode: "vision" });
+const kitchenChanges = kitchenDiff.filter(diff => diff.type !== "UNCHANGED");
+assert.deepEqual(
+  kitchenChanges.map(diff => [diff.entity, diff.type]),
+  [["cup", "ADDED"], ["kettle", "ADDED"]],
+  "Unrelated kitchen scene must produce exactly two generic ADDED changes in deterministic key order.",
+);
+
+const kitchenPlan = buildRestorePlan(kitchenDiff);
+assert.deepEqual(
+  kitchenPlan.actions.map(action => action.instruction),
+  [
+    "Remove cup from the restored scene.",
+    "Remove kettle from the restored scene.",
+  ],
+  "Kitchen regression must guide cup first and kettle second without production noun hardcoding.",
+);
+assert.deepEqual(kitchenPlan.blockedUnknowns, [], "Kitchen regression must not hide either agreed extra behind UNKNOWN.");
+console.log("PASS Kitchen added-object regression: cup + kettle -> 2 ADDED changes -> ordered generic restore plan");
