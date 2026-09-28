@@ -196,6 +196,10 @@ assert.equal(startCalls, 1);
 const next = await skill.handle(envelope("IntentRequest", "NextStepIntent"));
 assert.match(next.response.outputSpeech?.text ?? "", /Remove shoe floor/i);
 
+const afterLast = await skill.handle(envelope("IntentRequest", "NextStepIntent"));
+assert.match(afterLast.response.outputSpeech?.text ?? "", /That was the last pending step/i);
+assert.doesNotMatch(afterLast.response.outputSpeech?.text ?? "", /Remove shoe floor/i);
+
 const checkRequest = envelope("IntentRequest", "CheckAgainIntent");
 const check = await skill.handle(checkRequest);
 assert.match(check.response.outputSpeech?.text ?? "", /checking the room again with the camera/i);
