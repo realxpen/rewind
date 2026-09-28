@@ -83,6 +83,16 @@ assert.match(
   /const nextIndex = state\.actionIndex \+ 1;/,
   "Next-step navigation must advance explicitly through pending actions.",
 );
+assert.match(
+  api,
+  /const nextIndex = state\.actionIndex \+ 1;[\s\S]*?if \(nextIndex >= actions\.length\)[\s\S]*?That was the last pending step\.[\s\S]*?return;[\s\S]*?state\.actionIndex = nextIndex;/,
+  "After the second action in a two-step plan, the next request must stop before advancing or repeating the last action.",
+);
+assert.doesNotMatch(
+  api,
+  /Math\.min\(state\.actionIndex \+ 1, actions\.length - 1\)/,
+  "Next-step navigation must never clamp to the last action and repeat it forever.",
+);
 
 assert.match(api, /runAdditionAudit/, "Tracked comparison must run a dedicated generic new-object audit.");
 assert.match(api, /OPEN_EXTRA_SCAN/, "New-object recall must include an independent open extra scan.");
