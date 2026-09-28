@@ -11,6 +11,7 @@ import {
   applyConsensusObservedExtras,
   mergeConsensusAdditions,
   reconcileTrackedEntityAliases,
+  trackedEntitiesFromReferenceState,
 } from "../src/tracked-entities.js";
 import type { ObservedExtraCandidateEvidence } from "../src/tracked-entities.js";
 
@@ -386,3 +387,132 @@ assert.deepEqual(
 );
 assert.deepEqual(kitchenPlan.blockedUnknowns, [], "Kitchen regression must not hide either agreed extra behind UNKNOWN.");
 console.log("PASS Kitchen added-object regression: cup + kettle -> 2 ADDED changes -> ordered generic restore plan");
+
+
+/**
+ * Repeated-category identity regression.
+ *
+ * Different-colored cups use color as an identity cue, while same-colored cups
+ * rely on stable semantic keys plus saved location cues. Color remains an
+ * identity aid rather than restoration state, which avoids false actions caused
+ * by visual color wording drift.
+ */
+const differentColorCups: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "repeated-cups-color",
+  capturedAt: "2026-09-28T15:00:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+    {
+      key: "cup.blue",
+      category: "cup",
+      confidence: 0.98,
+      attributes: { present: true, color: "blue" },
+      relations: [{ type: "ON", target: "countertop.main", confidence: 0.96 }],
+    },
+    {
+      key: "cup.red",
+      category: "cup",
+      confidence: 0.98,
+      attributes: { present: true, color: "red" },
+      relations: [{ type: "ON", target: "countertop.main", confidence: 0.96 }],
+    },
+  ],
+};
+const differentColorHints = trackedEntitiesFromReferenceState(differentColorCups) ?? [];
+assert.match(
+  differentColorHints.find(entity => entity.key === "cup.blue")?.description ?? "",
+  /color=blue/i,
+  "Blue cup tracking hint must retain its saved visible color identity cue.",
+);
+assert.match(
+  differentColorHints.find(entity => entity.key === "cup.red")?.description ?? "",
+  /color=red/i,
+  "Red cup tracking hint must retain its saved visible color identity cue.",
+);
+
+const sameColorCups: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "repeated-cups-location",
+  capturedAt: "2026-09-28T15:01:00.000Z",
+  entities: [
+    { key: "sink.main", category: "sink", confidence: 0.99 },
+    { key: "toaster.main", category: "toaster", confidence: 0.99 },
+    {
+      key: "cup.sink-side",
+      category: "cup",
+      confidence: 0.98,
+      attributes: { present: true, color: "white" },
+      relations: [{ type: "NEAR", target: "sink.main", confidence: 0.95 }],
+    },
+    {
+      key: "cup.toaster-side",
+      category: "cup",
+      confidence: 0.98,
+      attributes: { present: true, color: "white" },
+      relations: [{ type: "NEAR", target: "toaster.main", confidence: 0.95 }],
+    },
+  ],
+};
+const sameColorHints = trackedEntitiesFromReferenceState(sameColorCups) ?? [];
+assert.match(
+  sameColorHints.find(entity => entity.key === "cup.sink-side")?.description ?? "",
+  /Saved location cue: NEAR sink\.main/i,
+  "Same-color cup identity must preserve the saved sink-side location cue.",
+);
+assert.match(
+  sameColorHints.find(entity => entity.key === "cup.toaster-side")?.description ?? "",
+  /Saved location cue: NEAR toaster\.main/i,
+  "Same-color cup identity must preserve the saved toaster-side location cue.",
+);
+
+const oneObservedWhiteCup: PhysicalState = {
+  ...sameColorCups,
+  capturedAt: "2026-09-28T15:02:00.000Z",
+  entities: [
+    { key: "sink.main", category: "sink", confidence: 0.99 },
+    { key: "toaster.main", category: "toaster", confidence: 0.99 },
+    { key: "cup.white", category: "cup", confidence: 0.97, attributes: { present: true, color: "white" } },
+  ],
+};
+const sameCandidateForBoth = new Map([
+  ["cup.sink-side", {
+    key: "cup.sink-side",
+    status: "PRESENT" as const,
+    confidence: 0.96,
+    matchedCurrentKey: "cup.white",
+  }],
+  ["cup.toaster-side", {
+    key: "cup.toaster-side",
+    status: "PRESENT" as const,
+    confidence: 0.96,
+    matchedCurrentKey: "cup.white",
+  }],
+]);
+const conservativeRepeatedIdentity = reconcileTrackedEntityAliases(
+  oneObservedWhiteCup,
+  sameColorCups,
+  sameCandidateForBoth,
+  sameCandidateForBoth,
+);
+assert.equal(
+  conservativeRepeatedIdentity.reconciled,
+  1,
+  "One observed cup must never satisfy two tracked same-category identities.",
+);
+
+const colorWordingDriftCurrent: PhysicalState = {
+  ...differentColorCups,
+  capturedAt: "2026-09-28T15:03:00.000Z",
+  entities: differentColorCups.entities.map(entity =>
+    entity.key === "cup.blue"
+      ? { ...entity, attributes: { ...entity.attributes, color: "navy blue" } }
+      : entity),
+};
+const colorWordingDiffs = compareStates(differentColorCups, colorWordingDriftCurrent, { evidenceMode: "vision" });
+assert(
+  !colorWordingDiffs.some(diff => diff.entity === "cup.blue" && diff.type === "ATTRIBUTE_CHANGED"),
+  "Color wording drift must not become a fake restoration action after identity has already been established.",
+);
+
+console.log("PASS Repeated cup identity: color cues + same-color location cues + no many-to-one identity merge");
