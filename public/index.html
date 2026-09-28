@@ -12,14 +12,16 @@
     h1{font-size:clamp(34px,7vw,62px);line-height:.98;letter-spacing:-.055em;margin:0 0 12px;max-width:700px}.lede{color:var(--muted);font-size:16px;max-width:700px;margin:0 0 28px}
     .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 14px}.flow div{border:1px solid var(--line);border-radius:13px;padding:12px;background:#0a1411}.flow strong{display:block;font-size:11px;letter-spacing:.08em}.flow span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.flow .active{border-color:#397b65;background:#10241d}.flow .active strong{color:var(--mint)}
     .card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--panel2),var(--panel));overflow:hidden;box-shadow:0 18px 65px rgba(0,0,0,.28)}.card-head{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px;align-items:center}.eyebrow{color:var(--mint);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:10px}.card h2{font-size:20px;margin:3px 0 0}.body{padding:20px}
+    .demo-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}.demo-source{border:1px solid var(--line);background:#09130f;color:var(--muted);padding:12px 14px;border-radius:12px;cursor:pointer;text-align:left}.demo-source strong{display:block;color:var(--text);font-size:12px}.demo-source span{display:block;margin-top:2px;font-size:10px}.demo-source.active{color:var(--mint);border-color:#397b65;background:#10241d}.demo-source.active strong{color:var(--mint)}
     .modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.mode{border:1px solid var(--line);background:#09130f;color:var(--muted);padding:13px;border-radius:12px;cursor:pointer}.mode.active{color:var(--mint);border-color:#397b65;background:#10241d}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field span{font-size:11px;color:var(--muted)}input,select{width:100%;border:1px solid var(--line);border-radius:11px;background:#07100e;color:var(--text);padding:11px 12px}
-    .capture{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.btn{border:1px solid var(--line);border-radius:11px;background:#101c18;color:var(--text);padding:11px 15px;font-weight:750;cursor:pointer}.btn.primary{background:var(--mint);color:#062018;border-color:var(--mint)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .capture{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:11px;background:#101c18;color:var(--text);padding:11px 15px;font-weight:750;cursor:pointer;text-decoration:none}.btn.primary{background:var(--mint);color:#062018;border-color:var(--mint)}.btn:disabled{opacity:.45;cursor:not-allowed}
     .preview{display:grid;grid-template-columns:minmax(180px,280px) 1fr;gap:18px;align-items:center;border:1px solid var(--line);background:#07100e;border-radius:16px;padding:12px;margin-top:12px}.preview[hidden]{display:none}.preview img{width:100%;height:220px;object-fit:cover;border-radius:11px;background:#030706}.preview h3{margin:6px 0;font-size:18px}.preview p{color:var(--muted);margin:0 0 13px}
     .status{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:14px;background:#09130f}.status.good{border-color:#397b65}.status.bad{border-color:#74343d}.status strong{display:block;margin-bottom:4px}.status span{color:var(--muted)}
     .scene{margin-top:14px;padding:16px;border:1px solid #316452;border-radius:14px;background:#0d2019}.scene .command{margin-top:8px;padding:10px 12px;border-radius:10px;background:#06100d;color:var(--mint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
     .entities{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.entity{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:5px 8px;color:var(--muted)}
     .voice{margin-top:16px;border:1px solid #315c50;border-radius:18px;background:linear-gradient(180deg,#0e211a,#09140f);padding:16px}.voice-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.voice-title{display:flex;align-items:center;gap:10px}.voice-orb{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#14372b;border:1px solid #3c7f68;color:var(--mint);font-size:15px;box-shadow:0 0 0 0 rgba(136,244,199,.2)}.voice-orb.listening{animation:pulse 1s infinite}.voice-state{color:var(--muted);font-size:11px}.voice-log{margin:14px 0;display:grid;gap:8px;max-height:260px;overflow:auto}.bubble{max-width:84%;padding:10px 12px;border-radius:13px;font-size:13px;white-space:pre-wrap}.bubble.assistant{background:#10241d;border:1px solid #274c40}.bubble.user{margin-left:auto;background:#142033;border:1px solid #2f496e;color:#e8f2ff}.voice-controls{display:grid;grid-template-columns:auto 1fr auto;gap:8px}.voice-btn{min-width:110px}.voice-btn.listening{border-color:var(--mint);color:var(--mint);background:#14372b}.quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.quick button{border:1px solid var(--line);border-radius:999px;padding:7px 10px;background:#09130f;color:var(--muted);cursor:pointer;font-size:11px}.quick button:hover{color:var(--text);border-color:#397b65}.voice-note{margin:9px 0 0;color:var(--muted);font-size:10px}.integration-note{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;color:#718a81;font-size:10px}
+    .ring-proof{border-color:#315c50}.ring-proof .body{display:grid;gap:14px}.ring-callout{padding:16px;border:1px solid #397b65;border-radius:14px;background:#0d2019}.ring-callout strong{display:block;color:var(--mint);font-size:13px}.ring-callout p{margin:6px 0 0;color:var(--muted);font-size:12px}.ring-pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.ring-pipeline div{padding:10px 8px;border:1px solid var(--line);border-radius:11px;background:#09130f;text-align:center;font-size:10px;color:var(--muted)}.ring-pipeline strong{display:block;color:var(--text);font-size:10px;margin-bottom:2px}.ring-actions{display:flex;gap:9px;flex-wrap:wrap}.ring-command{padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#06100d;color:var(--mint);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}.ring-steps{margin:0;padding-left:20px;color:var(--muted);font-size:12px}.ring-steps li+li{margin-top:6px}.ring-boundary{padding:12px 13px;border:1px solid #2c465f;border-radius:12px;background:#0a1520;color:#9ec8ff;font-size:11px}
     .privacy{margin-top:14px;color:var(--muted);font-size:11px}.footer{margin-top:22px;color:#6f887e;font-size:11px;text-align:center}
     @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(136,244,199,.3)}70%{box-shadow:0 0 0 12px rgba(136,244,199,0)}100%{box-shadow:0 0 0 0 rgba(136,244,199,0)}}
     @media(max-width:680px){.shell{width:min(100% - 18px,900px);padding-top:20px}.brand{margin-bottom:18px}.flow{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.preview{grid-template-columns:1fr}.preview img{height:300px}.card-head{align-items:flex-start}.voice-controls{grid-template-columns:1fr}.voice-btn{width:100%}.bubble{max-width:94%}}
@@ -31,7 +33,11 @@
   <h1>Ctrl+Z for reality.</h1>
   <p class="lede">Analyze a physical scene, then talk to REWIND directly. REWIND Voice uses the same deterministic SAVE → DIFF → REWIND → VERIFY engine as the external Alexa integration.</p>
   <div class="flow"><div class="active"><strong>01 · SAVE</strong><span>Remember this state</span></div><div><strong>02 · DIFF</strong><span>See what changed</span></div><div><strong>03 · REWIND</strong><span>Follow the fix</span></div><div><strong>04 · VERIFY</strong><span>Prove restored</span></div></div>
-  <section class="card">
+  <div class="demo-switch" role="tablist" aria-label="Choose REWIND demo evidence">
+    <button class="demo-source active" type="button" data-demo-source="image" aria-selected="true"><strong>Image + REWIND Voice</strong><span>Repeatable SAVE → DIFF → REWIND → VERIFY demo</span></button>
+    <button class="demo-source" type="button" data-demo-source="ring" aria-selected="false"><strong>Live Ring Playground</strong><span>Real Ring → WHEP → Nova integration proof</span></button>
+  </div>
+  <section class="card" id="imageDemo">
     <header class="card-head"><div><div class="eyebrow">Submission product demo</div><h2>Image + REWIND Voice</h2></div><div class="live"><i class="dot"></i> semantic state only</div></header>
     <div class="body">
       <div class="modes"><button class="mode active" data-mode="remember">Remember a space</button><button class="mode" data-mode="rewind">Rewind a space</button></div>
@@ -92,6 +98,46 @@
       <p class="privacy">Privacy: the uploaded JPEG is sent to Amazon Nova for interpretation and discarded by this Vercel request. REWIND persists semantic physical state in DynamoDB, not the raw photo.</p>
     </div>
   </section>
+
+  <section class="card ring-proof" id="ringDemo" hidden>
+    <header class="card-head"><div><div class="eyebrow">LIVE RING INTEGRATION PROOF</div><h2>Ring Developer Playground</h2></div><div class="live"><i class="dot"></i> real WHEP path</div></header>
+    <div class="body">
+      <div class="ring-callout">
+        <strong>This is separate from the uploaded-image demo.</strong>
+        <p>The existing REWIND Ring console connects to the Ring Developer Playground, receives live WHEP video, captures a real frame, and sends that frame through Nova into the same Physical State Protocol used by REWIND.</p>
+      </div>
+
+      <div class="ring-pipeline" aria-label="Live Ring pipeline">
+        <div><strong>Ring</strong>Playground</div>
+        <div><strong>WHEP</strong>live video</div>
+        <div><strong>Frame</strong>capture</div>
+        <div><strong>Nova 2 Lite</strong>semantic state</div>
+        <div><strong>PSP</strong>validated state</div>
+      </div>
+
+      <div>
+        <div class="eyebrow">Secure local bridge</div>
+        <p class="privacy">Start the existing Ring console from the repository before recording. Ring credentials and upstream WHEP session URLs stay server-side in the local process; they are never embedded in this public page.</p>
+        <div class="ring-command" id="ringCommand">npm run ring:preview</div>
+      </div>
+
+      <div class="ring-actions">
+        <a class="btn primary" id="ringConsole" href="http://127.0.0.1:3002" target="_blank" rel="noreferrer">Open live Ring console</a>
+        <button class="btn" id="copyRingCommand" type="button">Copy launch command</button>
+      </div>
+
+      <ol class="ring-steps">
+        <li>Run the secure Ring preview locally with the existing Ring environment already loaded.</li>
+        <li>Open this mode in the public REWIND UI during the video so the evidence boundary is explicit.</li>
+        <li>Open the live Ring console, select the Playground device, and click <strong>Start live view</strong>.</li>
+        <li>Show the moving Ring Playground video, capture a frame, then click <strong>Observe with Nova</strong>.</li>
+        <li>Hold on the validated semantic output long enough for judges to see Ring → WHEP → Nova → PSP.</li>
+      </ol>
+
+      <div class="ring-boundary">Demo truth boundary: uploaded photos prove the repeatable restoration loop. This Ring mode proves the actual live Ring observation transport. Neither is presented as the other.</div>
+    </div>
+  </section>
+
   <div class="footer">AI interprets state. Deterministic code compares state.</div>
 </main>
 <script type="module" src="/app.js"></script>
