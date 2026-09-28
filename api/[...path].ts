@@ -77,6 +77,8 @@ interface WebVoiceResponse {
   state?: string;
   changeCount?: number;
   pendingActions?: number;
+  matchPercentage?: number;
+  coveragePercentage?: number;
 }
 
 const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1";
@@ -562,6 +564,8 @@ async function handleWebVoice(req: RequestLike, res: ResponseLike): Promise<void
         state: state.latestResult.state,
         changeCount: state.latestResult.changeCount,
         pendingActions: pendingActions(state.latestResult).length,
+        matchPercentage: state.latestResult.match.percentage,
+        coveragePercentage: state.latestResult.match.coveragePercentage,
       } : {}),
       ...extra,
     } satisfies WebVoiceResponse);
