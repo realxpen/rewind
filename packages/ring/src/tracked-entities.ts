@@ -232,3 +232,48 @@ export function mergeConsensusAdditions(
     added: additions.length,
   };
 }
+
+
+export interface ObservedExtraCandidateEvidence {
+  candidateKey: string;
+  decision: "EXTRA" | "REPRESENTED" | "UNCERTAIN";
+  confidence: number;
+}
+
+export function applyConsensusObservedExtras(
+  state: PhysicalState,
+  first: Map<string, ObservedExtraCandidateEvidence>,
+  second: Map<string, ObservedExtraCandidateEvidence>,
+): { state: PhysicalState; marked: number } {
+  let marked = 0;
+  const entities = state.entities.map(entity => {
+    const a = first.get(entity.key);
+    const b = second.get(entity.key);
+    if (
+      a?.decision !== "EXTRA"
+      || b?.decision !== "EXTRA"
+      || a.confidence < 0.9
+      || b.confidence < 0.9
+    ) {
+      return entity;
+    }
+
+    const alreadyPresent = entity.attributes?.present === true;
+    const alreadyMovable = entity.role === "MOVABLE" || entity.role === "CLUTTER";
+    if (!alreadyPresent || !alreadyMovable) marked += 1;
+
+    return {
+      ...entity,
+      role: "MOVABLE" as const,
+      attributes: {
+        ...(entity.attributes ?? {}),
+        present: true,
+      },
+    };
+  });
+
+  return {
+    state: { ...state, entities },
+    marked,
+  };
+}

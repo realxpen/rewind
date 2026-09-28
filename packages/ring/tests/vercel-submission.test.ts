@@ -90,3 +90,9 @@ assert.match(api, /CONTRASTIVE_EXTRA_SCAN/, "New-object recall must include an i
 assert.match(api, /mergeConsensusAdditions/, "Only consensus extra-object evidence may be merged into the current semantic state.");
 assert.match(api, /additionAuditCount/, "Observation responses should expose consensus extra-object additions.");
 assert.doesNotMatch(api, /cup\.blue|kettle\.red/, "Production addition audit must remain object-agnostic.");
+
+assert.match(api, /runObservedCandidateAudit/, "Tracked comparison must classify the exact current candidate keys for extra-object status.");
+assert.match(api, /CANDIDATE_IDENTITY_SCAN/, "Observed extras must have an independent identity-focused candidate audit.");
+assert.match(api, /CANDIDATE_CONTRAST_SCAN/, "Observed extras must have an independent checkpoint-contrast candidate audit.");
+assert.match(api, /applyConsensusObservedExtras/, "Only agreeing candidate audits may promote a current candidate to movable/present extra evidence.");
+assert.match(api, /observedExtraConsensusCount/, "Observation responses should expose candidate-consensus promotions.");

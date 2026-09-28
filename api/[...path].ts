@@ -13,11 +13,15 @@ import { buildRestorePlan, updateRestoreProgress } from "../packages/restore-eng
 import type { RewindToolResult } from "../packages/agent-tools/src/contracts.js";
 import type { PhysicalState } from "../packages/physical-state-protocol/src/index.js";
 import {
+  applyConsensusObservedExtras,
   mergeConsensusAdditions,
   reconcileTrackedEntityAliases,
   trackedEntitiesFromReferenceState,
 } from "../packages/ring/src/tracked-entities.js";
-import type { TrackedAdditionEvidence } from "../packages/ring/src/tracked-entities.js";
+import type {
+  ObservedExtraCandidateEvidence,
+  TrackedAdditionEvidence,
+} from "../packages/ring/src/tracked-entities.js";
 import type { AlexaRequestEnvelope, AlexaResponseEnvelope } from "../packages/alexa-skill/src/types.js";
 
 interface RequestLike {
@@ -819,6 +823,102 @@ async function runPresenceAudit(
 }
 
 
+async function runObservedCandidateAudit(
+  imageBytes: Uint8Array,
+  referenceState: PhysicalState,
+  observedState: PhysicalState,
+  mode: "CANDIDATE_IDENTITY_SCAN" | "CANDIDATE_CONTRAST_SCAN",
+): Promise<{ results: Map<string, ObservedExtraCandidateEvidence>; latencyMs: number }> {
+  const checkpointInventory = referenceState.entities.map(entity => ({
+    key: entity.key,
+    category: entity.category,
+    attributes: entity.attributes ?? {},
+    relations: entity.relations ?? [],
+  }));
+  const candidates = observedState.entities.map(entity => ({
+    key: entity.key,
+    category: entity.category,
+    attributes: entity.attributes ?? {},
+    relations: entity.relations ?? [],
+  }));
+
+  const modeInstruction = mode === "CANDIDATE_IDENTITY_SCAN"
+    ? "Inspect each listed CURRENT candidate independently. Decide whether it is genuinely additional to the saved checkpoint or corresponds to something already represented there."
+    : "Contrast each listed CURRENT candidate against the saved checkpoint inventory using visible identity, color/appearance, role, and location cues. Be conservative about aliases and synonyms.";
+
+  const prompt = [
+    "You are REWIND's observed-candidate extra-object auditor.",
+    "Inspect only the CURRENT image. The checkpoint is saved reference inventory, not current-state evidence.",
+    modeInstruction,
+    "You MUST evaluate only the exact candidate keys supplied below. Never invent, rename, normalize, split, or merge candidate keys.",
+    "For each candidate, return exactly one decision:",
+    "- EXTRA: this exact visible candidate is a genuinely additional movable/restorable object not represented by any checkpoint entity.",
+    "- REPRESENTED: this candidate corresponds to an object already represented by the checkpoint, even if category wording or key wording differs.",
+    "- UNCERTAIN: identity or extra status cannot be determined confidently.",
+    "Do not label fixed surfaces, walls, built-in fixtures, large fixed furniture, or decorative background objects as EXTRA.",
+    "Use confidence >= 0.90 only when the decision is visually clear.",
+    "Return every candidate key exactly once. Return JSON only.",
+    `Checkpoint inventory: ${JSON.stringify(checkpointInventory)}`,
+    `Current candidate entities: ${JSON.stringify(candidates)}`,
+    'JSON shape: {"results":[{"candidateKey":"exact.current.key","decision":"EXTRA|REPRESENTED|UNCERTAIN","confidence":0.0}]}',
+  ].join("\n");
+
+  const startedAt = Date.now();
+  const response = await bedrockClient.send(new ConverseCommand({
+    modelId,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          image: {
+            format: "jpeg",
+            source: { bytes: imageBytes },
+          },
+        },
+        { text: prompt },
+      ],
+    }],
+    inferenceConfig: {
+      maxTokens: 1100,
+      temperature: 0,
+      topP: 0.1,
+    },
+  }));
+  const latencyMs = Date.now() - startedAt;
+  const out = new Map<string, ObservedExtraCandidateEvidence>();
+  const allowed = new Set(candidates.map(candidate => candidate.key));
+
+  const content = response.output?.message?.content ?? [];
+  const textBlock = content.find(block => "text" in block && typeof block.text === "string");
+  if (!textBlock || !("text" in textBlock) || typeof textBlock.text !== "string") {
+    return { results: out, latencyMs };
+  }
+
+  try {
+    const parsed = JSON.parse(extractJsonObject(textBlock.text)) as {
+      results?: Array<Partial<ObservedExtraCandidateEvidence>>;
+    };
+    for (const item of parsed.results ?? []) {
+      if (
+        typeof item.candidateKey !== "string"
+        || !allowed.has(item.candidateKey)
+        || !["EXTRA", "REPRESENTED", "UNCERTAIN"].includes(String(item.decision))
+        || typeof item.confidence !== "number"
+        || !Number.isFinite(item.confidence)
+        || item.confidence < 0
+        || item.confidence > 1
+      ) {
+        continue;
+      }
+      out.set(item.candidateKey, item as ObservedExtraCandidateEvidence);
+    }
+  } catch {
+    // Invalid candidate-audit JSON contributes no evidence.
+  }
+
+  return { results: out, latencyMs };
+}
+
 async function runAdditionAudit(
   imageBytes: Uint8Array,
   referenceState: PhysicalState,
@@ -1004,6 +1104,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   let presenceAuditCount = 0;
   let identityReconciliationCount = 0;
   let additionAuditCount = 0;
+  let observedExtraConsensusCount = 0;
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
 
   const absencePromise = missingPresence.length > 0
@@ -1012,6 +1113,12 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   const localizationPromise = missingPresence.length > 0
     ? runPresenceAudit(bytes, missingPresence, result.state, "LOCALIZATION_CHECK")
     : Promise.resolve({ results: new Map<string, PresenceAuditResult>(), latencyMs: 0 });
+  const candidateIdentityPromise = referenceState
+    ? runObservedCandidateAudit(bytes, referenceState, result.state, "CANDIDATE_IDENTITY_SCAN")
+    : Promise.resolve({ results: new Map<string, ObservedExtraCandidateEvidence>(), latencyMs: 0 });
+  const candidateContrastPromise = referenceState
+    ? runObservedCandidateAudit(bytes, referenceState, result.state, "CANDIDATE_CONTRAST_SCAN")
+    : Promise.resolve({ results: new Map<string, ObservedExtraCandidateEvidence>(), latencyMs: 0 });
   const openExtraPromise = referenceState
     ? runAdditionAudit(bytes, referenceState, result.state, "OPEN_EXTRA_SCAN")
     : Promise.resolve({ results: new Map<string, TrackedAdditionEvidence>(), latencyMs: 0 });
@@ -1019,15 +1126,26 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
     ? runAdditionAudit(bytes, referenceState, result.state, "CONTRASTIVE_EXTRA_SCAN")
     : Promise.resolve({ results: new Map<string, TrackedAdditionEvidence>(), latencyMs: 0 });
 
-  const [absenceCheck, localizationCheck, openExtraCheck, contrastiveExtraCheck] = await Promise.all([
+  const [
+    absenceCheck,
+    localizationCheck,
+    candidateIdentityCheck,
+    candidateContrastCheck,
+    openExtraCheck,
+    contrastiveExtraCheck,
+  ] = await Promise.all([
     absencePromise,
     localizationPromise,
+    candidateIdentityPromise,
+    candidateContrastPromise,
     openExtraPromise,
     contrastiveExtraPromise,
   ]);
   totalLatencyMs += Math.max(
     absenceCheck.latencyMs,
     localizationCheck.latencyMs,
+    candidateIdentityCheck.latencyMs,
+    candidateContrastCheck.latencyMs,
     openExtraCheck.latencyMs,
     contrastiveExtraCheck.latencyMs,
   );
@@ -1053,6 +1171,14 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   }
 
   if (referenceState) {
+    const observedConsensus = applyConsensusObservedExtras(
+      finalState,
+      candidateIdentityCheck.results,
+      candidateContrastCheck.results,
+    );
+    observedExtraConsensusCount = observedConsensus.marked;
+    finalState = observedConsensus.state;
+
     const additionConsensus = mergeConsensusAdditions(
       finalState,
       referenceState,
@@ -1081,6 +1207,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
     presenceAuditCount,
     identityReconciliationCount,
     additionAuditCount,
+    observedExtraConsensusCount,
     source: "photo",
     persisted: "semantic-state-only",
   });

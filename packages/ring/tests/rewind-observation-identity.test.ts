@@ -5,7 +5,11 @@ import type { VisionObservationRequest } from "../../vision/src/contracts.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
 import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
-import { mergeConsensusAdditions, reconcileTrackedEntityAliases } from "../src/tracked-entities.js";
+import {
+  applyConsensusObservedExtras,
+  mergeConsensusAdditions,
+  reconcileTrackedEntityAliases,
+} from "../src/tracked-entities.js";
 
 const spaceId = "identity-anchor-space";
 const checkpoint: Checkpoint = {
@@ -267,3 +271,58 @@ const duplicateExtra = mergeConsensusAdditions(
   ]),
 );
 assert.equal(duplicateExtra.added, 0, "Consensus addition audit must not duplicate an extra already found by the main observation.");
+
+
+const observedCandidateState: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "observed-extra-consensus",
+  capturedAt: "2026-09-28T12:50:00.000Z",
+  entities: [
+    { key: "countertop", category: "countertop", confidence: 0.99 },
+    { key: "cup", category: "cup", confidence: 0.97 },
+    { key: "kettle", category: "kettle", confidence: 0.97 },
+  ],
+};
+const observedCandidateVotes = new Map([
+  ["countertop", { candidateKey: "countertop", decision: "REPRESENTED" as const, confidence: 0.99 }],
+  ["cup", { candidateKey: "cup", decision: "EXTRA" as const, confidence: 0.98 }],
+  ["kettle", { candidateKey: "kettle", decision: "EXTRA" as const, confidence: 0.97 }],
+]);
+const markedObservedExtras = applyConsensusObservedExtras(
+  observedCandidateState,
+  observedCandidateVotes,
+  observedCandidateVotes,
+);
+assert.equal(markedObservedExtras.marked, 2, "Two agreeing candidate audits must mark both current extras.");
+assert.equal(
+  markedObservedExtras.state.entities.find(entity => entity.key === "cup")?.attributes?.present,
+  true,
+  "Existing cup candidate must become explicit movable/present evidence.",
+);
+assert.equal(
+  markedObservedExtras.state.entities.find(entity => entity.key === "kettle")?.attributes?.present,
+  true,
+  "Existing kettle candidate must become explicit movable/present evidence without noun hardcoding.",
+);
+assert.equal(
+  markedObservedExtras.state.entities.find(entity => entity.key === "kettle")?.role,
+  "MOVABLE",
+  "Consensus extra candidate must receive semantic MOVABLE role.",
+);
+
+const splitCandidateVotes = new Map(observedCandidateVotes);
+splitCandidateVotes.set("kettle", {
+  candidateKey: "kettle",
+  decision: "UNCERTAIN" as const,
+  confidence: 0.7,
+});
+const conservativeObservedExtras = applyConsensusObservedExtras(
+  observedCandidateState,
+  observedCandidateVotes,
+  splitCandidateVotes,
+);
+assert.equal(
+  conservativeObservedExtras.state.entities.find(entity => entity.key === "kettle")?.attributes?.present,
+  undefined,
+  "Candidate disagreement must not invent actionable presence.",
+);
