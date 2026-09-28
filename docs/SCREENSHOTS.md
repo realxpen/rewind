@@ -48,7 +48,7 @@ Caption:
 
 ### 5. Live Ring proof
 
-Show the Ring Developer Playground live view together with the REWIND/Nova analysis result. Add a visible **LIVE RING INTEGRATION PROOF** label.
+First capture the public REWIND **Live Ring Playground** proof mode so the evidence boundary is visible. For the strongest gallery image, pair or follow it with the secure local REWIND Ring console showing the moving Playground feed and the Nova/PSP result. Keep **LIVE RING INTEGRATION PROOF** visible.
 
 Caption:
 
