@@ -123,4 +123,39 @@ Temporary production diagnostics are now protected by the existing relay secret,
 
 This gate proves the photo-first submission path and real Alexa guidance path. It does **not** relabel photo evidence as Live Ring evidence.
 
+## Unrelated kitchen added-object regression — 2026-09-28
+
+This is a second production Image + REWIND Voice reliability run on a scene unrelated to the desk/notebook test. It is **not** Live Ring evidence.
+
+Ground truth:
+
+- saved checkpoint: `empty kitchen`;
+- baseline image: basil plant + fruit bowl + toaster, with no blue cup and no red kettle;
+- changed image: the same kitchen plus a blue cup and red kettle.
+
+Observed production result:
+
+1. the main Nova pass emitted both current candidates;
+2. two independent candidate audits agreed that `cup` and `kettle` were EXTRA at high confidence;
+3. consensus promoted both exact current keys to semantic `MOVABLE` + `present=true` evidence;
+4. deterministic DIFF produced exactly **2 important changes**;
+5. REWIND Voice guided **cup first**: “Remove cup from the restored scene.”;
+6. `next step` guided **kettle second**: “Remove kettle from the restored scene.”;
+7. a further `next step` stopped correctly with: “That was the last pending step. Analyze another photo and say check again when you want me to verify the restoration.”
+
+The same kitchen scene family separately reached the restored response after baseline re-analysis, confirming that the kitchen is not only a DIFF fixture.
+
+Reliability property proven:
+
+- no cup/kettle-specific production branch is required;
+- a movable extra is actionable from semantic evidence rather than a hardcoded noun list;
+- extra-object audits vote on exact candidates from the main observation, avoiding `kettle` vs `teapot` canonical-name disagreement;
+- two additions survive deterministic DIFF and restore planning;
+- two-step voice navigation terminates instead of repeating the last action.
+
+Automated preservation:
+
+- `packages/ring/tests/rewind-observation-identity.test.ts` carries the unrelated kitchen candidate-consensus → DIFF → restore-plan regression;
+- `packages/ring/tests/vercel-submission.test.ts` guards the REWIND Voice final-step stop control flow.
+
 Phase 11 submission reliability gate: **PASS**.
