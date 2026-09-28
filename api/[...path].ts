@@ -12,7 +12,12 @@ import { compareStates, calculateMatch } from "../packages/diff-engine/src/index
 import { buildRestorePlan, updateRestoreProgress } from "../packages/restore-engine/src/index.js";
 import type { RewindToolResult } from "../packages/agent-tools/src/contracts.js";
 import type { PhysicalState } from "../packages/physical-state-protocol/src/index.js";
-import { reconcileTrackedEntityAliases, trackedEntitiesFromReferenceState } from "../packages/ring/src/tracked-entities.js";
+import {
+  mergeConsensusAdditions,
+  reconcileTrackedEntityAliases,
+  trackedEntitiesFromReferenceState,
+} from "../packages/ring/src/tracked-entities.js";
+import type { TrackedAdditionEvidence } from "../packages/ring/src/tracked-entities.js";
 import type { AlexaRequestEnvelope, AlexaResponseEnvelope } from "../packages/alexa-skill/src/types.js";
 
 interface RequestLike {
@@ -813,6 +818,105 @@ async function runPresenceAudit(
   return { results: out, latencyMs };
 }
 
+
+async function runAdditionAudit(
+  imageBytes: Uint8Array,
+  referenceState: PhysicalState,
+  observedState: PhysicalState,
+  mode: "OPEN_EXTRA_SCAN" | "CONTRASTIVE_EXTRA_SCAN",
+): Promise<{ results: Map<string, TrackedAdditionEvidence>; latencyMs: number }> {
+  const checkpointInventory = referenceState.entities.map(entity => ({
+    key: entity.key,
+    category: entity.category,
+    attributes: entity.attributes ?? {},
+    relations: entity.relations ?? [],
+  }));
+  const alreadyObserved = observedState.entities.map(entity => ({
+    key: entity.key,
+    category: entity.category,
+    attributes: entity.attributes ?? {},
+    relations: entity.relations ?? [],
+  }));
+
+  const modeInstruction = mode === "OPEN_EXTRA_SCAN"
+    ? "Scan the entire current image from scratch for obvious loose/movable/restorable objects. Then exclude anything already represented by the checkpoint or alreadyObserved list."
+    : "Contrast the current image against the checkpoint inventory and actively search for obvious loose/movable/restorable objects that exist now but were not represented in the checkpoint. Exclude anything alreadyObserved.";
+
+  const prompt = [
+    "You are REWIND's additional-object auditor.",
+    "Inspect only the CURRENT image. The checkpoint is reference inventory, not current-state evidence.",
+    modeInstruction,
+    "Return only genuinely additional movable/restorable physical objects. Do not return walls, floors, counters/tables, built-in fixtures, large fixed furniture, decorative plants, wall art, or lighting.",
+    "Do not return a checkpoint object under a new alias. If a visible object could reasonably correspond to any checkpoint entity, omit it from extras.",
+    "Do not return an object already represented in alreadyObserved, even if you would personally choose a different key or category name.",
+    "For each true extra, create a canonicalKey in lower-case semantic form category.identity-token. Use an obvious color as the identity token when visually clear; otherwise use a stable role/location token. Keep it concise and use only letters, digits, dots, hyphens, or underscores.",
+    "Use a singular common-noun category. Set confidence >= 0.90 only for clearly visible, unambiguous extras.",
+    "color is optional and must be a simple visible color word. appearance is optional and must be a short literal visual phrase.",
+    "Return at most 8 extras. If uncertain, omit the object.",
+    "Return JSON only, no prose.",
+    `Checkpoint inventory: ${JSON.stringify(checkpointInventory)}`,
+    `Already observed current entities: ${JSON.stringify(alreadyObserved)}`,
+    'JSON shape: {"results":[{"canonicalKey":"category.identity","category":"category","confidence":0.0,"color":"color-or-null","appearance":"short phrase or null"}]}',
+  ].join("\n");
+
+  const startedAt = Date.now();
+  const response = await bedrockClient.send(new ConverseCommand({
+    modelId,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          image: {
+            format: "jpeg",
+            source: { bytes: imageBytes },
+          },
+        },
+        { text: prompt },
+      ],
+    }],
+    inferenceConfig: {
+      maxTokens: 900,
+      temperature: 0,
+      topP: 0.1,
+    },
+  }));
+  const latencyMs = Date.now() - startedAt;
+  const out = new Map<string, TrackedAdditionEvidence>();
+
+  const content = response.output?.message?.content ?? [];
+  const textBlock = content.find(block => "text" in block && typeof block.text === "string");
+  if (!textBlock || !("text" in textBlock) || typeof textBlock.text !== "string") {
+    return { results: out, latencyMs };
+  }
+
+  try {
+    const parsed = JSON.parse(extractJsonObject(textBlock.text)) as {
+      results?: Array<Partial<TrackedAdditionEvidence>>;
+    };
+    for (const item of parsed.results ?? []) {
+      if (
+        typeof item.canonicalKey !== "string"
+        || !/^[a-z0-9][a-z0-9._-]{1,79}$/.test(item.canonicalKey)
+        || typeof item.category !== "string"
+        || !item.category.trim()
+        || typeof item.confidence !== "number"
+        || !Number.isFinite(item.confidence)
+        || item.confidence < 0
+        || item.confidence > 1
+        || (item.color !== undefined && item.color !== null && typeof item.color !== "string")
+        || (item.appearance !== undefined && item.appearance !== null && typeof item.appearance !== "string")
+      ) {
+        continue;
+      }
+      out.set(item.canonicalKey, item as TrackedAdditionEvidence);
+    }
+  } catch {
+    // Invalid extra-audit JSON contributes no evidence.
+  }
+
+  return { results: out, latencyMs };
+}
+
 function mergeConsensusAbsences(
   state: PhysicalState,
   hints: TrackedEntityHint[],
@@ -899,33 +1003,64 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
   let totalLatencyMs = result.latencyMs;
   let presenceAuditCount = 0;
   let identityReconciliationCount = 0;
+  let additionAuditCount = 0;
   const missingPresence = missingTrackedPresenceHints(referenceState, trackedEntities, result.state);
-  if (missingPresence.length > 0) {
-    const [absenceCheck, localizationCheck] = await Promise.all([
-      runPresenceAudit(bytes, missingPresence, result.state, "ABSENCE_CHECK"),
-      runPresenceAudit(bytes, missingPresence, result.state, "LOCALIZATION_CHECK"),
-    ]);
-    totalLatencyMs += Math.max(absenceCheck.latencyMs, localizationCheck.latencyMs);
 
-    if (referenceState) {
-      const identityConsensus = reconcileTrackedEntityAliases(
-        finalState,
-        referenceState,
-        absenceCheck.results,
-        localizationCheck.results,
-      );
-      identityReconciliationCount = identityConsensus.reconciled;
-      finalState = identityConsensus.state;
-    }
+  const absencePromise = missingPresence.length > 0
+    ? runPresenceAudit(bytes, missingPresence, result.state, "ABSENCE_CHECK")
+    : Promise.resolve({ results: new Map<string, PresenceAuditResult>(), latencyMs: 0 });
+  const localizationPromise = missingPresence.length > 0
+    ? runPresenceAudit(bytes, missingPresence, result.state, "LOCALIZATION_CHECK")
+    : Promise.resolve({ results: new Map<string, PresenceAuditResult>(), latencyMs: 0 });
+  const openExtraPromise = referenceState
+    ? runAdditionAudit(bytes, referenceState, result.state, "OPEN_EXTRA_SCAN")
+    : Promise.resolve({ results: new Map<string, TrackedAdditionEvidence>(), latencyMs: 0 });
+  const contrastiveExtraPromise = referenceState
+    ? runAdditionAudit(bytes, referenceState, result.state, "CONTRASTIVE_EXTRA_SCAN")
+    : Promise.resolve({ results: new Map<string, TrackedAdditionEvidence>(), latencyMs: 0 });
 
-    const consensus = mergeConsensusAbsences(
+  const [absenceCheck, localizationCheck, openExtraCheck, contrastiveExtraCheck] = await Promise.all([
+    absencePromise,
+    localizationPromise,
+    openExtraPromise,
+    contrastiveExtraPromise,
+  ]);
+  totalLatencyMs += Math.max(
+    absenceCheck.latencyMs,
+    localizationCheck.latencyMs,
+    openExtraCheck.latencyMs,
+    contrastiveExtraCheck.latencyMs,
+  );
+
+  if (referenceState && missingPresence.length > 0) {
+    const identityConsensus = reconcileTrackedEntityAliases(
+      finalState,
+      referenceState,
+      absenceCheck.results,
+      localizationCheck.results,
+    );
+    identityReconciliationCount = identityConsensus.reconciled;
+    finalState = identityConsensus.state;
+
+    const absenceConsensus = mergeConsensusAbsences(
       finalState,
       missingPresence,
       absenceCheck.results,
       localizationCheck.results,
     );
-    presenceAuditCount = consensus.added;
-    finalState = consensus.state;
+    presenceAuditCount = absenceConsensus.added;
+    finalState = absenceConsensus.state;
+  }
+
+  if (referenceState) {
+    const additionConsensus = mergeConsensusAdditions(
+      finalState,
+      referenceState,
+      openExtraCheck.results,
+      contrastiveExtraCheck.results,
+    );
+    additionAuditCount = additionConsensus.added;
+    finalState = additionConsensus.state;
   }
 
   const observation: RuntimeObservation = {
@@ -945,6 +1080,7 @@ async function handleObserve(req: RequestLike, res: ResponseLike): Promise<void>
     latencyMs: observation.latencyMs,
     presenceAuditCount,
     identityReconciliationCount,
+    additionAuditCount,
     source: "photo",
     persisted: "semantic-state-only",
   });

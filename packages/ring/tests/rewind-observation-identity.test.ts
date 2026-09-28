@@ -5,7 +5,7 @@ import type { VisionObservationRequest } from "../../vision/src/contracts.js";
 import type { Checkpoint } from "../../checkpoints/src/contracts.js";
 import { demoReady, messy } from "../../physical-state-protocol/fixtures/studio.js";
 import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
-import { reconcileTrackedEntityAliases } from "../src/tracked-entities.js";
+import { mergeConsensusAdditions, reconcileTrackedEntityAliases } from "../src/tracked-entities.js";
 
 const spaceId = "identity-anchor-space";
 const checkpoint: Checkpoint = {
@@ -187,3 +187,83 @@ const disagreeingIdentity = reconcileTrackedEntityAliases(
 );
 assert.equal(disagreeingIdentity.reconciled, 0, "Audits must agree on the same candidate key before reconciliation.");
 assert(disagreeingIdentity.state.entities.some(entity => entity.key === "chair"), "Disagreement must preserve the observed key instead of guessing.");
+
+
+const extraBaseline: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "addition-consensus",
+  capturedAt: "2026-09-28T11:00:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+    { key: "toaster.main", category: "toaster", confidence: 0.98 },
+  ],
+};
+const extraObserved: PhysicalState = {
+  ...extraBaseline,
+  capturedAt: "2026-09-28T11:01:00.000Z",
+  entities: [
+    { key: "countertop.main", category: "countertop", confidence: 0.99 },
+    { key: "toaster.main", category: "toaster", confidence: 0.98 },
+    { key: "cup.blue", category: "cup", confidence: 0.96, attributes: { present: true, color: "blue" } },
+  ],
+};
+const agreedExtras = new Map([
+  ["kettle.red", {
+    canonicalKey: "kettle.red",
+    category: "kettle",
+    confidence: 0.96,
+    color: "red",
+    appearance: "red kettle",
+  }],
+]);
+const mergedExtras = mergeConsensusAdditions(extraObserved, extraBaseline, agreedExtras, agreedExtras);
+assert.equal(mergedExtras.added, 1, "Two agreeing addition audits must admit one missed extra.");
+assert(
+  mergedExtras.state.entities.some(entity =>
+    entity.key === "kettle.red"
+    && entity.category === "kettle"
+    && entity.attributes?.present === true
+    && entity.attributes?.color === "red"
+  ),
+  "Consensus extra must become explicit present=true current evidence.",
+);
+
+const disagreeingExtras = mergeConsensusAdditions(
+  extraObserved,
+  extraBaseline,
+  agreedExtras,
+  new Map([
+    ["kettle.black", {
+      canonicalKey: "kettle.black",
+      category: "kettle",
+      confidence: 0.96,
+      color: "black",
+      appearance: "black kettle",
+    }],
+  ]),
+);
+assert.equal(disagreeingExtras.added, 0, "Addition audits must agree on the same canonical extra before admission.");
+
+const duplicateExtra = mergeConsensusAdditions(
+  extraObserved,
+  extraBaseline,
+  new Map([
+    ["cup.blue", {
+      canonicalKey: "cup.blue",
+      category: "cup",
+      confidence: 0.97,
+      color: "blue",
+      appearance: "blue cup",
+    }],
+  ]),
+  new Map([
+    ["cup.blue", {
+      canonicalKey: "cup.blue",
+      category: "cup",
+      confidence: 0.97,
+      color: "blue",
+      appearance: "blue cup",
+    }],
+  ]),
+);
+assert.equal(duplicateExtra.added, 0, "Consensus addition audit must not duplicate an extra already found by the main observation.");

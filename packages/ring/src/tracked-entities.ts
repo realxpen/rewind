@@ -144,3 +144,91 @@ export function reconcileTrackedEntityAliases(
     reconciled: replacements.size,
   };
 }
+
+
+export interface TrackedAdditionEvidence {
+  canonicalKey: string;
+  category: string;
+  confidence: number;
+  color?: string | null;
+  appearance?: string | null;
+}
+
+function normalizedAdditionToken(value: string | null | undefined): string | undefined {
+  const token = value?.trim().toLowerCase();
+  return token || undefined;
+}
+
+export function mergeConsensusAdditions(
+  state: PhysicalState,
+  referenceState: PhysicalState,
+  first: Map<string, TrackedAdditionEvidence>,
+  second: Map<string, TrackedAdditionEvidence>,
+): { state: PhysicalState; added: number } {
+  const referenceKeys = new Set(referenceState.entities.map(entity => entity.key));
+  const existingKeys = new Set(state.entities.map(entity => entity.key));
+  const additions = [];
+
+  for (const [canonicalKey, a] of first) {
+    const b = second.get(canonicalKey);
+    if (
+      !b
+      || a.canonicalKey !== canonicalKey
+      || b.canonicalKey !== canonicalKey
+      || a.category.trim().toLowerCase() !== b.category.trim().toLowerCase()
+      || a.confidence < 0.9
+      || b.confidence < 0.9
+      || !/^[a-z0-9][a-z0-9._-]{1,79}$/.test(canonicalKey)
+      || referenceKeys.has(canonicalKey)
+      || existingKeys.has(canonicalKey)
+    ) {
+      continue;
+    }
+
+    const category = a.category.trim().toLowerCase();
+    if (!category) continue;
+
+    const colorA = normalizedAdditionToken(a.color);
+    const colorB = normalizedAdditionToken(b.color);
+    if (colorA && colorB && colorA !== colorB) continue;
+
+    const appearanceA = normalizedAdditionToken(a.appearance);
+    const appearanceB = normalizedAdditionToken(b.appearance);
+
+    const duplicateExisting = state.entities.some(entity => {
+      if (entity.category.trim().toLowerCase() !== category) return false;
+      const existingColor = normalizedAdditionToken(
+        typeof entity.attributes?.color === "string"
+          ? entity.attributes.color
+          : typeof entity.attributes?.colour === "string"
+            ? entity.attributes.colour
+            : undefined,
+      );
+      if (colorA && existingColor) return colorA === existingColor;
+      return entity.key === canonicalKey;
+    });
+    if (duplicateExisting) continue;
+
+    additions.push({
+      key: canonicalKey,
+      category,
+      confidence: Math.min(a.confidence, b.confidence),
+      attributes: {
+        present: true,
+        ...(colorA && (!colorB || colorA === colorB) ? { color: colorA } : {}),
+        ...(appearanceA && appearanceB && appearanceA === appearanceB ? { appearance: appearanceA } : {}),
+      },
+      relations: [],
+    });
+    existingKeys.add(canonicalKey);
+  }
+
+  if (!additions.length) return { state, added: 0 };
+  return {
+    state: {
+      ...state,
+      entities: [...state.entities, ...additions],
+    },
+    added: additions.length,
+  };
+}

@@ -83,3 +83,10 @@ assert.match(
   /const nextIndex = state\.actionIndex \+ 1;/,
   "Next-step navigation must advance explicitly through pending actions.",
 );
+
+assert.match(api, /runAdditionAudit/, "Tracked comparison must run a dedicated generic new-object audit.");
+assert.match(api, /OPEN_EXTRA_SCAN/, "New-object recall must include an independent open extra scan.");
+assert.match(api, /CONTRASTIVE_EXTRA_SCAN/, "New-object recall must include an independent checkpoint-contrastive scan.");
+assert.match(api, /mergeConsensusAdditions/, "Only consensus extra-object evidence may be merged into the current semantic state.");
+assert.match(api, /additionAuditCount/, "Observation responses should expose consensus extra-object additions.");
+assert.doesNotMatch(api, /cup\.blue|kettle\.red/, "Production addition audit must remain object-agnostic.");
