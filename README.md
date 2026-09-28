@@ -27,7 +27,7 @@ Built for **Build, Ship, Shape: Amazon Developer Hackathon (2026)**.
 
 REWIND keeps evidence honest:
 
-- **Live Ring proof** demonstrates Ring Developer Playground → WHEP live frame → Nova semantic state.
+- **Live Ring proof** is exposed again from the public demo as a clearly labeled proof mode, then launches the existing secure local Ring console for Ring Developer Playground → WHEP live frame → Nova semantic state.
 - **Image + REWIND Voice** demonstrates the repeatable SAVE → DIFF → REWIND → VERIFY interaction in one product UI.
 - **Controlled fixtures** provide deterministic ground-truth evaluation.
 
@@ -205,7 +205,7 @@ Final hackathon validation set:
 
 The two Live Ring runs validate the real Ring → frame → Nova → semantic-state → compare path on an unchanged scene. They do **not** claim physical rearrangement testing.
 
-A separate production **Image + Alexa** acceptance run on 2026-09-26 validated the submission path with two simultaneously removed tracked objects. Nova produced explicit `present=false` evidence for both at 0.95 confidence through a generic two-pass contrastive absence audit; deterministic comparison produced two changes; Alexa guided both restore actions; partial verification reduced the pending work; and the restored baseline reached the final RESTORED response. This photo-first acceptance is intentionally not presented as Live Ring evidence.
+A separate production **Image + REWIND Voice** acceptance run on 2026-09-26 validated the submission path with two simultaneously removed tracked objects. Nova produced explicit `present=false` evidence for both at 0.95 confidence through a generic two-pass contrastive absence audit; deterministic comparison produced two changes; REWIND Voice guided both restore actions; partial verification reduced the pending work; and the restored baseline reached the final RESTORED response. This photo-first acceptance is intentionally not presented as Live Ring evidence.
 
 The tracked-absence mechanism is checkpoint-driven rather than object/image hardcoded: omission remains UNKNOWN, and a missing tracked object is admitted as absent only when two focused audits agree that its support area is visible and the object is absent at confidence >= 0.85.
 
