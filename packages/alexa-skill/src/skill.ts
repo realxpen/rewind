@@ -447,7 +447,15 @@ export class RewindAlexaSkill {
           false,
         );
       }
-      state.actionIndex = Math.min(state.actionIndex + 1, actions.length - 1);
+      const nextIndex = state.actionIndex + 1;
+      if (nextIndex >= actions.length) {
+        return this.speak(
+          state,
+          "That was the last pending step. Say check again when you want me to verify the restoration.",
+          false,
+        );
+      }
+      state.actionIndex = nextIndex;
       return this.speak(
         state,
         `Next, ${actions[state.actionIndex]!.instruction} Say check again when you want me to verify the room.`,
