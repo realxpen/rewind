@@ -2,61 +2,82 @@
 
 Do not publish browser screenshots that expose personal tabs, bookmarks, emails, secrets, tokens, AWS identifiers, or developer-console account data.
 
-Capture clean crops or full-window shots with only REWIND/Alexa/Ring content visible.
+Capture clean crops or full-window shots with only REWIND/Ring/Alexa proof visible. Keep photo evidence and Live Ring evidence explicitly labeled as different sources.
 
-## Required gallery images
+## Final gallery set
 
 ### 1. Hero — REWIND in action
 
-Show the public REWIND UI with Rewind a space selected, Vercel desk baseline, changed desk image, REWIND scene ready, semantic entity chips, and the built-in REWIND Voice card.
+Show the public REWIND UI with **Rewind a space** selected, an analyzed scene, semantic entity chips, the selected checkpoint, and the built-in **REWIND Voice** card in the same frame.
 
 Caption:
 
-> REWIND turns a visual observation into semantic state that Alexa can use for deterministic restoration guidance.
+> REWIND converts a visual observation into semantic state, compares it deterministically with a saved checkpoint, and guides restoration through REWIND Voice.
 
-### 2. Two-object DIFF
+### 2. Cross-scene reliability — kitchen additions
 
-Show REWIND Voice reporting:
+Show the `empty kitchen` checkpoint with the changed kitchen result where REWIND Voice reports **2 important changes** and the first instruction is:
 
-> “I found 2 important changes from vercel desk baseline.”
-
-Caption:
-
-> Two tracked objects removed, two deterministic restore actions generated.
-
-### 3. VERIFY / RESTORED
-
-Show the final REWIND Voice restored result.
+> Remove cup from the restored scene.
 
 Caption:
 
-> Fresh re-observation verifies that the saved semantic state has been restored.
+> An unrelated kitchen scene adds two objects. Candidate-consensus evidence makes both additions actionable without object-specific production rules.
 
-### 4. Live Ring proof
+### 3. Final-step navigation
 
-Show the Ring Developer Playground live view together with the REWIND/Nova analysis result.
+Show the next REWIND Voice instruction:
 
-Add a visible **LIVE RING INTEGRATION PROOF** label.
+> Next, Remove kettle from the restored scene.
+
+If space allows, include the following response after another **Next step**:
+
+> That was the last pending step. Analyze another photo and say check again when you want me to verify the restoration.
 
 Caption:
 
-> Ring Playground → WHEP live frame → Nova 2 Lite → validated physical state.
+> Ordered guidance advances through the action set and stops after the final pending step instead of repeating it.
 
-### 5. Architecture
+### 4. VERIFY / RESTORED
 
-Use the Mermaid architecture in docs/ARCHITECTURE.md or export it as a clean image.
+Show a fresh baseline re-analysis with the final REWIND Voice restored result.
+
+Caption:
+
+> Fresh visual evidence is re-compared with the checkpoint before REWIND declares the important visible state restored.
+
+### 5. Live Ring proof
+
+Show the Ring Developer Playground live view together with the REWIND/Nova analysis result. Add a visible **LIVE RING INTEGRATION PROOF** label.
+
+Caption:
+
+> Ring Developer Playground → WHEP live frame → Nova 2 Lite → validated Physical State Protocol.
+
+### 6. Architecture
+
+Export the architecture from `docs/ARCHITECTURE.md` as a clean image.
 
 Caption:
 
 > AI interprets state. Deterministic code compares state.
 
-### 6. Physical State Protocol
+### 7. Physical State Protocol / Open Source
 
-Show the PSP package, JSON schema, a semantic fixture, and deterministic tests.
+Show the PSP package, JSON schema, a semantic fixture, deterministic diff/restore tests, and the public contribution PR if the crop remains readable.
 
 Caption:
 
 > PSP v0.1 is the open semantic contract behind SAVE, DIFF, REWIND, and VERIFY.
+
+## Capture rules
+
+- use a clean browser window with unrelated tabs/bookmarks hidden;
+- keep the REWIND logo/title and relevant state visible;
+- crop away local file paths, account avatars, emails, tokens, request headers, and IDs;
+- do not put a **LIVE RING** label on uploaded-photo evidence;
+- do not call the web microphone experience Alexa; label it **REWIND Voice**;
+- use the separate Alexa screenshot only as **ACTUAL ALEXA INTEGRATION** proof.
 
 ## Privacy review
 
@@ -65,4 +86,6 @@ Caption:
 - [ ] no Alexa relay secret
 - [ ] no private email
 - [ ] no personal browser tabs/bookmarks
-- [ ] no misleading live-Ring label on photo evidence
+- [ ] no private account IDs
+- [ ] no misleading Live Ring label on photo evidence
+- [ ] REWIND Voice is not mislabeled as Alexa
