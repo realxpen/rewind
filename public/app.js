@@ -46,6 +46,15 @@ function updateRestoreProgress(data) {
     : pending;
 }
 
+function clearRestoreProgress() {
+  const box = $("restoreProgress");
+  box.hidden = true;
+  box.classList.remove("restored");
+  $("restorePercent").textContent = "0%";
+  $("restoreBar").style.width = "0%";
+  $("restoreProgressNote").textContent = "Deterministic semantic match against the selected checkpoint.";
+}
+
 function setDemoSource(next) {
   demoSource = next === "ring" ? "ring" : "image";
   document.querySelectorAll("[data-demo-source]").forEach(button => {
@@ -153,6 +162,7 @@ function selectFile(file) {
   $("preview").hidden = false;
   $("analyze").disabled = false;
   $("sceneBox").hidden = true;
+  clearRestoreProgress();
   setStatus("Photo selected", "Analyze it with Nova to make it REWIND's current semantic scene.");
 }
 
@@ -301,6 +311,7 @@ $("analyze").onclick = async () => {
       body.checkpointId = checkpointId;
     }
     const observation = await api("observe", { method: "POST", body: JSON.stringify(body) });
+    clearRestoreProgress();
     const entities = Array.isArray(observation.state?.entities) ? observation.state.entities : [];
     $("entities").replaceChildren(...entities.slice(0, 12).map(entity => Object.assign(document.createElement("span"), {
       className: "entity",
