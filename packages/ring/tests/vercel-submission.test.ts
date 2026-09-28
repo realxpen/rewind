@@ -64,6 +64,9 @@ assert.match(app, /api\("voice"/, "Public UI must call the dedicated REWIND Voic
 assert.match(html, /Rewind restored/, "Public UI must expose deterministic rewind restoration percentage.");
 assert.match(app, /matchPercentage/, "Public UI must render the deterministic match percentage returned by the voice API.");
 assert.match(app, /coveragePercentage/, "Public UI must surface evidence coverage when visual evidence is incomplete.");
+assert.match(app, /function clearRestoreProgress\(\)/, "Fresh scene selection must clear stale rewind progress.");
+assert.match(app, /selectFile[\s\S]*?clearRestoreProgress\(\)/, "Selecting a new photo must hide the previous scene's percentage before analysis.");
+assert.match(app, /api\("observe"[\s\S]*?clearRestoreProgress\(\)/, "A fresh Nova observation must not inherit a stale comparison percentage.");
 assert.match(api, /matchPercentage: state\.latestResult\.match\.percentage/, "Voice API must expose deterministic match percentage, not an AI-estimated score.");
 assert.match(api, /coveragePercentage: state\.latestResult\.match\.coveragePercentage/, "Voice API must expose deterministic evidence coverage.");
 
