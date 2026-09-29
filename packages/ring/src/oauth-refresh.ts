@@ -59,16 +59,16 @@ export interface RingOAuthRefreshManagerOptions {
 }
 
 export class RingOAuthRefreshManager {
-  private readonly clientId?: string;
-  private readonly clientSecret?: string;
-  private readonly configuredRefreshToken?: string;
+  private readonly clientId: string | undefined;
+  private readonly clientSecret: string | undefined;
+  private readonly configuredRefreshToken: string | undefined;
   private readonly oauthTokenUrl: string;
   private readonly cachePath: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private cacheLoaded = false;
-  private cached?: CachedRingOAuthCredentials;
-  private refreshInFlight?: Promise<CachedRingOAuthCredentials>;
+  private cached: CachedRingOAuthCredentials | undefined;
+  private refreshInFlight: Promise<CachedRingOAuthCredentials> | undefined;
 
   constructor(private readonly options: RingOAuthRefreshManagerOptions) {
     this.clientId = options.clientId?.trim() || undefined;
@@ -181,9 +181,9 @@ export function createRingOAuthRefreshManagerFromEnv(
 ): RingOAuthRefreshManager {
   return new RingOAuthRefreshManager({
     accessToken,
-    clientId: env.RING_CLIENT_ID,
-    clientSecret: env.RING_CLIENT_SECRET,
-    refreshToken: env.RING_REFRESH_TOKEN,
-    cachePath: env.REWIND_RING_OAUTH_CACHE_PATH,
+    ...(env.RING_CLIENT_ID ? { clientId: env.RING_CLIENT_ID } : {}),
+    ...(env.RING_CLIENT_SECRET ? { clientSecret: env.RING_CLIENT_SECRET } : {}),
+    ...(env.RING_REFRESH_TOKEN ? { refreshToken: env.RING_REFRESH_TOKEN } : {}),
+    ...(env.REWIND_RING_OAUTH_CACHE_PATH ? { cachePath: env.REWIND_RING_OAUTH_CACHE_PATH } : {}),
   });
 }
