@@ -80,6 +80,9 @@ assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /DELTA SCAN/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /boolean "clear" attribute/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /"present": true/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /"present": false/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /category, arbitrary numbering, and occupying the same feeder\/area are NOT identity proof/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /Do not call a subject MOVED merely because another bird or animal is visible somewhere else/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /visibly different subject has arrived/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /relevant support\/location area is visible and not occluded/i);
 assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /clear absence must be represented by the tracked entity itself with "present": false, never by omission/i);
 assert.match(buildNovaObservationPrompt({
