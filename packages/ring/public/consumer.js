@@ -26,9 +26,9 @@
       <div>
         <div class="eyebrow">Everyday REWIND</div>
         <h2>Remember a space with your phone</h2>
-        <p>Upload the scene you want Alexa to reason about. Analyze it once; that image becomes Alexa's current trusted scene until you analyze another photo.</p>
+        <p>Upload the scene you want REWIND Voice to reason about. Analyze it once; that semantic observation becomes REWIND Voice's current trusted scene until you analyze another photo.</p>
       </div>
-      <span class="chip">Alexa-ready</span>
+      <span class="chip">REWIND Voice ready</span>
     </div>
 
     <div class="consumer-modes" role="group" aria-label="Photo workflow">
@@ -76,7 +76,7 @@
   photoDetails.id = 'consumerPhotoDetails';
   photoDetails.className = 'utility consumer-photo-details';
   const photoSummary = document.createElement('summary');
-  photoSummary.innerHTML = '1 · Image + Alexa test mode <span class="utility-sub">Upload a scene, analyze it, then talk to REWIND</span>';
+  photoSummary.innerHTML = '1 · Image + REWIND Voice <span class="utility-sub">Upload a scene, analyze it, then talk to REWIND</span>';
   photoDetails.append(photoSummary, section);
   liveDetails?.before(photoDetails);
   photoDetails.open = true;
@@ -302,23 +302,23 @@
       analyzePhoto.hidden = true;
       if (activeRewindSessionId) {
         syncConsumerRewindState();
-        photoStatus.textContent = 'Alexa is now using this photo as the current scene.';
-        flowStatus.textContent = 'Photo ready for Alexa. Say “check again”, then ask for status.';
+        photoStatus.textContent = 'REWIND Voice is now using this photo as the current scene.';
+        flowStatus.textContent = 'Photo ready for REWIND Voice. Say “check again”, then ask for status.';
         requestAnimationFrame(() => focusCard.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       } else if (mode === 'remember') {
         saveState.hidden = false;
         saveState.textContent = rememberCheckpointId ? 'Add this angle' : 'Save this state';
         photoStatus.textContent = rememberCheckpointId
-          ? 'Semantic view ready. Alexa is also using this analyzed image as the current scene.'
-          : 'Alexa is now using this photo as the current scene.';
+          ? 'Semantic view ready. REWIND Voice is also using this analyzed image as the current scene.'
+          : 'REWIND Voice is now using this photo as the current scene.';
         flowStatus.textContent = rememberCheckpointId
-          ? `Photo analyzed. You can add it as view ${rememberViewCount + 1}, or continue with Alexa.`
-          : 'Photo ready for Alexa. Say “remember this room as desk baseline”.';
+          ? `Photo analyzed. You can add it as view ${rememberViewCount + 1}, or continue with REWIND Voice.`
+          : 'Photo ready for REWIND Voice. Say “remember this room as desk baseline”.';
       } else {
         compareState.hidden = false;
         compareState.disabled = !savedState.value;
-        photoStatus.textContent = 'Alexa is now using this changed photo as the current scene.';
-        flowStatus.textContent = 'Photo ready for Alexa. Say “rewind to” the saved state, then ask for status.';
+        photoStatus.textContent = 'REWIND Voice is now using this changed photo as the current scene.';
+        flowStatus.textContent = 'Photo ready for REWIND Voice. Say “rewind to” the saved state, then ask for status.';
       }
       status('Phone photo observed with Nova. Semantic state is ready; the uploaded image is not persisted by REWIND.');
       updateVerifyControls();
