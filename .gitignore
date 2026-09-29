@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 
 # Ephemeral WebRTC offers/answers
 *.sdp
+
+# Local rotated OAuth credentials
+.rewind-secrets/
