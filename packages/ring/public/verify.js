@@ -260,7 +260,12 @@ void pollMotionEvents();
         const type = item.querySelector('.diff-type')?.textContent?.trim() || '';
         if (!type) return undefined;
         const entity = cleanEntity(item.querySelector('strong')?.textContent || item.textContent);
-        const suffix = type === 'MOVED' ? 'moved'
+        const category = item.dataset.category?.toLowerCase() || '';
+        const dynamic = ['bird', 'animal', 'pet'].includes(category);
+        const suffix = dynamic && type === 'REMOVED' ? 'left the scene'
+          : dynamic && type === 'ADDED' ? 'entered the scene'
+          : dynamic && type === 'UNKNOWN' ? 'identity or position uncertain'
+          : type === 'MOVED' ? 'moved'
           : type === 'REMOVED' ? 'missing'
           : type === 'ADDED' ? 'added'
           : type === 'ATTRIBUTE_CHANGED' ? 'changed'
