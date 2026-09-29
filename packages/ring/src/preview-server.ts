@@ -1,5 +1,5 @@
 import { observationErrorMessage } from "./observation-error.js";
-import { reconcileDynamicSubjectIdentity, trackedEntitiesFromReferenceState } from "./tracked-entities.js";
+import { mergeDynamicSubjectCensus, reconcileDynamicSubjectIdentity, trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
@@ -431,24 +431,28 @@ export function createPreviewServer(
             const views = checkpointViews(checkpoint);
             let selectedView = views[0]!;
 
+            // Run an open live-scene census independently of tracked vocabulary.
+            // This prevents an additional visible dynamic subject from disappearing
+            // simply because the tracked pass focuses on checkpoint identities.
+            const census = await (services.observeUnpublished ?? services.observe)({
+              imageBytes: bytes,
+              format: "jpeg",
+              context: {
+                spaceId: data.spaceId,
+                capturedAt: data.capturedAt,
+                preserveDynamicEntities: true,
+              },
+            });
+
             if (views.length > 1) {
-              const scan = await (services.observeUnpublished ?? services.observe)({
-                imageBytes: bytes,
-                format: "jpeg",
-                context: {
-                  spaceId: data.spaceId,
-                  capturedAt: data.capturedAt,
-                  preserveDynamicEntities: true,
-                },
-              });
-              const selected = selectBestCheckpointView(checkpoint, scan.state);
+              const selected = selectBestCheckpointView(checkpoint, census.state);
               selectedView = selected.view;
               viewSelectionScore = selected.score;
             }
 
             checkpointViewId = selectedView.id;
             basis = "nova-tracked";
-            result = await services.observe({
+            const tracked = await services.observe({
               imageBytes: bytes,
               format: "jpeg",
               context: {
@@ -458,6 +462,11 @@ export function createPreviewServer(
                 preserveDynamicEntities: true,
               },
             });
+            const mergedCensus = mergeDynamicSubjectCensus(tracked.state, census.state);
+            result = {
+              ...tracked,
+              state: mergedCensus.state,
+            };
           } else {
             basis = "nova-open";
             result = await services.observe({
