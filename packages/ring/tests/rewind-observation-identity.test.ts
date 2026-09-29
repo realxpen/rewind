@@ -10,6 +10,7 @@ import { buildRestorePlan } from "../../restore-engine/src/index.js";
 import {
   applyConsensusObservedExtras,
   mergeConsensusAdditions,
+  mergeDynamicSubjectCensus,
   reconcileDynamicSubjectIdentity,
   reconcileTrackedEntityAliases,
   trackedEntitiesFromReferenceState,
@@ -198,6 +199,65 @@ assert.equal(disagreeingIdentity.reconciled, 0, "Audits must agree on the same c
 assert(disagreeingIdentity.state.entities.some(entity => entity.key === "chair"), "Disagreement must preserve the observed key instead of guessing.");
 
 
+
+
+const censusTrackedState: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "dynamic-census-regression",
+  capturedAt: "2026-09-29T10:10:00.000Z",
+  entities: [
+    { key: "anchor.left", category: "anchor", confidence: 0.99 },
+    {
+      key: "subject.left",
+      category: "animal",
+      confidence: 0.97,
+      attributes: { present: true, dynamic_subject: true, appearance: "small dark subject" },
+      relations: [{ type: "NEAR", target: "anchor.left", confidence: 0.94 }],
+    },
+    {
+      key: "subject.right",
+      category: "animal",
+      confidence: 0.97,
+      attributes: { present: true, dynamic_subject: true, appearance: "striped subject" },
+    },
+  ],
+};
+const censusOpenState: PhysicalState = {
+  ...censusTrackedState,
+  entities: [
+    ...censusTrackedState.entities,
+    {
+      key: "subject.new-visible",
+      category: "animal",
+      confidence: 0.98,
+      attributes: { present: true, dynamic_subject: true, appearance: "bright distinct subject" },
+    },
+  ],
+};
+const censusMerged = mergeDynamicSubjectCensus(censusTrackedState, censusOpenState);
+assert.equal(censusMerged.added, 1, "A higher live dynamic census must carry the surplus subject into tracked comparison.");
+assert.equal(
+  censusMerged.state.entities.filter(entity => entity.attributes?.dynamic_subject === true && entity.attributes?.present !== false).length,
+  3,
+  "Dynamic census merge must preserve observed cardinality without any scene-specific expected count.",
+);
+const censusDiffs = compareStates(
+  {
+    ...censusTrackedState,
+    entities: censusTrackedState.entities.map(entity =>
+      entity.attributes?.dynamic_subject === true ? { ...entity, category: `dynamic-${entity.category}` } : entity),
+  },
+  {
+    ...censusMerged.state,
+    entities: censusMerged.state.entities.map(entity =>
+      entity.attributes?.dynamic_subject === true ? { ...entity, category: `dynamic-${entity.category}` } : entity),
+  },
+  { evidenceMode: "vision" },
+);
+assert(
+  censusDiffs.some(diff => diff.type === "ADDED" && diff.entity.includes("subject.new-visible")),
+  "A surplus high-confidence dynamic subject must become an ADDED semantic difference instead of a false 100% match.",
+);
 
 const dynamicBirdBaseline: PhysicalState = {
   schemaVersion: "0.1",
