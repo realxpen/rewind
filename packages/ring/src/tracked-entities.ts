@@ -12,6 +12,7 @@ const IDENTITY_ATTRIBUTES = new Set([
   "size",
   "appearance",
   "visible_label",
+  "species",
 ]);
 
 function identityDescription(attributes: Record<string, unknown> | undefined): string {
@@ -21,6 +22,13 @@ function identityDescription(attributes: Record<string, unknown> | undefined): s
     .slice(0, 4)
     .map(([key, value]) => `${key}=${String(value)}`);
   return cues.length ? ` Saved visible identity cues: ${cues.join(", ")}.` : "";
+}
+
+const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
+
+function dynamicIdentityDescription(category: string): string {
+  if (!DYNAMIC_SUBJECT_CATEGORIES.has(category.toLowerCase())) return "";
+  return " Dynamic subject rule: category, numbering, and location alone do NOT prove this is the same individual. Reuse this tracked key only when visible identity cues are consistent with the saved subject. If a visibly different subject occupies the area, mark the saved tracked subject absent when supported and emit the new subject under a distinct key. If identity is ambiguous, prefer uncertainty over claiming movement.";
 }
 
 function savedLocationDescription(state: PhysicalState, entityKey: string): string {
@@ -43,6 +51,7 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
         `This is checkpoint identity ${entity.key}. Match the corresponding visible ${entity.category} to this exact key; never replace, split, or rename it.`,
         identityDescription(entity.attributes),
         savedLocationDescription(state, entity.key),
+        dynamicIdentityDescription(entity.category),
       ].filter(Boolean).join(""),
     };
 
@@ -53,7 +62,9 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
           .map(attribute => [
             attribute,
             attribute.toLowerCase() === "present"
-              ? `The checkpoint says ${entity.key} was present. Search for this exact saved object using its identity and location cues. Emit present=true if clearly visible; emit present=false only if its saved area is visible/unoccluded and the object is clearly absent; otherwise omit present.`
+              ? DYNAMIC_SUBJECT_CATEGORIES.has(entity.category.toLowerCase())
+                ? `The checkpoint says ${entity.key} was present. For this dynamic subject, do not reuse the key merely because another ${entity.category} is visible in the same area. Emit present=true only when visible identity cues support the same saved subject. Emit present=false when the saved subject is clearly gone and its area is visible. If another visibly different subject is present, it must use a distinct key.`
+                : `The checkpoint says ${entity.key} was present. Search for this exact saved object using its identity and location cues. Emit present=true if clearly visible; emit present=false only if its saved area is visible/unoccluded and the object is clearly absent; otherwise omit present.`
               : `Observe only the current visible value for "${attribute}" on this tracked entity. Omit it if the image does not support a value.`,
           ]),
       );
