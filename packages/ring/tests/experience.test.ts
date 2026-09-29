@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const html = await readFile("packages/ring/public/index.html", "utf8");
+const preview = await readFile("packages/ring/public/preview.js", "utf8");
 const bridge = await readFile("packages/ring/public/mcp-bridge.js", "utf8");
 const verify = await readFile("packages/ring/public/verify.js", "utf8");
 const consumer = await readFile("packages/ring/public/consumer.js", "utf8");
@@ -142,16 +143,17 @@ assert.doesNotMatch(bridge, /matchScore\.textContent\s*=\s*['"]—['"]/);
 // Live Ring repeat observations must stay anchored to the saved checkpoint vocabulary.
 // Otherwise Nova can rename stable entities between two frames of the same physical scene,
 // producing all-UNKNOWN / 0%-coverage false differences.
-assert.match(bridge, /preferredCheckpointId = checkpoint\.id/);
-assert.match(bridge, /if \(preferredCheckpointId\) observeInput\.checkpointId = preferredCheckpointId/);
-assert.match(bridge, /latestObservationCheckpointId !== checkpointId/);
-assert.match(bridge, /Anchoring this captured frame to the selected checkpoint before comparison/);
+assert.match(preview, /preferredCheckpointId = checkpoint\.id/);
+assert.match(preview, /if \(preferredCheckpointId\) observeInput\.checkpointId = preferredCheckpointId/);
+assert.match(preview, /latestObservationCheckpointId !== checkpointId/);
+assert.match(preview, /Anchoring this captured frame to the selected checkpoint before comparison/);
 
 // Saving a live baseline must return the operator directly to fresh capture instead of
 // leaving the just-saved observation as the active CTA until a page refresh.
-assert.match(bridge, /preferredCheckpointId = checkpoint\.id;\s*discard\(\);/);
+assert.match(preview, /preferredCheckpointId = checkpoint\.id;\s*discard\(\);/);
 
 // Parse without executing browser globals so plain JS syntax remains part of CI.
+new Function(preview);
 new Function(bridge);
 new Function(verify);
 new Function(consumer);
