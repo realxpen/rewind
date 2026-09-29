@@ -23,6 +23,8 @@ const PRESERVED_ATTRIBUTES = new Set([
   "size",
   "appearance",
   "visible_label",
+  "species",
+  "dynamic_subject",
 ]);
 const TRANSIENT_LIVING_CATEGORIES = new Set(["person", "human", "bird", "animal", "pet"]);
 
