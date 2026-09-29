@@ -24,6 +24,7 @@ const hmacSecret = "ring-hmac-secret-for-tests";
 const partnerAuthSecret = "rewind-staging-link-secret";
 const accountId = "ava1.ring.account.TEST123";
 const calls: Array<{ url: string; method: string; body?: string; authorization?: string }> = [];
+let linkedCredentials: { accessToken: string; refreshToken: string; expiresAt: number } | undefined;
 
 const fetchImpl: typeof fetch = async (input, init) => {
   const url = typeof input === "string"
@@ -92,7 +93,13 @@ const service = new RingAccountLinkService({
   hmacSecret,
   partnerEmail: "owner@example.com",
   partnerAuthSecret,
-}, undefined, fetchImpl);
+}, undefined, fetchImpl, credentials => {
+  linkedCredentials = {
+    accessToken: credentials.accessToken,
+    refreshToken: credentials.refreshToken,
+    expiresAt: credentials.expiresAt,
+  };
+});
 
 await service.exchangeAuthorizationCode("short-lived-auth-code", now);
 assert(service.summary(now).unclaimedCount === 1, "Token exchange should store one unclaimed Ring credential.");
@@ -124,6 +131,10 @@ await service.completeLink({
 }, now);
 assert(service.summary(now).linked, "Successful flow must mark Ring integration linked.");
 assert(service.summary(now).unclaimedCount === 0, "Successful flow must remove unclaimed credential.");
+assert(linkedCredentials, "Completed account linking must hand credentials to the persistent runtime sink.");
+assert(linkedCredentials.accessToken === "access-token-value", "Persistent sink must receive the linked access token.");
+assert(linkedCredentials.refreshToken === "refresh-token-value", "Persistent sink must receive the linked refresh token.");
+assert(linkedCredentials.expiresAt === now + 14_400_000, "Persistent sink must receive the absolute access-token expiry.");
 
 await assertRejects(async () => {
   validateRingAccountLinkTimestamp(String(now - 10 * 60 * 1000 - 1), now);
