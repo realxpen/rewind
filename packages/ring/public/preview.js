@@ -204,7 +204,9 @@ function renderRewind(result) {
     ? 'The current scene already matches this checkpoint.'
     : result.plan.actions.length
       ? `${result.plan.actions.length} deterministic restoration ${result.plan.actions.length === 1 ? 'step' : 'steps'} ready.${result.plan.blockedUnknowns.length ? ` ${result.plan.blockedUnknowns.length} uncertain item(s) need re-observation.` : ''}`
-      : 'No safe deterministic action can be generated until uncertain items are observed again.';
+      : result.plan.blockedUnknowns.length
+        ? 'No safe deterministic action can be generated until uncertain items are observed again.'
+        : 'A dynamic scene change was observed. REWIND reports it without generating a manual action for the living subject.';
   const items = result.plan.actions.map((action, index) => {
     const item = document.createElement('li');
     const step = document.createElement('span'); step.className = 'restore-step'; step.textContent = `STEP ${index + 1} · ${action.sourceTypes.join(', ')}`;
@@ -222,7 +224,12 @@ function renderRewind(result) {
     item.append(step, instruction, meta); items.push(item);
   }
   if (!items.length) {
-    const item = document.createElement('li'); item.className = 'muted'; item.textContent = 'No restoration actions required.'; items.push(item);
+    const item = document.createElement('li');
+    item.className = 'muted';
+    item.textContent = result.match?.restored
+      ? 'No restoration actions required.'
+      : 'Dynamic scene difference detected — observe or wait for the live scene to change again.';
+    items.push(item);
   }
   byId('rewindList').replaceChildren(...items);
   byId('rewindPanel').hidden = false;
