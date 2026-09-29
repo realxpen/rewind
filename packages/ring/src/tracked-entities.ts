@@ -28,7 +28,7 @@ function identityDescription(attributes: Record<string, unknown> | undefined): s
 const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
 
 function isDynamicSubjectEntity(entity: { category: string; attributes?: Record<string, unknown> }): boolean {
-  return entity.attributes?.dynamic_subject === true || isDynamicSubjectEntity(entity);
+  return entity.attributes?.dynamic_subject === true || DYNAMIC_SUBJECT_CATEGORIES.has(entity.category.toLowerCase());
 }
 
 function dynamicIdentityDescription(entity: { category: string; attributes?: Record<string, unknown> }): string {
@@ -139,8 +139,8 @@ export function reconcileDynamicSubjectIdentity(
     const saved = referenceByKey.get(current.key);
     if (
       !saved
-      || !DYNAMIC_SUBJECT_CATEGORIES.has(saved.category.toLowerCase())
-      || !DYNAMIC_SUBJECT_CATEGORIES.has(current.category.toLowerCase())
+      || !isDynamicSubjectEntity(saved)
+      || !isDynamicSubjectEntity(current)
       || !dynamicIdentityConflict(saved.attributes, current.attributes)
     ) {
       entities.push(current);
