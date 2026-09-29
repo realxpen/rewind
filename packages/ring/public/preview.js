@@ -177,6 +177,7 @@ function renderDiff(result) {
   const items = result.changes.map(change => {
     const item = document.createElement('li');
     if (change.type === 'UNKNOWN') item.className = 'unknown';
+    item.dataset.category = change.category;
     const type = document.createElement('span'); type.className = 'diff-type'; type.textContent = change.type;
     const title = document.createElement('strong'); title.textContent = `${change.entity} · ${change.category}`;
     const reason = document.createElement('p'); reason.textContent = change.reason;
