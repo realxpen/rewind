@@ -139,6 +139,18 @@ assert.match(bridge, /node\.textContent !== value/);
 assert.match(bridge, /setText\(matchScore, '—'\)/);
 assert.doesNotMatch(bridge, /matchScore\.textContent\s*=\s*['"]—['"]/);
 
+// Live Ring repeat observations must stay anchored to the saved checkpoint vocabulary.
+// Otherwise Nova can rename stable entities between two frames of the same physical scene,
+// producing all-UNKNOWN / 0%-coverage false differences.
+assert.match(bridge, /preferredCheckpointId = checkpoint\.id/);
+assert.match(bridge, /if \(preferredCheckpointId\) observeInput\.checkpointId = preferredCheckpointId/);
+assert.match(bridge, /latestObservationCheckpointId !== checkpointId/);
+assert.match(bridge, /Anchoring this captured frame to the selected checkpoint before comparison/);
+
+// Saving a live baseline must return the operator directly to fresh capture instead of
+// leaving the just-saved observation as the active CTA until a page refresh.
+assert.match(bridge, /preferredCheckpointId = checkpoint\.id;\s*discard\(\);/);
+
 // Parse without executing browser globals so plain JS syntax remains part of CI.
 new Function(bridge);
 new Function(verify);
