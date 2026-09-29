@@ -24,7 +24,7 @@ const selfRelationPlan = buildRestorePlan([{
   reason: "regression",
 }]);
 assert(
-  selfRelationPlan.actions[0]?.instruction === "Return table coffee to its checkpoint position.",
+  selfRelationPlan.actions[0]?.instruction === "Move table coffee to its saved checkpoint position.",
   "Self-relations must never generate Move X on X guidance.",
 );
 
