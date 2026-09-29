@@ -143,7 +143,7 @@ try {
   assert.equal(changed.response.status, 200);
   assert.equal(changed.result.exactImageMatch, false);
   assert.equal(changed.result.observationBasis, "nova-tracked");
-  assert.equal(observeCalls, 2);
+  assert.equal(observeCalls, 3, "A changed checkpoint photo runs one open census plus one tracked observation after the original baseline observation.");
   assert.deepEqual(
     latestTrackedRequest?.context.trackedEntities?.map(entity => entity.key),
     referenceState.entities.map(entity => entity.key),
