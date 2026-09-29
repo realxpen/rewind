@@ -18,18 +18,46 @@ function humanEntity(key: string): string {
   return key.replaceAll(".", " ").replaceAll("-", " ");
 }
 
-function expectedRelation(diff: PhysicalDiff): PhysicalRelation | undefined {
-  return diff.expected?.relations?.[0] ?? diff.expected?.entity?.relations?.[0];
+const LOCATION_RELATIONS = new Set(Object.keys(relationPhrase));
+
+function snapshotRelations(snapshot: PhysicalDiff["expected"] | PhysicalDiff["actual"]): PhysicalRelation[] {
+  return snapshot?.relations ?? snapshot?.entity?.relations ?? [];
 }
 
-function relationInstruction(entity: string, relation: PhysicalRelation | undefined): string {
-  if (!relation || relation.target === entity) {
-    return `Return ${humanEntity(entity)} to its checkpoint position.`;
+function positionDescription(
+  snapshot: PhysicalDiff["expected"] | PhysicalDiff["actual"],
+  entity: string,
+): string | undefined {
+  const relations = snapshotRelations(snapshot)
+    .filter(relation => LOCATION_RELATIONS.has(relation.type) && relation.target && relation.target !== entity)
+    .slice(0, 2);
+
+  if (relations.length > 0) {
+    return relations
+      .map(relation => `${relationPhrase[relation.type] ?? relation.type.toLowerCase()} ${humanEntity(relation.target!)}`)
+      .join(" and ");
   }
-  const phrase = relationPhrase[relation.type] ?? relation.type.toLowerCase();
-  return relation.target
-    ? `Move ${humanEntity(entity)} ${phrase} ${humanEntity(relation.target)}.`
-    : `Restore ${humanEntity(entity)} to ${relation.type.toLowerCase()}.`;
+
+  const zone = snapshot?.entity?.zone;
+  return zone ? `in ${humanEntity(zone)}` : undefined;
+}
+
+function placementInstruction(
+  entity: string,
+  snapshot: PhysicalDiff["expected"],
+  verb: "Move" | "Return",
+): string {
+  const position = positionDescription(snapshot, entity);
+  return position
+    ? `${verb} ${humanEntity(entity)} to its saved position ${position}.`
+    : `${verb} ${humanEntity(entity)} to its saved checkpoint position.`;
+}
+
+function removalInstruction(diff: PhysicalDiff): string {
+  const position = positionDescription(diff.actual, diff.entity);
+  return position
+    ? `Remove ${humanEntity(diff.entity)} from its current position ${position}.`
+    : `Remove ${humanEntity(diff.entity)} from its current visible position.`;
 }
 
 function attributeInstruction(entity: string, expected: Record<string, AttributeValue> | undefined): string {
@@ -51,11 +79,13 @@ function actionForDiff(diff: PhysicalDiff, index: number): RestoreAction | undef
   let instruction: string;
   switch (diff.type) {
     case "ADDED":
-      instruction = `Remove ${humanEntity(diff.entity)} from the restored scene.`;
+      instruction = removalInstruction(diff);
       break;
     case "REMOVED":
+      instruction = placementInstruction(diff.entity, diff.expected, "Return");
+      break;
     case "MOVED":
-      instruction = relationInstruction(diff.entity, expectedRelation(diff));
+      instruction = placementInstruction(diff.entity, diff.expected, "Move");
       break;
     case "ATTRIBUTE_CHANGED":
       instruction = attributeInstruction(diff.entity, diff.expected?.attributes ?? diff.expected?.entity?.attributes);
