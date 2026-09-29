@@ -44,7 +44,9 @@ Hard rules:
 - DELTA SCAN examples include clothing, shoes, bags/backpacks, remotes/controllers, cups/glasses/bottles, dishes, loose papers, toys, cables/chargers, boxes/baskets, blankets/throws, and other clearly misplaced loose objects.
 - Do not use the DELTA SCAN to add decorative plants, wall art, fixed lighting, or other background decor merely because the checkpoint inventory omitted them.
 - Confidence must be between 0 and 1.
-- Never identify or name people.`;
+- Never identify or name people.
+- In live Ring observations, visually clear birds and other non-human animals are meaningful scene entities. When present, include them with stable role/location keys, present=true, and compact visible identity cues.
+- If a tracked bird is clearly gone, preserve its tracked key with present=false. If a visibly different bird has arrived, emit it as a distinct entity with present=true rather than reusing the departed bird's identity.`;
 
 function trackedVocabulary(context: ObservationContext): string {
   if (!context.trackedEntities || context.trackedEntities.length === 0) {
