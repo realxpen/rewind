@@ -1,5 +1,7 @@
 import type { PhysicalState } from "../../physical-state-protocol/src/index.js";
 
+export type CheckpointSemanticProfile = "psp-v1" | "dynamic-census-v1";
+
 export interface CheckpointView {
   id: string;
   observationId: string;
@@ -10,6 +12,7 @@ export interface CheckpointView {
    * Raw media is never stored by the checkpoint layer.
    */
   sourceImageHash?: string;
+  semanticProfile?: CheckpointSemanticProfile;
   createdAt: string;
 }
 
@@ -30,6 +33,7 @@ export interface Checkpoint {
    * Service helpers expose old checkpoints as a synthetic single primary view.
    */
   views?: CheckpointView[];
+  semanticProfile?: CheckpointSemanticProfile;
   createdAt: string;
 }
 
@@ -39,6 +43,7 @@ export interface SaveCheckpointInput {
   observationId: string;
   state: PhysicalState;
   sourceImageHash?: string;
+  semanticProfile?: CheckpointSemanticProfile;
 }
 
 export interface AddCheckpointViewInput {
@@ -47,6 +52,7 @@ export interface AddCheckpointViewInput {
   observationId: string;
   state: PhysicalState;
   sourceImageHash?: string;
+  semanticProfile?: CheckpointSemanticProfile;
 }
 
 export interface CheckpointSummary {
@@ -60,6 +66,7 @@ export interface CheckpointSummary {
   viewCount?: number;
   /** Present on summaries produced by photo-aware checkpoint services. */
   exactImageVerificationAvailable?: boolean;
+  semanticProfile?: CheckpointSemanticProfile;
 }
 
 export interface CheckpointStore {
