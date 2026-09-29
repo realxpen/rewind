@@ -110,6 +110,21 @@ export class RingOAuthRefreshManager {
     return (await this.refresh()).accessToken;
   }
 
+  async acceptLinkedCredentials(credentials: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+  }): Promise<void> {
+    const parsed = parseCachedCredentials(credentials);
+    if (!parsed || parsed.expiresAt <= this.now()) {
+      throw new Error("Ring linked credentials are invalid or already expired.");
+    }
+    await this.persist(parsed);
+    this.cached = parsed;
+    this.cacheLoaded = true;
+    this.options.accessToken = parsed.accessToken;
+  }
+
   private canRefresh(): boolean {
     return Boolean(this.clientId && this.clientSecret && (this.cached?.refreshToken || this.configuredRefreshToken));
   }
