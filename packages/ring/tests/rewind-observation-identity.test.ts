@@ -10,6 +10,7 @@ import { buildRestorePlan } from "../../restore-engine/src/index.js";
 import {
   applyConsensusObservedExtras,
   mergeConsensusAdditions,
+  reconcileDynamicSubjectIdentity,
   reconcileTrackedEntityAliases,
   trackedEntitiesFromReferenceState,
 } from "../src/tracked-entities.js";
@@ -196,6 +197,75 @@ const disagreeingIdentity = reconcileTrackedEntityAliases(
 assert.equal(disagreeingIdentity.reconciled, 0, "Audits must agree on the same candidate key before reconciliation.");
 assert(disagreeingIdentity.state.entities.some(entity => entity.key === "chair"), "Disagreement must preserve the observed key instead of guessing.");
 
+
+
+const dynamicBirdBaseline: PhysicalState = {
+  schemaVersion: "0.1",
+  spaceId: "dynamic-bird-identity",
+  capturedAt: "2026-09-29T10:00:00.000Z",
+  entities: [
+    { key: "feeder.left", category: "bird_feeder", confidence: 0.99 },
+    {
+      key: "bird.left",
+      category: "bird",
+      confidence: 0.97,
+      attributes: {
+        present: true,
+        color: "black",
+        appearance: "small black bird",
+        species: "black-capped chickadee",
+      },
+      relations: [{ type: "ON", target: "feeder.left", confidence: 0.96 }],
+    },
+  ],
+};
+const dynamicBirdCurrent: PhysicalState = {
+  ...dynamicBirdBaseline,
+  capturedAt: "2026-09-29T10:00:05.000Z",
+  entities: [
+    { key: "feeder.left", category: "bird_feeder", confidence: 0.99 },
+    {
+      key: "bird.left",
+      category: "bird",
+      confidence: 0.98,
+      attributes: {
+        present: true,
+        color: "red",
+        appearance: "red cardinal",
+        species: "northern cardinal",
+      },
+      relations: [{ type: "ON", target: "feeder.left", confidence: 0.96 }],
+    },
+  ],
+};
+const dynamicBirdReconciled = reconcileDynamicSubjectIdentity(dynamicBirdBaseline, dynamicBirdCurrent);
+assert.equal(dynamicBirdReconciled.replacements, 1, "A visibly conflicting bird must not inherit the saved bird identity.");
+assert.equal(
+  dynamicBirdReconciled.state.entities.find(entity => entity.key === "bird.left")?.attributes?.present,
+  false,
+  "The departed saved bird must become explicit present=false evidence.",
+);
+assert(
+  dynamicBirdReconciled.state.entities.some(entity =>
+    entity.key.startsWith("bird.left.new")
+    && entity.category === "bird"
+    && entity.attributes?.present === true
+    && entity.attributes?.species === "northern cardinal"
+  ),
+  "The visibly different arriving bird must receive a distinct identity with present=true.",
+);
+
+const dynamicBirdHints = trackedEntitiesFromReferenceState(dynamicBirdBaseline) ?? [];
+assert.match(
+  dynamicBirdHints.find(entity => entity.key === "bird.left")?.description ?? "",
+  /species=black-capped chickadee/i,
+  "Tracked dynamic identity must preserve species as a visible identity cue.",
+);
+assert.match(
+  dynamicBirdHints.find(entity => entity.key === "bird.left")?.description ?? "",
+  /location alone do NOT prove/i,
+  "Tracked bird hints must forbid identity continuity from location alone.",
+);
 
 const extraBaseline: PhysicalState = {
   schemaVersion: "0.1",
