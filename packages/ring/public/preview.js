@@ -3,7 +3,7 @@ const video = byId('video');
 const status = message => { byId('status').textContent = message; };
 const AUTO_LIVE_KEY = 'rewind.live.auto';
 const LIVE_SOURCE_KEY = 'rewind.live.source';
-let peer, sessionId, heartbeat, localStream, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
+let peer, sessionId, heartbeat, localStream, frameUrl, frameBlob, capturedAt, latestObservationId, latestDiffCheckpointId, preferredCheckpointId, latestObservationCheckpointId, latestObservationBasis, pending = false, observing = false, saving = false, comparing = false, rewinding = false, agentRunning = false;
 let liveConnectPromise, reconnectTimer, videoWatchdog, heartbeatFailures = 0, reconnectAttempts = 0;
 let reconnecting = false, videoWatchdogChecking = false, lastVideoProgress, lastVideoProgressAt = 0;
 let autoLiveWanted = localStorage.getItem(AUTO_LIVE_KEY) === '1';
@@ -230,8 +230,29 @@ function renderRewind(result) {
 }
 async function compareCheckpoint(checkpointId) {
   if (!latestObservationId || comparing || !byId('space').reportValidity()) return;
+  preferredCheckpointId = checkpointId;
   comparing = true; controls(); status('Comparing the current physical state with the saved checkpoint…');
   try {
+    // An open Nova observation has no checkpoint vocabulary, so stable semantic keys may
+    // drift even when the physical scene did not. The captured JPEG is still ephemeral in
+    // memory here, so re-observe that same frame once with the selected checkpoint as the
+    // identity anchor before deterministic comparison.
+    if (frameBlob && latestObservationCheckpointId !== checkpointId) {
+      status('Anchoring this captured frame to the selected checkpoint before comparison…');
+      const image = await base64Blob(frameBlob);
+      const tracked = await api('observe', {
+        image,
+        capturedAt,
+        spaceId: byId('space').value,
+        checkpointId,
+      });
+      latestObservationId = tracked.observationId;
+      latestObservationBasis = tracked.observationBasis;
+      latestObservationCheckpointId = checkpointId;
+      byId('result').textContent = JSON.stringify(tracked, null, 2);
+      byId('result').hidden = false;
+    }
+
     const result = await api('diff', {
       spaceId: byId('space').value,
       observationId: latestObservationId,
@@ -269,7 +290,7 @@ function checkpointItem(checkpoint) {
   const compare = document.createElement('button');
   compare.textContent = 'Compare current state'; compare.dataset.compareCheckpoint = checkpoint.id;
   compare.disabled = !latestObservationId;
-  compare.onclick = () => compareCheckpoint(checkpoint.id);
+  compare.onclick = () => { preferredCheckpointId = checkpoint.id; void compareCheckpoint(checkpoint.id); };
   actions.append(compare); item.append(title, meta, actions);
   return item;
 }
@@ -595,7 +616,7 @@ byId('stop').onclick = async () => {
 };
 function discard() {
   if (frameUrl) URL.revokeObjectURL(frameUrl);
-  frameUrl = frameBlob = capturedAt = latestObservationId = latestDiffCheckpointId = undefined;
+  frameUrl = frameBlob = capturedAt = latestObservationId = latestDiffCheckpointId = latestObservationCheckpointId = latestObservationBasis = undefined;
   byId('frame').removeAttribute('src'); byId('download').removeAttribute('href');
   byId('snapshot').hidden = true; byId('result').hidden = true; byId('result').textContent = '';
   byId('savePanel').hidden = true; hideDiff(); controls(); void refreshCheckpoints();
@@ -621,8 +642,12 @@ byId('observe').onclick = async () => {
   byId('result').hidden = true; byId('savePanel').hidden = true; latestObservationId = latestDiffCheckpointId = undefined; hideDiff(); status('Nova is observing the captured frame…');
   try {
     const image = await base64Blob(frameBlob);
-    const result = await api('observe', { image, capturedAt, spaceId: byId('space').value });
+    const observeInput = { image, capturedAt, spaceId: byId('space').value };
+    if (preferredCheckpointId) observeInput.checkpointId = preferredCheckpointId;
+    const result = await api('observe', observeInput);
     latestObservationId = result.observationId;
+    latestObservationBasis = result.observationBasis;
+    latestObservationCheckpointId = preferredCheckpointId;
     byId('result').textContent = JSON.stringify(result, null, 2); byId('result').hidden = false; byId('savePanel').hidden = false;
     await refreshCheckpoints();
     status('Observation validated. Save it or compare the current state with a checkpoint.');
@@ -663,8 +688,9 @@ byId('saveCheckpoint').onclick = async () => {
       spaceId: byId('space').value,
       name: byId('checkpointName').value,
     });
-    status(`${checkpoint.name} saved. You can now compare future observations against it.`);
-    await refreshCheckpoints();
+    preferredCheckpointId = checkpoint.id;
+    discard();
+    status(`${checkpoint.name} saved. Capture the next Ring frame; Nova will keep this checkpoint's identity vocabulary for comparison.`);
   } catch (error) { status(error.message || 'Checkpoint could not be saved.'); }
   finally { saving = false; controls(); }
 };
@@ -691,7 +717,7 @@ byId('liveSource').onchange = async () => {
   controls();
 };
 byId('space').onchange = () => {
-  latestObservationId = latestDiffCheckpointId = undefined;
+  latestObservationId = latestDiffCheckpointId = latestObservationCheckpointId = latestObservationBasis = preferredCheckpointId = undefined;
   byId('savePanel').hidden = true;
   byId('agentSession').textContent = '';
   hideDiff();
