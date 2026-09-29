@@ -626,7 +626,7 @@ export function createPreviewServer(
           });
           return;
         }
-        const plan = buildRestorePlan(diffs);
+        const plan = buildRestorePlan(diffs.filter(diff => !LIVE_DYNAMIC_CATEGORIES.has(diff.category)));
         const state = match.restored
           ? "RESTORED"
           : plan.actions.length === 0 && plan.blockedUnknowns.length > 0
