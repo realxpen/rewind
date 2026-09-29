@@ -47,6 +47,7 @@ const DESCRIPTIVE_ATTRIBUTES = new Set([
   "species",
   "appearance",
   "visible_label",
+  "dynamic_subject",
 ]);
 
 const VISION_UNSTABLE_ATTRIBUTES = new Set(["clear"]);
