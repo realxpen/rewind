@@ -353,8 +353,18 @@ const kitchenCurrentCandidates: PhysicalState = {
   capturedAt: "2026-09-28T13:01:00.000Z",
   entities: [
     ...kitchenBaseline.entities,
-    { key: "cup", category: "cup", confidence: 0.98 },
-    { key: "kettle", category: "kettle", confidence: 0.97 },
+    {
+      key: "cup",
+      category: "cup",
+      confidence: 0.98,
+      relations: [{ type: "LEFT_OF", target: "toaster", confidence: 0.96 }],
+    },
+    {
+      key: "kettle",
+      category: "kettle",
+      confidence: 0.97,
+      relations: [{ type: "RIGHT_OF", target: "toaster", confidence: 0.95 }],
+    },
   ],
 };
 const kitchenCandidateVotes = new Map<string, ObservedExtraCandidateEvidence>([
@@ -380,10 +390,10 @@ const kitchenPlan = buildRestorePlan(kitchenDiff);
 assert.deepEqual(
   kitchenPlan.actions.map(action => action.instruction),
   [
-    "Remove cup from the restored scene.",
-    "Remove kettle from the restored scene.",
+    "Remove cup from its current position to the left of toaster.",
+    "Remove kettle from its current position to the right of toaster.",
   ],
-  "Kitchen regression must guide cup first and kettle second without production noun hardcoding.",
+  "Kitchen regression must guide cup first and kettle second with semantic positions and without production noun hardcoding.",
 );
 assert.deepEqual(kitchenPlan.blockedUnknowns, [], "Kitchen regression must not hide either agreed extra behind UNKNOWN.");
 console.log("PASS Kitchen added-object regression: cup + kettle -> 2 ADDED changes -> ordered generic restore plan");
