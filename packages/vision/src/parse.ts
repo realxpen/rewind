@@ -59,5 +59,5 @@ export function parseNovaPhysicalState(
     );
   }
 
-  return normalizeState(pspValidation.value);
+  return normalizeState(pspValidation.value, context.preserveDynamicEntities ? { preserveDynamicSubjects: true } : {});
 }
