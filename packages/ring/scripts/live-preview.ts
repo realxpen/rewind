@@ -12,6 +12,7 @@ import {
   RingRtspObserver,
   RingSnapshotObserver,
   createLiveRingAgentRuntime,
+  createRingOAuthRefreshManagerFromEnv,
   createRingWebhookServer,
   endWhepSession,
   listRingDevices,
@@ -94,7 +95,8 @@ class SelectedObservationSource implements SpaceObserver {
 
 async function main() {
   const config = loadRingConfig();
-  const client = new RingClient(config);
+  const ringOAuth = createRingOAuthRefreshManagerFromEnv(config.accessToken);
+  const client = new RingClient(config, fetch, ringOAuth);
   const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "us-east-1";
   const visionModelId = process.env.BEDROCK_MODEL_ID ?? "global.amazon.nova-2-lite-v1:0";
   const nova = new BedrockNovaVisionClient({ region, modelId: visionModelId });
@@ -303,7 +305,7 @@ async function main() {
         tools: mcpToolService,
         defaultSpaceId,
         skillId: alexaSkillId,
-      })
+      }, undefined, fetch, credentials => ringOAuth.acceptLinkedCredentials(credentials))
     : undefined;
   const alexaHttp = alexaSkill
     ? createAlexaSkillHttpServer(alexaSkill, {
