@@ -624,7 +624,12 @@ export function createPreviewServer(
       busy = true;
       try {
         if (path === "/api/start") {
-          if (active) { send(res, 409, { error: "Stop the current stream first." }); return; }
+          // The local browser may lose its peer/session state after a failed first-frame
+          // negotiation or a page refresh while the server still owns the upstream WHEP
+          // session. Start is therefore recovery-safe: clean any orphaned active session
+          // before creating a fresh one. The UI disables Start while a healthy client-side
+          // session is connected, so this path is specifically for stale-session recovery.
+          if (active) await cleanup();
           if (typeof data.deviceId !== "string" || typeof data.offer !== "string" || !data.offer.startsWith("v=0") || data.offer.length > 256_000) {
             throw new InputError("Choose a device and provide an SDP offer.");
           }
