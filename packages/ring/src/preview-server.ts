@@ -1,5 +1,5 @@
 import { observationErrorMessage } from "./observation-error.js";
-import { trackedEntitiesFromReferenceState } from "./tracked-entities.js";
+import { reconcileDynamicSubjectIdentity, trackedEntitiesFromReferenceState } from "./tracked-entities.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import type { RingDevice, RingWhepSession } from "./contracts.js";
@@ -174,9 +174,10 @@ function comparePreviewStates(
   currentState: VisionObservation["state"],
   observation: StoredObservation,
 ) {
+  const reconciledCurrent = reconcileDynamicSubjectIdentity(checkpointState, currentState).state;
   const diffs = compareStates(
     liveComparisonState(checkpointState),
-    liveComparisonState(currentState),
+    liveComparisonState(reconciledCurrent),
     { evidenceMode: comparisonEvidenceMode(observation) },
   );
   return diffs.map(diff =>
