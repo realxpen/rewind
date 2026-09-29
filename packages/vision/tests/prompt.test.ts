@@ -100,6 +100,21 @@ assert.match(prompt, /at most 8 genuinely additional high-confidence restoration
 assert.match(untrackedPrompt, /conservative, unique semantic keys/i);
 assert.match(untrackedPrompt, /at most 24 entities total/i);
 assert.match(untrackedPrompt, /role\/location qualifiers/i);
+const dynamicPrompt = buildNovaObservationPrompt({
+  spaceId: "live-dynamic-space",
+  capturedAt: "2026-09-29T10:20:00.000Z",
+  preserveDynamicEntities: true,
+  trackedEntities: [{
+    key: "subject.saved",
+    category: "animal",
+    description: "saved dynamic subject",
+    observableAttributes: { present: "checkpoint presence" },
+  }],
+});
+assert.match(dynamicPrompt, /LIVE DYNAMIC CENSUS/i);
+assert.match(dynamicPrompt, /Count every clearly visible non-human dynamic subject independently/i);
+assert.match(dynamicPrompt, /emit every high-confidence surplus as a distinct entity/i);
+assert.match(NOVA_PERCEPTION_SYSTEM_PROMPT, /dynamic_subject=true/i);
 assert.match(prompt, /Return JSON only/i);
 assert.match(prompt, /NEAR/);
 assert.match(prompt, /spaceId: "studio"/);
