@@ -21,6 +21,7 @@ export interface ObservationContext {
   spaceId: string;
   capturedAt: string;
   trackedEntities?: TrackedEntityHint[];
+  preserveDynamicEntities?: boolean;
 }
 
 export interface VisionObservationRequest {
