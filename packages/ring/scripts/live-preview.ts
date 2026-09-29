@@ -305,7 +305,7 @@ async function main() {
         tools: mcpToolService,
         defaultSpaceId,
         skillId: alexaSkillId,
-      }, undefined, fetch, credentials => ringOAuth.acceptLinkedCredentials(credentials))
+      })
     : undefined;
   const alexaHttp = alexaSkill
     ? createAlexaSkillHttpServer(alexaSkill, {
@@ -346,7 +346,7 @@ async function main() {
         partnerEmail,
         partnerAuthSecret,
         apiBaseUrl: config.baseUrl,
-      })
+      }, undefined, fetch, credentials => ringOAuth.acceptLinkedCredentials(credentials))
     : undefined;
 
   const webhook = signingKey
