@@ -255,17 +255,20 @@ void pollMotionEvents();
   }
 
   function diffItems() {
-    return [...document.querySelectorAll('#diffList li')].map(item => {
-      const type = item.querySelector('.diff-type')?.textContent?.trim() || '';
-      const entity = cleanEntity(item.querySelector('strong')?.textContent || item.textContent);
-      const suffix = type === 'MOVED' ? 'moved'
-        : type === 'REMOVED' ? 'missing'
-        : type === 'ADDED' ? 'added'
-        : type === 'ATTRIBUTE_CHANGED' ? 'changed'
-        : type === 'UNKNOWN' ? 'needs another look'
-        : 'changed';
-      return { text: `${entity} — ${suffix}` };
-    });
+    return [...document.querySelectorAll('#diffList li')]
+      .map(item => {
+        const type = item.querySelector('.diff-type')?.textContent?.trim() || '';
+        if (!type) return undefined;
+        const entity = cleanEntity(item.querySelector('strong')?.textContent || item.textContent);
+        const suffix = type === 'MOVED' ? 'moved'
+          : type === 'REMOVED' ? 'missing'
+          : type === 'ADDED' ? 'added'
+          : type === 'ATTRIBUTE_CHANGED' ? 'changed'
+          : type === 'UNKNOWN' ? 'needs another look'
+          : 'changed';
+        return { text: `${entity} — ${suffix}` };
+      })
+      .filter(Boolean);
   }
 
   function rewindItems() {
@@ -321,14 +324,21 @@ void pollMotionEvents();
       const changes = diffItems();
       const pct = Number.isFinite(currentPercentage) ? currentPercentage : 0;
       const coverage = Number(el('matchScore')?.dataset.coverage || 100);
+      const matched = pct === 100 && coverage === 100 && changes.length === 0;
       setText(focusStage, 'DIFF');
-      setText(focusTitle, `${changes.length} ${changes.length === 1 ? 'thing' : 'things'} changed`);
+      setText(focusTitle, matched
+        ? 'No meaningful changes'
+        : `${changes.length} ${changes.length === 1 ? 'thing' : 'things'} changed`);
       setText(focusMetric, coverage < 100 ? `${pct}% MATCH · ${coverage}% COVERED` : `${pct}% MATCH`);
       setText(focusSummary, el('diffSummary')?.textContent || 'The saved checkpoint and current physical state differ. These results come from deterministic comparison.');
-      setItems(changes);
+      setItems(matched
+        ? [{ text: 'No unresolved semantic differences remain', state: 'done' }]
+        : changes);
       const startRewind = el('startRewind');
-      setPrimary('Start Rewind', 'rewind', Boolean(startRewind?.disabled || startRewind?.hidden));
-      setText(focusHint, 'REWIND will turn these differences into an ordered restoration plan.');
+      setPrimary(matched ? 'Already matches' : 'Start Rewind', 'rewind', Boolean(matched || startRewind?.disabled || startRewind?.hidden));
+      setText(focusHint, matched
+        ? 'Transient motion can differ while the saved physical state remains equivalent.'
+        : 'REWIND will turn these differences into an ordered restoration plan.');
       return;
     }
 
