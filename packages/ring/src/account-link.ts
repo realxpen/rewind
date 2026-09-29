@@ -143,6 +143,8 @@ export function validateRingAccountLinkTimestamp(timeParam: string, now = Date.n
   return timestamp;
 }
 
+export type LinkedRingCredentialHandler = (credentials: RingOAuthTokens) => Promise<void> | void;
+
 export class RingAccountLinkService {
   private readonly apiBaseUrl: string;
   private readonly oauthTokenUrl: string;
@@ -151,6 +153,7 @@ export class RingAccountLinkService {
     private readonly config: RingAccountLinkConfig,
     private readonly store = new InMemoryRingCredentialStore(),
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly onLinkedCredentials?: LinkedRingCredentialHandler,
   ) {
     if (!config.clientId || !config.clientSecret || !config.hmacSecret) {
       throw new Error("Ring account-link credentials are required.");
@@ -249,6 +252,12 @@ export class RingAccountLinkService {
     });
     if (!completeResponse.ok) throw new Error(`Ring integration completion failed (${completeResponse.status}).`);
 
+    await this.onLinkedCredentials?.({
+      accessToken: candidate.accessToken,
+      refreshToken: candidate.refreshToken,
+      expiresAt: candidate.expiresAt,
+      ...(candidate.scope ? { scope: candidate.scope } : {}),
+    });
     this.store.claim(candidate.accountId);
   }
 
