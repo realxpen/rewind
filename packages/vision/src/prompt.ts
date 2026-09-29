@@ -45,7 +45,7 @@ Hard rules:
 - Do not use the DELTA SCAN to add decorative plants, wall art, fixed lighting, or other background decor merely because the checkpoint inventory omitted them.
 - Confidence must be between 0 and 1.
 - Never identify or name people.
-- Clearly visible birds and other non-human animals are meaningful dynamic scene entities. Include them with stable role/location keys, present=true, and compact visible identity cues such as color, appearance, or species when supported.
+- Clearly visible birds and other non-human animals are meaningful dynamic scene entities. Include each visible subject exactly once with a unique stable role/location key, attributes present=true and dynamic_subject=true, plus compact visible identity cues such as color, appearance, or species when supported.
 - For tracked dynamic subjects, category, arbitrary numbering, and occupying the same feeder/area are NOT identity proof. Do not call a subject MOVED merely because another bird or animal is visible somewhere else.
 - Reuse a tracked dynamic key only when saved and current visible identity cues are mutually consistent. If the saved subject is clearly gone, emit that tracked key with present=false. If a visibly different subject has arrived, emit it under a distinct new key with present=true.
 - If you cannot tell whether the current subject is the same individual, use confidence below 0.60 on the tracked key and omit present/relations rather than inventing continuity.`;
@@ -88,6 +88,7 @@ function trackedVocabulary(context: ObservationContext): string {
 
 export function buildNovaObservationPrompt(context: ObservationContext): string {
   const trackedMode = Boolean(context.trackedEntities?.length);
+  const dynamicMode = context.preserveDynamicEntities === true;
   return `Observe the supplied image and return a PSP ${PSP_SCHEMA_VERSION} JSON object.
 
 Use these exact top-level values:
@@ -103,6 +104,7 @@ ${trackedVocabulary(context)}
 
 Observation mode:
 - ${trackedMode ? "TRACKED COMPARISON. Identity stability and explicit re-checking of supplied checkpoint facts are more important than inventing additional detail." : "OPEN OBSERVATION. Create a conservative semantic inventory."}
+- ${dynamicMode ? "LIVE DYNAMIC CENSUS. Count every clearly visible non-human dynamic subject independently. Each visible subject must appear exactly once with present=true and dynamic_subject=true. After matching tracked identities, if additional visible subjects remain, emit every surplus subject under a distinct untracked key. Never suppress a surplus subject merely because the checkpoint already contains that category. If fewer saved subjects remain visible, represent clear absences on their tracked keys when supported." : "RESTORATION-FOCUSED MODE. Dynamic-subject census is not required."}
 
 Entity identity rules:
 - Every entity key MUST be unique within this JSON document.
@@ -118,7 +120,7 @@ Output-size rules:
 - Return one complete, parseable JSON object; never stop mid-object or mid-array.
 - Keep each entity concise: key, category, confidence, only useful primitive attributes, and only useful relations.
 - With no tracked vocabulary, include at most 24 entities total.
-- With tracked vocabulary, prioritize tracked entities and include at most 8 genuinely additional high-confidence restoration-relevant extras from the DELTA SCAN.
+- With tracked vocabulary, prioritize tracked entities and include at most 8 genuinely additional high-confidence restoration-relevant extras from the DELTA SCAN. In LIVE DYNAMIC CENSUS mode, clearly visible surplus dynamic subjects are also required extras and count toward this limit.
 - Prefer omission of minor decorative objects over risking an incomplete JSON response.
 - Keep DELTA SCAN extras concise: key, category, confidence, and at most one useful relation when it helps locate the object.
 
@@ -178,7 +180,7 @@ Observation guidance:
 10. For ON, UNDER, INSIDE, BEHIND, LEFT_OF, RIGHT_OF, IN_FRONT_OF, NEAR, and ATTACHED_TO, always make the entity owning the relation the subject and target the referenced object.
 11. Do not create inverse relations merely because two objects are visible near each other.
 12. In tracked mode, do a second identity-and-relation pass: every visible tracked object must use its supplied key, and every supplied checkpoint relation must either be re-emitted because it is visibly true, omitted because it is uncertain, or replaced only by visually clear contradictory evidence.
-13. In tracked mode, do a final DELTA SCAN of the whole image for obvious high-confidence loose clutter or movable extras that are not represented by any supplied tracked key. Include up to 8 such extras and ignore background decor.
+13. In tracked mode, do a final DELTA SCAN of the whole image for obvious high-confidence loose clutter or movable extras that are not represented by any supplied tracked key. Include up to 8 such extras and ignore background decor. In LIVE DYNAMIC CENSUS mode, also perform a final subject-count pass: compare the number of clearly visible dynamic subjects with the number of matched tracked dynamic identities and emit every high-confidence surplus as a distinct entity with present=true and dynamic_subject=true.
 14. Perform a final uniqueness check over all entity keys before responding.
 15. Perform a final completeness check: the response must end as one valid JSON object with all braces and arrays closed.
 16. Return JSON only.`;
