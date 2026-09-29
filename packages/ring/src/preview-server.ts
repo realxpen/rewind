@@ -426,6 +426,7 @@ export function createPreviewServer(
                 spaceId: data.spaceId,
                 capturedAt: data.capturedAt,
                 trackedEntities: trackedEntitiesFromState(selectedView.state),
+                preserveDynamicEntities: true,
               },
             });
           } else {
@@ -436,6 +437,7 @@ export function createPreviewServer(
               context: {
                 spaceId: data.spaceId,
                 capturedAt: data.capturedAt,
+                preserveDynamicEntities: true,
               },
             });
           }
