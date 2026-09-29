@@ -146,10 +146,25 @@ async function main() {
   let ringVoiceObserver: SpaceObserver = liveFrameObserver;
   let voiceDeviceId: string | undefined;
   if (voiceObservationMode !== "browser") {
-    const devices = await listRingDevices(client, config.devicesPath);
-    voiceDeviceId = process.env.REWIND_RING_DEVICE_ID?.trim() || devices[0]?.id;
-    if (!voiceDeviceId) {
-      throw new Error("No Ring device is available for server-side voice observations.");
+    try {
+      const devices = await listRingDevices(client, config.devicesPath);
+      voiceDeviceId = process.env.REWIND_RING_DEVICE_ID?.trim() || devices[0]?.id;
+      if (!voiceDeviceId) {
+        throw new Error("No Ring device is available for server-side voice observations.");
+      }
+    } catch (error) {
+      if (voiceObservationMode !== "auto") throw error;
+      const message = error instanceof Error ? error.message : "Ring discovery unavailable";
+      const safe = /Ring API 401/.test(message)
+        ? "Ring authorization needs refresh"
+        : /Ring OAuth refresh failed/.test(message)
+          ? "Ring refresh credentials need attention"
+          : /Ring API request failed/.test(message)
+            ? "Ring API is temporarily unreachable"
+            : /No Ring device/.test(message)
+              ? "no Ring device was discovered"
+              : "server-side Ring discovery is unavailable";
+      console.warn(`Server-side Ring observer unavailable at startup (${safe}); continuing with the browser WHEP bridge. Device discovery will retry from the preview UI.`);
     }
   }
 
@@ -167,7 +182,9 @@ async function main() {
   });
 
   if (voiceObservationMode === "auto") {
-    ringVoiceObserver = new RingFallbackObserver(createRtspObserver(), liveFrameObserver);
+    ringVoiceObserver = voiceDeviceId
+      ? new RingFallbackObserver(createRtspObserver(), liveFrameObserver)
+      : liveFrameObserver;
   } else if (voiceObservationMode === "rtsp") {
     ringVoiceObserver = createRtspObserver();
   } else if (voiceObservationMode === "snapshot") {
@@ -397,9 +414,17 @@ function safeStartupMessage(error: unknown): string {
     "REWIND_RING_OBSERVER must be auto, rtsp, snapshot, or browser.",
     "No Ring device is available for server-side voice observations.",
   ];
-  return allowed.includes(message)
-    ? message
-    : "Check Ring variables, DYNAMODB_CHECKPOINTS_TABLE, AWS authentication, and local port availability.";
+  if (allowed.includes(message)) return message;
+  if (/Ring API 401/.test(message)) {
+    return "Ring authorization was rejected. REWIND can auto-refresh when RING_CLIENT_ID, RING_CLIENT_SECRET, and RING_REFRESH_TOKEN are configured.";
+  }
+  if (/Ring OAuth refresh failed \(400|Ring OAuth refresh failed \(401/.test(message)) {
+    return "Ring refresh credentials were rejected. Re-link Ring once to obtain a fresh refresh token; REWIND will rotate it locally after that.";
+  }
+  if (/Ring API request failed/.test(message)) {
+    return "Ring API is unreachable. Check network access and retry; local preview can use browser mode while Ring recovers.";
+  }
+  return "Check Ring variables, DYNAMODB_CHECKPOINTS_TABLE, AWS authentication, and local port availability.";
 }
 
 main().catch(error => {
