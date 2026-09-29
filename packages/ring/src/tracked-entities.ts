@@ -13,6 +13,7 @@ const IDENTITY_ATTRIBUTES = new Set([
   "appearance",
   "visible_label",
   "species",
+  "dynamic_subject",
 ]);
 
 function identityDescription(attributes: Record<string, unknown> | undefined): string {
@@ -26,8 +27,12 @@ function identityDescription(attributes: Record<string, unknown> | undefined): s
 
 const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
 
-function dynamicIdentityDescription(category: string): string {
-  if (!DYNAMIC_SUBJECT_CATEGORIES.has(category.toLowerCase())) return "";
+function isDynamicSubjectEntity(entity: { category: string; attributes?: Record<string, unknown> }): boolean {
+  return entity.attributes?.dynamic_subject === true || isDynamicSubjectEntity(entity);
+}
+
+function dynamicIdentityDescription(entity: { category: string; attributes?: Record<string, unknown> }): string {
+  if (!isDynamicSubjectEntity(entity)) return "";
   return " Dynamic subject rule: category, numbering, and location alone do NOT prove this is the same individual. Reuse this tracked key only when visible identity cues are consistent with the saved subject. If a visibly different subject occupies the area, mark the saved tracked subject absent when supported and emit the new subject under a distinct key. If identity is ambiguous, prefer uncertainty over claiming movement.";
 }
 
@@ -51,7 +56,7 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
         `This is checkpoint identity ${entity.key}. Match the corresponding visible ${entity.category} to this exact key; never replace, split, or rename it.`,
         identityDescription(entity.attributes),
         savedLocationDescription(state, entity.key),
-        dynamicIdentityDescription(entity.category),
+        dynamicIdentityDescription(entity),
       ].filter(Boolean).join(""),
     };
 
@@ -62,7 +67,7 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
           .map(attribute => [
             attribute,
             attribute.toLowerCase() === "present"
-              ? DYNAMIC_SUBJECT_CATEGORIES.has(entity.category.toLowerCase())
+              ? isDynamicSubjectEntity(entity)
                 ? `The checkpoint says ${entity.key} was present. For this dynamic subject, do not reuse the key merely because another ${entity.category} is visible in the same area. Emit present=true only when visible identity cues support the same saved subject. Emit present=false when the saved subject is clearly gone and its area is visible. If another visibly different subject is present, it must use a distinct key.`
                 : `The checkpoint says ${entity.key} was present. Search for this exact saved object using its identity and location cues. Emit present=true if clearly visible; emit present=false only if its saved area is visible/unoccluded and the object is clearly absent; otherwise omit present.`
               : `Observe only the current visible value for "${attribute}" on this tracked entity. Omit it if the image does not support a value.`,
@@ -173,6 +178,104 @@ export function reconcileDynamicSubjectIdentity(
   return replacements
     ? { state: { ...currentState, entities }, replacements }
     : { state: currentState, replacements: 0 };
+}
+
+
+function dynamicCensusIdentityScore(left: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> }, right: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> }): number {
+  if (left.category.toLowerCase() !== right.category.toLowerCase()) return -1;
+
+  const speciesLeft = normalizedIdentityValue(left.attributes?.species);
+  const speciesRight = normalizedIdentityValue(right.attributes?.species);
+  if (speciesLeft && speciesRight) return speciesLeft === speciesRight ? 4 : -1;
+
+  const colorLeft = normalizedIdentityValue(left.attributes?.color ?? left.attributes?.colour);
+  const colorRight = normalizedIdentityValue(right.attributes?.color ?? right.attributes?.colour);
+  if (colorLeft && colorRight && colorLeft !== colorRight) return -1;
+
+  const appearanceLeft = normalizedIdentityValue(left.attributes?.appearance);
+  const appearanceRight = normalizedIdentityValue(right.attributes?.appearance);
+  if (appearanceLeft && appearanceRight) {
+    const leftTokens = new Set(appearanceLeft.split(" "));
+    const overlap = appearanceRight.split(" ").filter(token => leftTokens.has(token)).length;
+    if (overlap >= 2) return 3;
+  }
+
+  const leftRelations = new Set((left.relations ?? []).map(relation => `${relation.type}:${relation.target ?? ""}`));
+  const sharedRelation = (right.relations ?? []).some(relation => leftRelations.has(`${relation.type}:${relation.target ?? ""}`));
+  if (sharedRelation) return 2;
+
+  if (colorLeft && colorRight && colorLeft === colorRight) return 1;
+  return 0;
+}
+
+/**
+ * Merge an open live-scene census into the tracked observation.
+ *
+ * This is cardinality-driven rather than scene-driven: no expected count, color,
+ * species, or feeder position is hardcoded. If the open census sees more
+ * high-confidence dynamic subjects of a category than the tracked pass emitted,
+ * the deterministic layer carries only that surplus forward as distinct current
+ * entities so an arrival cannot disappear behind tracked vocabulary.
+ */
+export function mergeDynamicSubjectCensus(
+  trackedState: PhysicalState,
+  censusState: PhysicalState,
+): { state: PhysicalState; added: number } {
+  const current = trackedState.entities.filter(entity =>
+    isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
+  const census = censusState.entities.filter(entity =>
+    isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
+
+  const byCategory = new Map<string, typeof census>();
+  for (const entity of census) {
+    const key = entity.category.toLowerCase();
+    const rows = byCategory.get(key) ?? [];
+    rows.push(entity);
+    byCategory.set(key, rows);
+  }
+
+  const occupied = new Set(trackedState.entities.map(entity => entity.key));
+  const additions = [];
+
+  for (const [category, censusEntities] of byCategory) {
+    const currentEntities = current.filter(entity => entity.category.toLowerCase() === category);
+    const surplus = censusEntities.length - currentEntities.length;
+    if (surplus <= 0) continue;
+
+    const ranked = censusEntities
+      .map(entity => ({
+        entity,
+        bestScore: currentEntities.reduce(
+          (best, candidate) => Math.max(best, dynamicCensusIdentityScore(entity, candidate)),
+          -1,
+        ),
+      }))
+      .sort((left, right) => left.bestScore - right.bestScore || right.entity.confidence - left.entity.confidence);
+
+    for (const { entity } of ranked.slice(0, surplus)) {
+      const base = entity.key.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || `${category}.current`;
+      let key = base;
+      let suffix = 1;
+      while (occupied.has(key)) {
+        suffix += 1;
+        key = `${base}.current${suffix}`;
+      }
+      occupied.add(key);
+      additions.push({
+        ...entity,
+        key,
+        attributes: {
+          ...(entity.attributes ?? {}),
+          present: true,
+          dynamic_subject: true,
+        },
+      });
+    }
+  }
+
+  return additions.length
+    ? { state: { ...trackedState, entities: [...trackedState.entities, ...additions] }, added: additions.length }
+    : { state: trackedState, added: 0 };
 }
 
 export interface TrackedPresenceEvidence {
