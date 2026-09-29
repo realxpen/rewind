@@ -92,6 +92,8 @@ assert.match(verify, /startRewind/);
 assert.match(verify, /checkAgain/);
 assert.match(verify, /Controlled Demo — validated semantic fixtures/);
 assert.match(verify, /selected live source is real camera evidence/);
+assert.match(verify, /No meaningful changes/);
+assert.match(verify, /No unresolved semantic differences remain/);
 
 // Everyday photo mode is a real observation source, not a fake fixture path.
 assert.match(consumer, /Phase 12 everyday photo flow\. Reuses the same Nova → PSP → deterministic REWIND services\./);
