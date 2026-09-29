@@ -409,6 +409,7 @@ export function createPreviewServer(
                 context: {
                   spaceId: data.spaceId,
                   capturedAt: data.capturedAt,
+                  preserveDynamicEntities: true,
                 },
               });
               const selected = selectBestCheckpointView(checkpoint, scan.state);
