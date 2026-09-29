@@ -26,6 +26,10 @@ const PRESERVED_ATTRIBUTES = new Set([
 ]);
 const TRANSIENT_LIVING_CATEGORIES = new Set(["person", "human", "bird", "animal", "pet"]);
 
+export interface NormalizeStateOptions {
+  preserveDynamicSubjects?: boolean;
+}
+
 function normalizeRelation(relation: PhysicalRelation): PhysicalRelation {
   const normalized: PhysicalRelation = { type: relation.type };
   if (relation.target !== undefined) normalized.target = relation.target.trim();
@@ -98,7 +102,7 @@ function normalizeEvidence(evidence: ObservationEvidence): ObservationEvidence {
   return normalized;
 }
 
-export function normalizeState(input: PhysicalState | unknown): PhysicalState {
+export function normalizeState(input: PhysicalState | unknown, options: NormalizeStateOptions = {}): PhysicalState {
   const state = parseState(input);
 
   const normalized: PhysicalState = {
@@ -107,7 +111,7 @@ export function normalizeState(input: PhysicalState | unknown): PhysicalState {
     capturedAt: state.capturedAt,
     entities: [...state.entities]
       .map(normalizeEntity)
-      .filter((entity) => !TRANSIENT_LIVING_CATEGORIES.has(entity.category))
+      .filter((entity) => options.preserveDynamicSubjects || !TRANSIENT_LIVING_CATEGORIES.has(entity.category))
       .sort((a, b) => a.key.localeCompare(b.key)),
   };
 
