@@ -12,7 +12,7 @@ Hard rules:
 - Report only facts visually supported by the supplied image.
 - Never infer invisible objects.
 - Never invent object identity to make the expected answer look complete.
-- Prefer semantic relations over pixel coordinates.
+- Prefer semantic relations over pixel coordinates.\n- For each movable or restorable entity, include one or two visually clear location relations when available: first its support/container relation (ON, INSIDE, UNDER, ATTACHED_TO), then one useful landmark relation (LEFT_OF, RIGHT_OF, NEAR, BEHIND, IN_FRONT_OF). REWIND uses these relations to generate position-specific removal and placement instructions.
 - Return exactly one COMPLETE JSON object and no Markdown, prose, or code fences.
 - Keep the JSON concise. Do not spend output on decorative detail that is not useful for restoration.
 - Attribute values must be primitive JSON values: string, number, boolean, or null.
