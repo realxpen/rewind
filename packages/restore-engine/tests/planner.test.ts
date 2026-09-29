@@ -10,7 +10,7 @@ function assert(condition: unknown, message: string): asserts condition {
 const initialDiffs = compareStates(demoReady, messy);
 const plan = buildRestorePlan(initialDiffs);
 assert(plan.actions.length === 6, `Expected six restore actions, got ${plan.actions.length}.`);
-assert(plan.actions.some((action) => action.instruction === "Move chair main behind desk main."), "Expected semantic chair restore instruction.");
+assert(plan.actions.some((action) => action.instruction === "Move chair main to its saved position behind desk main."), "Expected semantic chair restore instruction with saved position.");
 assert(plan.actions.some((action) => action.instruction === "Turn on lamp left."), "Expected lamp power restore instruction.");
 assert(plan.actions.some((action) => action.instruction === "Clear desk main."), "Expected desk clear restore instruction.");
 
@@ -53,10 +53,35 @@ const explicitRemovedPlan = buildRestorePlan([{
   reason: "explicit absence",
 }]);
 assert(
-  explicitRemovedPlan.actions[0]?.instruction === "Move notebook left on table main.",
+  explicitRemovedPlan.actions[0]?.instruction === "Return notebook left to its saved position on table main.",
   "Explicit removed movable objects should get object-level restore guidance anchored to the saved relation.",
 );
 
+
+
+const addedCupPlan = buildRestorePlan([{
+  type: "ADDED",
+  entity: "cup.blue",
+  category: "cup",
+  actual: {
+    entity: {
+      key: "cup.blue",
+      category: "cup",
+      confidence: 0.97,
+      attributes: { present: true, color: "blue" },
+      relations: [
+        { type: "ON", target: "countertop.main", confidence: 0.96 },
+        { type: "LEFT_OF", target: "toaster.main", confidence: 0.92 },
+      ],
+    },
+  },
+  confidence: 0.97,
+  reason: "extra cup",
+}]);
+assert(
+  addedCupPlan.actions[0]?.instruction === "Remove cup blue from its current position on countertop main and to the left of toaster main.",
+  "Added objects must include the current semantic position in removal guidance.",
+);
 
 const twoNotebookBaseline: PhysicalState = {
   schemaVersion: "0.1",
@@ -98,11 +123,11 @@ assert(twoNotebookRemoved.some(diff => diff.entity === "notebook.turquoise"), "E
 const twoNotebookPlan = buildRestorePlan(twoNotebookDiffs);
 assert(twoNotebookPlan.actions.length === 2, `Expected two restore actions, got ${twoNotebookPlan.actions.length}.`);
 assert(
-  twoNotebookPlan.actions.some(action => action.instruction === "Move notebook red on table main."),
+  twoNotebookPlan.actions.some(action => action.instruction === "Return notebook red to its saved position on table main."),
   "Expected red notebook restore guidance.",
 );
 assert(
-  twoNotebookPlan.actions.some(action => action.instruction === "Move notebook turquoise on table main."),
+  twoNotebookPlan.actions.some(action => action.instruction === "Return notebook turquoise to its saved position on table main."),
   "Expected turquoise notebook restore guidance.",
 );
 
