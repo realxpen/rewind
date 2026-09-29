@@ -145,17 +145,28 @@ try {
   assert.equal(response.status, 201);
   const session = await response.json() as { id: string; answer: string; sessionUrl?: string };
   assert.equal(session.answer, "unit-answer"); assert.equal(session.sessionUrl, undefined);
-  assert.equal((await post("start", { deviceId: "test-device", offer: "v=0\r\n" })).status, 409);
-  assert.equal(created, 1);
+
+  // A browser can lose its local peer/session state after a failed first-frame
+  // negotiation or reload while the preview server still owns the upstream WHEP
+  // session. A new Start request must recover by closing that orphan and creating
+  // a fresh session instead of trapping the demo behind a stale 409.
+  const restarted = await post("start", { deviceId: "test-device", offer: "v=0\r\n" });
+  assert.equal(restarted.status, 201);
+  const restartedSession = await restarted.json() as { id: string; answer: string; sessionUrl?: string };
+  assert.notEqual(restartedSession.id, session.id);
+  assert.equal(restartedSession.answer, "unit-answer");
+  assert.equal(created, 2);
+  assert.equal(deleted, 1, "Restart must clean the orphaned upstream WHEP session first.");
+
   assert.equal((await post("stop", { id: "wrong" })).status, 404);
-  assert.equal(deleted, 0);
-  assert.equal((await post("heartbeat", { id: session.id })).status, 200);
+  assert.equal(deleted, 1);
+  assert.equal((await post("heartbeat", { id: restartedSession.id })).status, 200);
   failDelete = true;
-  const failed = await post("stop", { id: session.id });
+  const failed = await post("stop", { id: restartedSession.id });
   assert.equal(failed.status, 502); assert.doesNotMatch(await failed.text(), /private upstream/);
   failDelete = false;
-  assert.equal((await post("stop", { id: session.id })).status, 200);
-  assert.equal(deleted, 1);
+  assert.equal((await post("stop", { id: restartedSession.id })).status, 200);
+  assert.equal(deleted, 2);
   assert.equal((await post("observe", { image: "bad", spaceId: "unit", capturedAt: new Date().toISOString() })).status, 400);
   const frame = { image: Buffer.from([255, 216, 255, 217]).toString("base64"), spaceId: "unit-space", capturedAt: new Date().toISOString() };
   const result = await post("observe", frame);
@@ -195,7 +206,7 @@ try {
   assert.equal(novaError.status, 502); assert.doesNotMatch(await novaError.text(), /secret SDK/);
   assert.equal((await post("observe", { ...frame, spaceId: "" })).status, 400);
   await post("start", { deviceId: "test-device", offer: "v=0\r\n" });
-  await preview.cleanup(); assert.equal(deleted, 2);
+  await preview.cleanup(); assert.equal(deleted, 3);
   console.log("PASS ring preview: discovery + controlled demo trust boundary + same-origin MCP signal + origin guard + session lifecycle/retry + frame validation + Nova handoff + trusted agent observation + cleanup");
 } finally {
   preview.server.close(); preview.server.closeAllConnections();
