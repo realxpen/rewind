@@ -86,6 +86,95 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
 }
 
 
+
+function normalizedIdentityValue(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return normalized || undefined;
+}
+
+function dynamicIdentityConflict(
+  savedAttributes: Record<string, unknown> | undefined,
+  currentAttributes: Record<string, unknown> | undefined,
+): boolean {
+  const savedSpecies = normalizedIdentityValue(savedAttributes?.species);
+  const currentSpecies = normalizedIdentityValue(currentAttributes?.species);
+  if (savedSpecies && currentSpecies && savedSpecies !== currentSpecies) return true;
+
+  const savedColor = normalizedIdentityValue(savedAttributes?.color ?? savedAttributes?.colour);
+  const currentColor = normalizedIdentityValue(currentAttributes?.color ?? currentAttributes?.colour);
+  if (!savedColor || !currentColor || savedColor === currentColor) return false;
+
+  const generic = new Set(["bird", "animal", "pet", "small", "large", "medium"]);
+  const tokens = (value: unknown) => new Set(
+    (normalizedIdentityValue(value)?.split(" ") ?? []).filter(token => !generic.has(token)),
+  );
+  const savedAppearance = tokens(savedAttributes?.appearance);
+  const currentAppearance = tokens(currentAttributes?.appearance);
+  if (!savedAppearance.size || !currentAppearance.size) return false;
+
+  return ![...savedAppearance].some(token => currentAppearance.has(token));
+}
+
+/**
+ * Dynamic subjects cannot be assigned continuity from location/category alone.
+ * When the vision layer reuses a tracked key for a visibly conflicting subject,
+ * split that observation into an explicit saved-subject absence plus a new arrival.
+ */
+export function reconcileDynamicSubjectIdentity(
+  referenceState: PhysicalState,
+  currentState: PhysicalState,
+): { state: PhysicalState; replacements: number } {
+  const referenceByKey = new Map(referenceState.entities.map(entity => [entity.key, entity]));
+  const occupiedKeys = new Set(currentState.entities.map(entity => entity.key));
+  let replacements = 0;
+  const entities = [];
+
+  for (const current of currentState.entities) {
+    const saved = referenceByKey.get(current.key);
+    if (
+      !saved
+      || !DYNAMIC_SUBJECT_CATEGORIES.has(saved.category.toLowerCase())
+      || !DYNAMIC_SUBJECT_CATEGORIES.has(current.category.toLowerCase())
+      || !dynamicIdentityConflict(saved.attributes, current.attributes)
+    ) {
+      entities.push(current);
+      continue;
+    }
+
+    let suffix = 1;
+    let replacementKey = `${current.key}.new`;
+    while (occupiedKeys.has(replacementKey)) {
+      suffix += 1;
+      replacementKey = `${current.key}.new${suffix}`;
+    }
+    occupiedKeys.add(replacementKey);
+
+    entities.push({
+      ...saved,
+      confidence: Math.min(saved.confidence, current.confidence),
+      attributes: {
+        ...(saved.attributes ?? {}),
+        present: false,
+      },
+      relations: [],
+    });
+    entities.push({
+      ...current,
+      key: replacementKey,
+      attributes: {
+        ...(current.attributes ?? {}),
+        present: true,
+      },
+    });
+    replacements += 1;
+  }
+
+  return replacements
+    ? { state: { ...currentState, entities }, replacements }
+    : { state: currentState, replacements: 0 };
+}
+
 export interface TrackedPresenceEvidence {
   key: string;
   status: "PRESENT" | "ABSENT" | "UNCERTAIN";
