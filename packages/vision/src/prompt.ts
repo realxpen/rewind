@@ -46,7 +46,9 @@ Hard rules:
 - Confidence must be between 0 and 1.
 - Never identify or name people.
 - Clearly visible birds and other non-human animals are meaningful dynamic scene entities. Include them with stable role/location keys, present=true, and compact visible identity cues such as color, appearance, or species when supported.
-- If a tracked bird is clearly gone, preserve its tracked key with present=false. If a visibly different bird has arrived, emit it as a distinct entity with present=true rather than reusing the departed bird's identity.`;
+- For tracked dynamic subjects, category, arbitrary numbering, and occupying the same feeder/area are NOT identity proof. Do not call a subject MOVED merely because another bird or animal is visible somewhere else.
+- Reuse a tracked dynamic key only when saved and current visible identity cues are mutually consistent. If the saved subject is clearly gone, emit that tracked key with present=false. If a visibly different subject has arrived, emit it under a distinct new key with present=true.
+- If you cannot tell whether the current subject is the same individual, use confidence below 0.60 on the tracked key and omit present/relations rather than inventing continuity.`;
 
 function trackedVocabulary(context: ObservationContext): string {
   if (!context.trackedEntities || context.trackedEntities.length === 0) {
