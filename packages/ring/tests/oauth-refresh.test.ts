@@ -55,6 +55,15 @@ try {
   assert.equal(cached.accessToken, "access-token-3");
   assert.equal(cached.refreshToken, "refresh-token-3");
 
+  await manager.acceptLinkedCredentials({
+    accessToken: "linked-access-token",
+    refreshToken: "linked-refresh-token",
+    expiresAt: 1_800_014_400_000,
+  });
+  const linkedCached = JSON.parse(await readFile(cachePath, "utf8")) as Record<string, unknown>;
+  assert.equal(linkedCached.accessToken, "linked-access-token");
+  assert.equal(linkedCached.refreshToken, "linked-refresh-token");
+
   let unexpectedNetwork = false;
   const restarted = new RingOAuthRefreshManager({
     accessToken: "still-stale-env-token",
@@ -69,7 +78,7 @@ try {
     now: () => 1_800_000_001_000,
   });
 
-  assert.equal(await restarted.token(), "access-token-3");
+  assert.equal(await restarted.token(), "linked-access-token");
   assert.equal(unexpectedNetwork, false, "Restart must reuse the rotated local credential cache.");
   console.log("PASS Ring OAuth refresh: proactive refresh + 401 retry + rotated credential persistence");
 } finally {
