@@ -157,6 +157,34 @@ function comparisonEvidenceMode(observation: StoredObservation): "strict" | "vis
   return observation.basis === "controlled-demo" ? "strict" : "vision";
 }
 
+const LIVE_DYNAMIC_CATEGORIES = new Set(["bird", "animal", "pet"]);
+
+function liveComparisonState(state: VisionObservation["state"]): VisionObservation["state"] {
+  return {
+    ...state,
+    entities: state.entities.map(entity =>
+      LIVE_DYNAMIC_CATEGORIES.has(entity.category)
+        ? { ...entity, category: `dynamic-${entity.category}` }
+        : entity),
+  };
+}
+
+function comparePreviewStates(
+  checkpointState: VisionObservation["state"],
+  currentState: VisionObservation["state"],
+  observation: StoredObservation,
+) {
+  const diffs = compareStates(
+    liveComparisonState(checkpointState),
+    liveComparisonState(currentState),
+    { evidenceMode: comparisonEvidenceMode(observation) },
+  );
+  return diffs.map(diff =>
+    diff.category.startsWith("dynamic-")
+      ? { ...diff, category: diff.category.slice("dynamic-".length) }
+      : diff);
+}
+
 /** Loopback-only development surface; one stream, no persistent media or credentials in the browser. */
 export function createPreviewServer(
   services: PreviewServices,
@@ -544,7 +572,7 @@ export function createPreviewServer(
         const checkpoint = await services.getCheckpoint(session.spaceId, session.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
         const checkpointState = stateForCheckpointView(checkpoint, session.checkpointViewId);
-        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const diffs = comparePreviewStates(checkpointState, observation.state, observation);
         const match = calculateMatch(diffs);
         const progress = updateRestoreProgress(session.plan, diffs);
         const blockedUnknowns = diffs.filter(diff => diff.type === "UNKNOWN").map(diff => diff.entity);
@@ -582,7 +610,7 @@ export function createPreviewServer(
         const checkpoint = await services.getCheckpoint(data.spaceId, data.checkpointId);
         if (!checkpoint) { send(res, 404, { error: "Checkpoint not found." }); return; }
         const checkpointState = stateForCheckpointView(checkpoint, observation.checkpointViewId);
-        const diffs = compareStates(checkpointState, observation.state, { evidenceMode: comparisonEvidenceMode(observation) });
+        const diffs = comparePreviewStates(checkpointState, observation.state, observation);
         const match = calculateMatch(diffs);
         const changes = diffs.filter(diff => diff.type !== "UNCHANGED");
         if (path === "/api/diff") {
