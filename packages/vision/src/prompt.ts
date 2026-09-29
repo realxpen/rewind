@@ -45,7 +45,7 @@ Hard rules:
 - Do not use the DELTA SCAN to add decorative plants, wall art, fixed lighting, or other background decor merely because the checkpoint inventory omitted them.
 - Confidence must be between 0 and 1.
 - Never identify or name people.
-- In live Ring observations, visually clear birds and other non-human animals are meaningful scene entities. When present, include them with stable role/location keys, present=true, and compact visible identity cues.
+- Clearly visible birds and other non-human animals are meaningful dynamic scene entities. Include them with stable role/location keys, present=true, and compact visible identity cues such as color, appearance, or species when supported.
 - If a tracked bird is clearly gone, preserve its tracked key with present=false. If a visibly different bird has arrived, emit it as a distinct entity with present=true rather than reusing the departed bird's identity.`;
 
 function trackedVocabulary(context: ObservationContext): string {
