@@ -22,7 +22,13 @@ export function calculateMatch(diffs: PhysicalDiff[]): MatchResult {
 
   const total = byEntity.size;
   const comparable = matched + confirmedChanges;
-  const percentage = total === 0 ? 100 : comparable === 0 ? 0 : Math.round((matched / comparable) * 100);
+
+  // A displayed 100% must mean every checkpoint-relevant entity is actually resolved.
+  // UNKNOWN evidence is not a match. The old comparable-only denominator could display
+  // 100% even while identities/relations were unresolved, which is especially misleading
+  // for live vision scenes. Coverage remains separate so callers can still distinguish
+  // confirmed mismatch from insufficient visual evidence.
+  const percentage = total === 0 ? 100 : Math.round((matched / total) * 100);
   const coveragePercentage = total === 0 ? 100 : Math.round((comparable / total) * 100);
   const unresolved = confirmedChanges + unknown;
 
