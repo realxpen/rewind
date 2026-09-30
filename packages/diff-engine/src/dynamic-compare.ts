@@ -217,23 +217,24 @@ function reconcileDynamicPopulation(
   );
 
   if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE) {
-    result.push({
+    const uncertain: PhysicalDiff = {
       type: "UNKNOWN",
       entity: DYNAMIC_CENSUS_KEY,
       category: "dynamic-census",
-      expected: checkpointCensus ? { entity: checkpointCensus, attributes: { dynamic_count: expectedCount } } : undefined,
-      actual: currentCensus ? { entity: currentCensus, attributes: { dynamic_count: actualCount } } : undefined,
+      ...(checkpointCensus ? { expected: { entity: checkpointCensus, attributes: { dynamic_count: expectedCount } } } : {}),
+      ...(currentCensus ? { actual: { entity: currentCensus, attributes: { dynamic_count: actualCount } } } : {}),
       confidence,
       reason: "Checkpoint-guided identity tracking and the independent live-scene census disagree about dynamic-subject cardinality. REWIND will not report 100% until the count is resolved.",
-    });
+    };
+    result.push(uncertain);
     return result;
   }
 
   const targetDelta = actualCount - expectedCount;
   const population = result.filter(isDynamicPopulationDiff);
-  let added = population.filter(diff => diff.type === "ADDED");
-  let removed = population.filter(diff => diff.type === "REMOVED");
-  let net = added.length - removed.length;
+  const added = population.filter(diff => diff.type === "ADDED");
+  const removed = population.filter(diff => diff.type === "REMOVED");
+  const net = added.length - removed.length;
 
   if (net > targetDelta) {
     let gap = net - targetDelta;
