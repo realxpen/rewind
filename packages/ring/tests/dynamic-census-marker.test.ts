@@ -18,13 +18,27 @@ const baseline: PhysicalState = {
       key: "subject.dark",
       category: "bird",
       confidence: 0.97,
-      attributes: { present: true, dynamic_subject: true, color: "dark", appearance: "small dark subject" },
+      attributes: {
+        present: true,
+        dynamic_subject: true,
+        color: "dark",
+        appearance: "small dark subject",
+        frame_x: 20,
+        frame_y: 40,
+      },
     },
     {
       key: "subject.light",
       category: "bird",
       confidence: 0.97,
-      attributes: { present: true, dynamic_subject: true, color: "light", appearance: "small light subject" },
+      attributes: {
+        present: true,
+        dynamic_subject: true,
+        color: "light",
+        appearance: "small light subject",
+        frame_x: 55,
+        frame_y: 40,
+      },
     },
   ],
 };
@@ -43,19 +57,40 @@ const census: PhysicalState = {
       key: "census.dark",
       category: "animal",
       confidence: 0.97,
-      attributes: { present: true, dynamic_subject: true, color: "dark", appearance: "small dark subject" },
+      attributes: {
+        present: true,
+        dynamic_subject: true,
+        color: "dark",
+        appearance: "small dark subject",
+        frame_x: 20,
+        frame_y: 40,
+      },
     },
     {
       key: "census.light",
       category: "bird",
       confidence: 0.97,
-      attributes: { present: true, dynamic_subject: true, color: "light", appearance: "small light subject" },
+      attributes: {
+        present: true,
+        dynamic_subject: true,
+        color: "light",
+        appearance: "small light subject",
+        frame_x: 55,
+        frame_y: 40,
+      },
     },
     {
       key: "census.new-red",
       category: "cardinal",
       confidence: 0.98,
-      attributes: { present: true, dynamic_subject: true, color: "red", appearance: "bright red subject" },
+      attributes: {
+        present: true,
+        dynamic_subject: true,
+        color: "red",
+        appearance: "bright red subject",
+        frame_x: 80,
+        frame_y: 45,
+      },
     },
   ],
 };
@@ -71,21 +106,73 @@ assert(
   "The visually distinct surplus subject must survive into deterministic comparison.",
 );
 
-const comparisonState = (state: PhysicalState): PhysicalState => ({
-  ...state,
-  entities: state.entities.map(entity =>
-    isDynamicSubjectEntity(entity) ? { ...entity, category: "dynamic-subject" } : entity),
-});
-const diffs = compareStates(comparisonState(baseline), comparisonState(merged.state), { evidenceMode: "vision" });
-const match = calculateMatch(diffs);
+const arrivalDiffs = compareStates(baseline, merged.state, { evidenceMode: "vision" });
+const arrivalMatch = calculateMatch(arrivalDiffs);
 assert(
-  diffs.filter(diff => diff.type === "ADDED").length === 1,
-  `Expected exactly one ADDED dynamic subject, got ${diffs.filter(diff => diff.type === "ADDED").length}.`,
+  arrivalDiffs.filter(diff => diff.type === "ADDED").length === 1,
+  `Expected exactly one ADDED dynamic subject, got ${arrivalDiffs.filter(diff => diff.type === "ADDED").length}.`,
 );
-assert(match.percentage < 100 && !match.restored, `A 2→3 dynamic scene must never report restored/100%; got ${match.percentage}%.`);
+assert(
+  arrivalMatch.percentage < 100 && !arrivalMatch.restored,
+  `A 2→3 dynamic scene must never report restored/100%; got ${arrivalMatch.percentage}%.`,
+);
 
-const plan = buildRestorePlan(diffs);
-assert(plan.actions.length === 0, "A dynamic-subject arrival must never generate a manual restore action.");
-assert(plan.blockedUnknowns.length === 0, "A dynamic-subject arrival must not block the manual restoration plan.");
+const arrivalPlan = buildRestorePlan(arrivalDiffs);
+assert(arrivalPlan.actions.length === 0, "A dynamic-subject arrival must never generate a manual restore action.");
+assert(arrivalPlan.blockedUnknowns.length === 0, "A dynamic-subject arrival must not block the manual restoration plan.");
 
-console.log("PASS Ring dynamic census: marker-driven 2→3 category drift produces one diff, <100% match, and zero manual actions");
+const movedState: PhysicalState = {
+  ...baseline,
+  capturedAt: "2026-09-30T10:02:00.000Z",
+  entities: baseline.entities.map(entity =>
+    entity.key === "subject.light"
+      ? {
+          ...entity,
+          category: "cardinal",
+          attributes: {
+            ...(entity.attributes ?? {}),
+            frame_x: 70,
+            frame_y: 45,
+          },
+        }
+      : entity,
+  ),
+};
+const movementDiffs = compareStates(baseline, movedState, { evidenceMode: "vision" });
+const movementMatch = calculateMatch(movementDiffs);
+assert(
+  movementDiffs.some(diff => diff.entity === "subject.light" && diff.type === "MOVED"),
+  "A high-confidence dynamic subject displacement must produce MOVED even when the category wording drifts.",
+);
+assert(
+  movementMatch.percentage < 100 && !movementMatch.restored,
+  `A moved dynamic subject must reduce match below 100%; got ${movementMatch.percentage}%.`,
+);
+assert(
+  buildRestorePlan(movementDiffs).actions.length === 0,
+  "Dynamic-subject movement must affect match without producing a manual move instruction.",
+);
+
+const jitterState: PhysicalState = {
+  ...baseline,
+  capturedAt: "2026-09-30T10:03:00.000Z",
+  entities: baseline.entities.map(entity =>
+    entity.key === "subject.light"
+      ? {
+          ...entity,
+          attributes: {
+            ...(entity.attributes ?? {}),
+            frame_x: 60,
+            frame_y: 45,
+          },
+        }
+      : entity,
+  ),
+};
+const jitterMatch = calculateMatch(compareStates(baseline, jitterState, { evidenceMode: "vision" }));
+assert(
+  jitterMatch.percentage === 100 && jitterMatch.restored,
+  `Small fixed-camera coordinate jitter should stay matched; got ${jitterMatch.percentage}%.`,
+);
+
+console.log("PASS Ring dynamic census: 2→3 arrival + marker/category drift + deterministic movement threshold + zero manual actions");
