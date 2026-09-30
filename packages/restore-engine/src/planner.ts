@@ -24,6 +24,11 @@ function snapshotRelations(snapshot: PhysicalDiff["expected"] | PhysicalDiff["ac
   return snapshot?.relations ?? snapshot?.entity?.relations ?? [];
 }
 
+function isDynamicSubjectDiff(diff: PhysicalDiff): boolean {
+  return diff.expected?.entity?.attributes?.dynamic_subject === true
+    || diff.actual?.entity?.attributes?.dynamic_subject === true;
+}
+
 function positionDescription(
   snapshot: PhysicalDiff["expected"] | PhysicalDiff["actual"],
   entity: string,
@@ -75,7 +80,7 @@ function attributeInstruction(entity: string, expected: Record<string, Attribute
 }
 
 function actionForDiff(diff: PhysicalDiff, index: number): RestoreAction | undefined {
-  if (diff.type === "UNCHANGED" || diff.type === "UNKNOWN") return undefined;
+  if (diff.type === "UNCHANGED" || diff.type === "UNKNOWN" || isDynamicSubjectDiff(diff)) return undefined;
   let instruction: string;
   switch (diff.type) {
     case "ADDED":
@@ -105,12 +110,13 @@ function actionForDiff(diff: PhysicalDiff, index: number): RestoreAction | undef
 }
 
 export function buildRestorePlan(diffs: PhysicalDiff[]): RestorePlan {
-  const actionable = diffs.filter((diff) => !["UNCHANGED", "UNKNOWN"].includes(diff.type));
+  const restorableDiffs = diffs.filter(diff => !isDynamicSubjectDiff(diff));
+  const actionable = restorableDiffs.filter((diff) => !["UNCHANGED", "UNKNOWN"].includes(diff.type));
   const actions = actionable
     .map((diff, index) => actionForDiff(diff, index))
     .filter((action): action is RestoreAction => action !== undefined);
   return {
     actions,
-    blockedUnknowns: diffs.filter((diff) => diff.type === "UNKNOWN").map((diff) => diff.entity),
+    blockedUnknowns: restorableDiffs.filter((diff) => diff.type === "UNKNOWN").map((diff) => diff.entity),
   };
 }
