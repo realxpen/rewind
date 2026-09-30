@@ -16,6 +16,9 @@ const IDENTITY_ATTRIBUTES = new Set([
   "dynamic_subject",
 ]);
 
+const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
+export const DYNAMIC_CENSUS_KEY = "rewind.dynamic-census";
+
 function identityDescription(attributes: Record<string, unknown> | undefined): string {
   if (!attributes) return "";
   const cues = Object.entries(attributes)
@@ -25,10 +28,41 @@ function identityDescription(attributes: Record<string, unknown> | undefined): s
   return cues.length ? ` Saved visible identity cues: ${cues.join(", ")}.` : "";
 }
 
-const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
-
 export function isDynamicSubjectEntity(entity: { category: string; attributes?: Record<string, unknown> }): boolean {
   return entity.attributes?.dynamic_subject === true || DYNAMIC_SUBJECT_CATEGORIES.has(entity.category.toLowerCase());
+}
+
+export function isDynamicCensusEntity(entity: { key?: string; category: string; attributes?: Record<string, unknown> }): boolean {
+  return entity.key === DYNAMIC_CENSUS_KEY
+    || entity.category.trim().toLowerCase() === "dynamic-census"
+    || entity.attributes?.dynamic_census === true;
+}
+
+function visibleDynamicSubjects(state: PhysicalState) {
+  return state.entities.filter(entity =>
+    isDynamicSubjectEntity(entity)
+    && entity.attributes?.present !== false
+    && entity.confidence >= 0.85,
+  );
+}
+
+function attachDynamicCensusEvidence(
+  state: PhysicalState,
+  count: number,
+  confidence: number,
+): PhysicalState {
+  const entities = state.entities.filter(entity => !isDynamicCensusEntity(entity));
+  entities.push({
+    key: DYNAMIC_CENSUS_KEY,
+    category: "dynamic-census",
+    confidence,
+    attributes: {
+      present: true,
+      dynamic_census: true,
+      dynamic_count: count,
+    },
+  });
+  return { ...state, entities };
 }
 
 function dynamicIdentityDescription(entity: { category: string; attributes?: Record<string, unknown> }): string {
@@ -48,7 +82,10 @@ function savedLocationDescription(state: PhysicalState, entityKey: string): stri
 export function trackedEntitiesFromReferenceState(state?: PhysicalState): TrackedEntityHint[] | undefined {
   if (!state?.entities.length) return undefined;
 
-  return state.entities.map(entity => {
+  const trackable = state.entities.filter(entity => !isDynamicCensusEntity(entity));
+  if (!trackable.length) return undefined;
+
+  return trackable.map(entity => {
     const hint: TrackedEntityHint = {
       key: entity.key,
       category: entity.category,
@@ -134,6 +171,10 @@ export function reconcileDynamicSubjectIdentity(
   const entities = [];
 
   for (const current of currentState.entities) {
+    if (isDynamicCensusEntity(current)) {
+      entities.push(current);
+      continue;
+    }
     const saved = referenceByKey.get(current.key);
     if (
       !saved
@@ -209,26 +250,23 @@ function dynamicCensusIdentityScore(
 }
 
 /**
- * Merge an independent open live-scene census into a tracked observation.
+ * Merge the independent open live-scene census into the checkpoint-tracked observation.
  *
- * The census is a cardinality backstop, not an identity oracle. Every dynamic entity
- * already emitted by the tracked pass occupies one semantic identity slot even when that
- * slot is uncertain, low-confidence, or explicitly absent. Only census subjects beyond
- * those accounted-for slots are appended as genuinely new arrivals. Clear replacements
- * remain the responsibility of reconcileDynamicSubjectIdentity, which requires visible
- * identity conflict instead of location/category coincidence.
+ * Identity and cardinality are deliberately separated:
+ * - tracked Nova evidence owns identity continuity;
+ * - open census owns the visible population backstop;
+ * - deterministic comparison later reconciles the population delta so a counting/identity
+ *   disagreement can never silently become 100% MATCH.
  */
 export function mergeDynamicSubjectCensus(
   trackedState: PhysicalState,
   censusState: PhysicalState,
 ): { state: PhysicalState; added: number } {
   const accounted = trackedState.entities.filter(entity => isDynamicSubjectEntity(entity));
-  const census = censusState.entities.filter(entity =>
-    isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
+  const trackedVisible = visibleDynamicSubjects(trackedState);
+  const census = visibleDynamicSubjects(censusState);
 
-  const surplus = census.length - accounted.length;
-  if (surplus <= 0) return { state: trackedState, added: 0 };
-
+  const surplus = Math.max(0, census.length - accounted.length);
   const occupied = new Set(trackedState.entities.map(entity => entity.key));
   const ranked = census
     .map(entity => ({
@@ -261,8 +299,20 @@ export function mergeDynamicSubjectCensus(
     };
   });
 
+  const merged = {
+    ...trackedState,
+    entities: [
+      ...trackedState.entities.filter(entity => !isDynamicCensusEntity(entity)),
+      ...additions,
+    ],
+  };
+
+  // If checkpoint-guided tracking and the independent census disagree about how many
+  // visible dynamic subjects exist, lower the census confidence. The deterministic layer
+  // will then expose UNKNOWN rather than ever declaring a false 100% match.
+  const censusConfidence = trackedVisible.length === census.length ? 0.95 : 0.55;
   return {
-    state: { ...trackedState, entities: [...trackedState.entities, ...additions] },
+    state: attachDynamicCensusEvidence(merged, census.length, censusConfidence),
     added: additions.length,
   };
 }
