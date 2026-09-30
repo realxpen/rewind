@@ -27,7 +27,7 @@ function identityDescription(attributes: Record<string, unknown> | undefined): s
 
 const DYNAMIC_SUBJECT_CATEGORIES = new Set(["bird", "animal", "pet"]);
 
-function isDynamicSubjectEntity(entity: { category: string; attributes?: Record<string, unknown> }): boolean {
+export function isDynamicSubjectEntity(entity: { category: string; attributes?: Record<string, unknown> }): boolean {
   return entity.attributes?.dynamic_subject === true || DYNAMIC_SUBJECT_CATEGORIES.has(entity.category.toLowerCase());
 }
 
@@ -89,8 +89,6 @@ export function trackedEntitiesFromReferenceState(state?: PhysicalState): Tracke
     return hint;
   });
 }
-
-
 
 function normalizedIdentityValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -161,6 +159,7 @@ export function reconcileDynamicSubjectIdentity(
       attributes: {
         ...(saved.attributes ?? {}),
         present: false,
+        dynamic_subject: true,
       },
       relations: [],
     });
@@ -170,6 +169,7 @@ export function reconcileDynamicSubjectIdentity(
       attributes: {
         ...(current.attributes ?? {}),
         present: true,
+        dynamic_subject: true,
       },
     });
     replacements += 1;
@@ -180,10 +180,10 @@ export function reconcileDynamicSubjectIdentity(
     : { state: currentState, replacements: 0 };
 }
 
-
-function dynamicCensusIdentityScore(left: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> }, right: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> }): number {
-  if (left.category.toLowerCase() !== right.category.toLowerCase()) return -1;
-
+function dynamicCensusIdentityScore(
+  left: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> },
+  right: { category: string; attributes?: Record<string, unknown>; relations?: Array<{ type: string; target?: string }> },
+): number {
   const speciesLeft = normalizedIdentityValue(left.attributes?.species);
   const speciesRight = normalizedIdentityValue(right.attributes?.species);
   if (speciesLeft && speciesRight) return speciesLeft === speciesRight ? 4 : -1;
@@ -209,13 +209,13 @@ function dynamicCensusIdentityScore(left: { category: string; attributes?: Recor
 }
 
 /**
- * Merge an open live-scene census into the tracked observation.
+ * Merge an independent open live-scene census into a tracked observation.
  *
- * This is cardinality-driven rather than scene-driven: no expected count, color,
- * species, or feeder position is hardcoded. If the open census sees more
- * high-confidence dynamic subjects of a category than the tracked pass emitted,
- * the deterministic layer carries only that surplus forward as distinct current
- * entities so an arrival cannot disappear behind tracked vocabulary.
+ * Dynamic cardinality is marker-driven, not noun-driven. Nova may describe the same
+ * class of living subject as "bird", "animal", or a species-specific category across
+ * two passes. Those wording choices must not hide a real arrival or manufacture several
+ * arrivals. We therefore compare total high-confidence dynamic-subject cardinality and
+ * use visible identity cues only to decide which census entities are the surplus.
  */
 export function mergeDynamicSubjectCensus(
   trackedState: PhysicalState,
@@ -226,56 +226,45 @@ export function mergeDynamicSubjectCensus(
   const census = censusState.entities.filter(entity =>
     isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
 
-  const byCategory = new Map<string, typeof census>();
-  for (const entity of census) {
-    const key = entity.category.toLowerCase();
-    const rows = byCategory.get(key) ?? [];
-    rows.push(entity);
-    byCategory.set(key, rows);
-  }
+  const surplus = census.length - current.length;
+  if (surplus <= 0) return { state: trackedState, added: 0 };
 
   const occupied = new Set(trackedState.entities.map(entity => entity.key));
-  const additions = [];
+  const ranked = census
+    .map(entity => ({
+      entity,
+      bestScore: current.reduce(
+        (best, candidate) => Math.max(best, dynamicCensusIdentityScore(entity, candidate)),
+        -1,
+      ),
+    }))
+    .sort((left, right) => left.bestScore - right.bestScore || right.entity.confidence - left.entity.confidence);
 
-  for (const [category, censusEntities] of byCategory) {
-    const currentEntities = current.filter(entity => entity.category.toLowerCase() === category);
-    const surplus = censusEntities.length - currentEntities.length;
-    if (surplus <= 0) continue;
-
-    const ranked = censusEntities
-      .map(entity => ({
-        entity,
-        bestScore: currentEntities.reduce(
-          (best, candidate) => Math.max(best, dynamicCensusIdentityScore(entity, candidate)),
-          -1,
-        ),
-      }))
-      .sort((left, right) => left.bestScore - right.bestScore || right.entity.confidence - left.entity.confidence);
-
-    for (const { entity } of ranked.slice(0, surplus)) {
-      const base = entity.key.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || `${category}.current`;
-      let key = base;
-      let suffix = 1;
-      while (occupied.has(key)) {
-        suffix += 1;
-        key = `${base}.current${suffix}`;
-      }
-      occupied.add(key);
-      additions.push({
-        ...entity,
-        key,
-        attributes: {
-          ...(entity.attributes ?? {}),
-          present: true,
-          dynamic_subject: true,
-        },
-      });
+  const additions = ranked.slice(0, surplus).map(({ entity }, index) => {
+    const fallback = `dynamic.current.${index + 1}`;
+    const base = entity.key.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || fallback;
+    let key = base;
+    let suffix = 1;
+    while (occupied.has(key)) {
+      suffix += 1;
+      key = `${base}.current${suffix}`;
     }
-  }
+    occupied.add(key);
+    return {
+      ...entity,
+      key,
+      attributes: {
+        ...(entity.attributes ?? {}),
+        present: true,
+        dynamic_subject: true,
+      },
+    };
+  });
 
-  return additions.length
-    ? { state: { ...trackedState, entities: [...trackedState.entities, ...additions] }, added: additions.length }
-    : { state: trackedState, added: 0 };
+  return {
+    state: { ...trackedState, entities: [...trackedState.entities, ...additions] },
+    added: additions.length,
+  };
 }
 
 export interface TrackedPresenceEvidence {
@@ -347,7 +336,6 @@ export function reconcileTrackedEntityAliases(
     reconciled: replacements.size,
   };
 }
-
 
 export interface TrackedAdditionEvidence {
   canonicalKey: string;
@@ -435,7 +423,6 @@ export function mergeConsensusAdditions(
     added: additions.length,
   };
 }
-
 
 export interface ObservedExtraCandidateEvidence {
   candidateKey: string;
