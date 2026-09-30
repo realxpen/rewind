@@ -57,8 +57,6 @@ assert(
   "Explicit removed movable objects should get object-level restore guidance anchored to the saved relation.",
 );
 
-
-
 const addedCupPlan = buildRestorePlan([{
   type: "ADDED",
   entity: "cup.blue",
@@ -82,6 +80,24 @@ assert(
   addedCupPlan.actions[0]?.instruction === "Remove cup blue from its current position on countertop main and to the left of toaster main.",
   "Added objects must include the current semantic position in removal guidance.",
 );
+
+const dynamicArrivalPlan = buildRestorePlan([{
+  type: "ADDED",
+  entity: "subject.new",
+  category: "cardinal",
+  actual: {
+    entity: {
+      key: "subject.new",
+      category: "cardinal",
+      confidence: 0.98,
+      attributes: { present: true, dynamic_subject: true, color: "red" },
+    },
+  },
+  confidence: 0.98,
+  reason: "dynamic subject entered",
+}]);
+assert(dynamicArrivalPlan.actions.length === 0, "A dynamic living subject must never produce a manual restore action, regardless of its category label.");
+assert(dynamicArrivalPlan.blockedUnknowns.length === 0, "Dynamic living subjects must not block manual restoration guidance.");
 
 const twoNotebookBaseline: PhysicalState = {
   schemaVersion: "0.1",
@@ -180,4 +196,4 @@ assert(finalProgress.percentage === 100, `Expected 100% final progress, got ${fi
 assert(finalProgress.restored, "Restored fixture should complete restore progress.");
 assert(finalProgress.actions.every((action) => action.status === "VERIFIED"), "Every action should be VERIFIED when restored.");
 
-console.log("PASS restore-engine: plan generation + partial progress + 100% verification");
+console.log("PASS restore-engine: plan generation + partial progress + 100% verification + dynamic-subject safety");
