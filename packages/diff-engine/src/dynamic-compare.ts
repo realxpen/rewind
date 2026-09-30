@@ -27,24 +27,48 @@ function isDynamicSubject(entity: PhysicalEntity): boolean {
   return entity.attributes?.dynamic_subject === true;
 }
 
+function isLegacyDynamicSubject(entity: PhysicalEntity): boolean {
+  const category = entity.category.trim().toLowerCase();
+  return !HUMAN_CATEGORIES.has(category) && LEGACY_TRANSIENT_DYNAMIC_CATEGORIES.has(category);
+}
+
 function isDynamicCensus(entity: PhysicalEntity): boolean {
   return entity.key === DYNAMIC_CENSUS_KEY
     || entity.category === "dynamic-census"
     || entity.attributes?.dynamic_census === true;
 }
 
-function normalizeForDynamicComparison(input: PhysicalState | unknown): PhysicalState {
-  const state = normalizeState(input, { preserveDynamicSubjects: true });
+function rawDynamicState(input: PhysicalState | unknown): PhysicalState {
+  return normalizeState(input, { preserveDynamicSubjects: true });
+}
+
+function stateSignalsDynamicMode(state: PhysicalState): boolean {
+  return state.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity));
+}
+
+/**
+ * Legacy Ring checkpoints may contain bird/animal/pet entities created before
+ * dynamic_subject=true and explicit census evidence existed. They must stay transient in
+ * ordinary/global comparisons, but when either side explicitly opts into modern Ring dynamic
+ * semantics we upgrade those legacy checkpoint entities in memory for this comparison only.
+ * No persisted checkpoint is rewritten and no scene-specific counts/colours/species are used.
+ */
+function normalizeForDynamicComparison(state: PhysicalState, dynamicMode: boolean): PhysicalState {
   return {
     ...state,
-    entities: state.entities.filter(entity => {
-      const category = entity.category.trim().toLowerCase();
-      if (HUMAN_CATEGORIES.has(category)) return false;
-      if (LEGACY_TRANSIENT_DYNAMIC_CATEGORIES.has(category) && entity.attributes?.dynamic_subject !== true) {
-        return false;
-      }
-      return true;
-    }),
+    entities: state.entities
+      .filter(entity => !HUMAN_CATEGORIES.has(entity.category.trim().toLowerCase()))
+      .flatMap(entity => {
+        if (!isLegacyDynamicSubject(entity) || isDynamicSubject(entity)) return [entity];
+        if (!dynamicMode) return [];
+        return [{
+          ...entity,
+          attributes: {
+            ...(entity.attributes ?? {}),
+            dynamic_subject: true,
+          },
+        }];
+      }),
   };
 }
 
@@ -266,9 +290,13 @@ export function compareStates(
   currentInput: PhysicalState | unknown,
   options: CompareStatesOptions = {},
 ): PhysicalDiff[] {
-  let checkpoint = normalizeForDynamicComparison(checkpointInput);
-  let current = normalizeForDynamicComparison(currentInput);
-  const needsDynamicCensus = checkpoint.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity))
+  const checkpointRaw = rawDynamicState(checkpointInput);
+  const currentRaw = rawDynamicState(currentInput);
+  const dynamicMode = stateSignalsDynamicMode(checkpointRaw) || stateSignalsDynamicMode(currentRaw);
+  let checkpoint = normalizeForDynamicComparison(checkpointRaw, dynamicMode);
+  let current = normalizeForDynamicComparison(currentRaw, dynamicMode);
+  const needsDynamicCensus = dynamicMode
+    || checkpoint.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity))
     || current.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity));
   checkpoint = withDerivedDynamicCensus(checkpoint, needsDynamicCensus);
   current = withDerivedDynamicCensus(current, needsDynamicCensus);
