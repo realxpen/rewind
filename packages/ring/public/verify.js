@@ -5,6 +5,26 @@ let motionCursor = 0;
 let motionPollBusy = false;
 let motionVerifyBusy = false;
 
+function resetVerificationState() {
+  activeRewindSessionId = undefined;
+  activeRewindCheckpointId = undefined;
+  lastVerifiedObservationId = undefined;
+  const panel = byId('verifyPanel');
+  if (panel) panel.hidden = true;
+  const state = byId('verifyState');
+  if (state) state.textContent = '';
+  const summary = byId('verifySummary');
+  if (summary) summary.textContent = '';
+}
+
+// Any newly rendered DIFF starts a new comparison run. Never let a previous
+// successful VERIFY keep the primary story at 100% while a fresh scene is being compared.
+const renderDiffForNewComparison = renderDiff;
+renderDiff = function renderFreshDiff(result) {
+  resetVerificationState();
+  return renderDiffForNewComparison(result);
+};
+
 function updateVerifyControls() {
   const panel = byId('verifyPanel');
   const button = byId('checkAgain');
@@ -56,9 +76,7 @@ byId('startRewind').onclick = async () => {
       : 'Follow one or more guidance steps. Signed Ring motion can trigger verification automatically; Check Again captures and verifies the current live state.';
     status(result.state === 'RESTORED' ? `${result.checkpoint.name} is already restored.` : `REWIND guidance ready: ${result.plan.actions.length} action(s).`);
   } catch (error) {
-    activeRewindSessionId = undefined;
-    activeRewindCheckpointId = undefined;
-    lastVerifiedObservationId = undefined;
+    resetVerificationState();
     hideRewind();
     status(error.message || 'Could not start Rewind.');
   } finally {
@@ -183,10 +201,7 @@ async function pollMotionEvents() {
 }
 
 byId('space').addEventListener('change', () => {
-  activeRewindSessionId = undefined;
-  activeRewindCheckpointId = undefined;
-  lastVerifiedObservationId = undefined;
-  byId('verifyPanel').hidden = true;
+  resetVerificationState();
 });
 
 setInterval(updateVerifyControls, 250);
@@ -276,9 +291,11 @@ void pollMotionEvents();
   }
 
   function percentage() {
-    const verifyText = el('verifySummary')?.textContent || '';
-    const verified = verifyText.match(/(\d+)%/);
-    if (verified) return Number(verified[1]);
+    const verifyPanel = el('verifyPanel');
+    if (verifyPanel && !verifyPanel.hidden) {
+      const verified = (el('verifySummary')?.textContent || '').match(/(\d+)%/);
+      if (verified) return Number(verified[1]);
+    }
     const score = el('matchScore')?.textContent?.match(/(\d+)%/);
     return score ? Number(score[1]) : undefined;
   }
@@ -290,7 +307,7 @@ void pollMotionEvents();
         if (!type) return undefined;
         const entity = cleanEntity(item.querySelector('strong')?.textContent || item.textContent);
         const category = item.dataset.category?.toLowerCase() || '';
-        const dynamic = ['bird', 'animal', 'pet'].includes(category);
+        const dynamic = ['bird', 'animal', 'pet'].includes(category) || item.dataset.dynamicSubject === 'true';
         const suffix = dynamic && type === 'REMOVED' ? 'left the scene'
           : dynamic && type === 'ADDED' ? 'entered the scene'
           : dynamic && type === 'UNKNOWN' ? 'identity or position uncertain'
@@ -323,7 +340,7 @@ void pollMotionEvents();
     const verifyState = el('verifyState')?.textContent?.trim();
     const currentPercentage = percentage();
 
-    if (verifyState === 'RESTORED' && currentPercentage === 100) {
+    if (verifyPanel && !verifyPanel.hidden && verifyState === 'RESTORED' && currentPercentage === 100) {
       setText(focusStage, 'VERIFY');
       setText(focusTitle, '100% RESTORED');
       setText(focusMetric, '100%');
