@@ -33,12 +33,6 @@ function isDynamicCensus(entity: PhysicalEntity): boolean {
     || entity.attributes?.dynamic_census === true;
 }
 
-/**
- * Preserve the historical global comparison rule: unmarked living subjects are transient.
- * Ring/live perception explicitly opts non-human subjects into deterministic comparison by
- * emitting dynamic_subject=true. This keeps global restoration truth unchanged while allowing
- * species-specific live categories such as "cardinal" to participate without noun hardcoding.
- */
 function normalizeForDynamicComparison(input: PhysicalState | unknown): PhysicalState {
   const state = normalizeState(input, { preserveDynamicSubjects: true });
   return {
@@ -130,27 +124,18 @@ function originalCategory(
   return entity && isDynamicSubject(entity) ? entity.category : fallback;
 }
 
-function dynamicMovementDiff(
-  expected: PhysicalEntity,
-  actual: PhysicalEntity,
-): PhysicalDiff | undefined {
+function dynamicMovementDiff(expected: PhysicalEntity, actual: PhysicalEntity): PhysicalDiff | undefined {
   if (!isDynamicSubject(expected) || !isDynamicSubject(actual)) return undefined;
   if (expected.attributes?.present === false || actual.attributes?.present === false) return undefined;
-
   const confidence = Math.min(expected.confidence, actual.confidence);
   if (confidence < DYNAMIC_POSITION_MIN_CONFIDENCE) return undefined;
-
   const expectedX = normalizedCoordinate(expected, "frame_x");
   const expectedY = normalizedCoordinate(expected, "frame_y");
   const actualX = normalizedCoordinate(actual, "frame_x");
   const actualY = normalizedCoordinate(actual, "frame_y");
-  if (expectedX === undefined || expectedY === undefined || actualX === undefined || actualY === undefined) {
-    return undefined;
-  }
-
+  if (expectedX === undefined || expectedY === undefined || actualX === undefined || actualY === undefined) return undefined;
   const displacement = Math.hypot(actualX - expectedX, actualY - expectedY);
   if (displacement < DYNAMIC_MOVEMENT_THRESHOLD) return undefined;
-
   return {
     type: "MOVED",
     entity: expected.key,
@@ -173,10 +158,7 @@ function syntheticPopulationDiff(type: "ADDED" | "REMOVED", index: number, confi
     key: type === "ADDED" ? `dynamic.arrival.${index}` : `dynamic.departure.${index}`,
     category: "dynamic-subject",
     confidence,
-    attributes: {
-      present: type === "ADDED",
-      dynamic_subject: true,
-    },
+    attributes: { present: type === "ADDED", dynamic_subject: true },
   };
   return type === "ADDED"
     ? {
@@ -198,6 +180,24 @@ function syntheticPopulationDiff(type: "ADDED" | "REMOVED", index: number, confi
       };
 }
 
+function censusUncertainty(
+  checkpointCensus: PhysicalEntity | undefined,
+  currentCensus: PhysicalEntity | undefined,
+  expectedCount: number,
+  actualCount: number,
+  confidence: number,
+): PhysicalDiff {
+  return {
+    type: "UNKNOWN",
+    entity: DYNAMIC_CENSUS_KEY,
+    category: "dynamic-census",
+    ...(checkpointCensus ? { expected: { entity: checkpointCensus, attributes: { dynamic_count: expectedCount } } } : {}),
+    ...(currentCensus ? { actual: { entity: currentCensus, attributes: { dynamic_count: actualCount } } } : {}),
+    confidence,
+    reason: "Checkpoint-guided identity tracking and the independent live-scene census disagree about dynamic-subject cardinality. REWIND will not report 100% until the count is resolved.",
+  };
+}
+
 function reconcileDynamicPopulation(
   diffs: PhysicalDiff[],
   checkpoint: PhysicalState,
@@ -207,7 +207,6 @@ function reconcileDynamicPopulation(
   const currentCensus = explicitDynamicCensus(current);
   const expectedCount = censusCount(checkpointCensus);
   const actualCount = censusCount(currentCensus);
-
   let result = diffs.filter(diff => diff.entity !== DYNAMIC_CENSUS_KEY);
   if (expectedCount === undefined || actualCount === undefined) return result;
 
@@ -215,26 +214,12 @@ function reconcileDynamicPopulation(
     checkpointCensus?.confidence ?? DYNAMIC_CENSUS_CONFIDENCE,
     currentCensus?.confidence ?? DYNAMIC_CENSUS_CONFIDENCE,
   );
-
-  if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE) {
-    const uncertain: PhysicalDiff = {
-      type: "UNKNOWN",
-      entity: DYNAMIC_CENSUS_KEY,
-      category: "dynamic-census",
-      ...(checkpointCensus ? { expected: { entity: checkpointCensus, attributes: { dynamic_count: expectedCount } } } : {}),
-      ...(currentCensus ? { actual: { entity: currentCensus, attributes: { dynamic_count: actualCount } } } : {}),
-      confidence,
-      reason: "Checkpoint-guided identity tracking and the independent live-scene census disagree about dynamic-subject cardinality. REWIND will not report 100% until the count is resolved.",
-    };
-    result.push(uncertain);
-    return result;
-  }
-
   const targetDelta = actualCount - expectedCount;
   const population = result.filter(isDynamicPopulationDiff);
   const added = population.filter(diff => diff.type === "ADDED");
   const removed = population.filter(diff => diff.type === "REMOVED");
   const net = added.length - removed.length;
+  let unresolvedCardinality = false;
 
   if (net > targetDelta) {
     let gap = net - targetDelta;
@@ -245,6 +230,10 @@ function reconcileDynamicPopulation(
       gap -= 1;
     }
     while (gap > 0) {
+      if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE) {
+        unresolvedCardinality = true;
+        break;
+      }
       result.push(syntheticPopulationDiff("REMOVED", gap, confidence));
       gap -= 1;
     }
@@ -257,20 +246,21 @@ function reconcileDynamicPopulation(
       gap -= 1;
     }
     while (gap > 0) {
+      if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE) {
+        unresolvedCardinality = true;
+        break;
+      }
       result.push(syntheticPopulationDiff("ADDED", gap, confidence));
       gap -= 1;
     }
   }
 
+  if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE || unresolvedCardinality) {
+    result.push(censusUncertainty(checkpointCensus, currentCensus, expectedCount, actualCount, confidence));
+  }
   return result;
 }
 
-/**
- * Core deterministic comparison with fixed-camera movement plus a cardinality backstop for
- * explicitly marked non-human dynamic subjects. Nova interprets identities/positions/counts;
- * deterministic code alone decides whether those observations imply arrival, departure,
- * movement, uncertainty, or a restored scene.
- */
 export function compareStates(
   checkpointInput: PhysicalState | unknown,
   currentInput: PhysicalState | unknown,
@@ -285,7 +275,6 @@ export function compareStates(
 
   const checkpointByKey = new Map(checkpoint.entities.map(entity => [entity.key, entity]));
   const currentByKey = new Map(current.entities.map(entity => [entity.key, entity]));
-
   let diffs = compareBaseStates(comparisonState(checkpoint), comparisonState(current), options)
     .map(diff => ({
       ...diff,
@@ -297,12 +286,8 @@ export function compareStates(
     if (!actual) continue;
     const movement = dynamicMovementDiff(expected, actual);
     if (!movement) continue;
-
     const existing = diffs.filter(diff => diff.entity === key);
     if (existing.some(diff => ["ADDED", "REMOVED", "MOVED"].includes(diff.type))) continue;
-
-    // Position is direct current-state evidence. Replace relation-omission uncertainty or
-    // an UNCHANGED row for this subject rather than double-counting one semantic entity.
     diffs = diffs.filter(diff => diff.entity !== key || !["UNCHANGED", "UNKNOWN"].includes(diff.type));
     diffs.push(movement);
   }
