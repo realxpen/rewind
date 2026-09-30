@@ -200,7 +200,7 @@ assert(
   !omittedVisionDiffs.some(diff => diff.entity === "candle.main" && diff.type === "REMOVED"),
   "Vision omission must be UNKNOWN, never a confirmed REMOVED restoration action.",
 );
-assert(omittedVisionMatch.percentage === 100, "Uncertain omission must not reduce match percentage for comparable evidence.");
+assert(omittedVisionMatch.percentage < 100, "Unresolved visual evidence must prevent a displayed 100% match.");
 assert(
   omittedVisionMatch.coveragePercentage !== undefined && omittedVisionMatch.coveragePercentage < 100,
   "Uncertain omission must reduce evidence coverage instead.",
