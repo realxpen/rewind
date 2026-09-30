@@ -45,11 +45,10 @@ function comparisonState(state: PhysicalState): PhysicalState {
     entities: state.entities.map(entity => {
       if (!isDynamicSubject(entity)) return entity;
       const attributes = withoutDynamicPosition(entity.attributes);
-      return {
-        ...entity,
-        category: "dynamic-subject",
-        ...(attributes ? { attributes } : { attributes: undefined }),
-      };
+      const { attributes: _attributes, ...withoutAttributes } = entity;
+      return attributes
+        ? { ...withoutAttributes, category: "dynamic-subject", attributes }
+        : { ...withoutAttributes, category: "dynamic-subject" };
     }),
   };
 }
@@ -78,19 +77,19 @@ function dynamicMovementDiff(
   const expectedY = normalizedCoordinate(expected, "frame_y");
   const actualX = normalizedCoordinate(actual, "frame_x");
   const actualY = normalizedCoordinate(actual, "frame_y");
-  if ([expectedX, expectedY, actualX, actualY].some(value => value === undefined)) return undefined;
+  if (expectedX === undefined || expectedY === undefined || actualX === undefined || actualY === undefined) {
+    return undefined;
+  }
 
-  const dx = actualX! - expectedX!;
-  const dy = actualY! - expectedY!;
-  const displacement = Math.hypot(dx, dy);
+  const displacement = Math.hypot(actualX - expectedX, actualY - expectedY);
   if (displacement < DYNAMIC_MOVEMENT_THRESHOLD) return undefined;
 
   return {
     type: "MOVED",
     entity: expected.key,
     category: expected.category,
-    expected: { attributes: { frame_x: expectedX!, frame_y: expectedY! } },
-    actual: { attributes: { frame_x: actualX!, frame_y: actualY! } },
+    expected: { attributes: { frame_x: expectedX, frame_y: expectedY } },
+    actual: { attributes: { frame_x: actualX, frame_y: actualY } },
     confidence,
     reason: `Dynamic subject moved ${displacement.toFixed(1)} normalized frame units, exceeding the ${DYNAMIC_MOVEMENT_THRESHOLD}-unit fixed-camera noise threshold.`,
   };
