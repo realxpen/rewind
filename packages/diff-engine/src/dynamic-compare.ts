@@ -88,8 +88,8 @@ function dynamicMovementDiff(
     type: "MOVED",
     entity: expected.key,
     category: expected.category,
-    expected: { attributes: { frame_x: expectedX, frame_y: expectedY } },
-    actual: { attributes: { frame_x: actualX, frame_y: actualY } },
+    expected: { entity: expected, attributes: { frame_x: expectedX, frame_y: expectedY } },
+    actual: { entity: actual, attributes: { frame_x: actualX, frame_y: actualY } },
     confidence,
     reason: `Dynamic subject moved ${displacement.toFixed(1)} normalized frame units, exceeding the ${DYNAMIC_MOVEMENT_THRESHOLD}-unit fixed-camera noise threshold.`,
   };
