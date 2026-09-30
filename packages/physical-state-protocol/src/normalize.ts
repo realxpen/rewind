@@ -25,6 +25,8 @@ const PRESERVED_ATTRIBUTES = new Set([
   "visible_label",
   "species",
   "dynamic_subject",
+  "dynamic_census",
+  "dynamic_count",
   "frame_x",
   "frame_y",
 ]);
@@ -116,7 +118,7 @@ export function normalizeState(input: PhysicalState | unknown, options: Normaliz
     entities: [...state.entities]
       .map(normalizeEntity)
       .filter((entity) => options.preserveDynamicSubjects || !TRANSIENT_LIVING_CATEGORIES.has(entity.category))
-      .sort((a, b) => a.key.localeCompare(b.key)),
+      .sort((a, b) => a.key.localeCompare(b)),
   };
 
   if (state.zones !== undefined) {
