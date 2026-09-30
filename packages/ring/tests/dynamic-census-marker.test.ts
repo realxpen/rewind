@@ -121,6 +121,35 @@ const arrivalPlan = buildRestorePlan(arrivalDiffs);
 assert(arrivalPlan.actions.length === 0, "A dynamic-subject arrival must never generate a manual restore action.");
 assert(arrivalPlan.blockedUnknowns.length === 0, "A dynamic-subject arrival must not block the manual restoration plan.");
 
+const uncertainTracked: PhysicalState = {
+  ...baseline,
+  capturedAt: "2026-09-30T10:01:30.000Z",
+  entities: baseline.entities.map(entity =>
+    isDynamicSubjectEntity(entity)
+      ? {
+          ...entity,
+          confidence: 0.5,
+          attributes: { dynamic_subject: true },
+          relations: [],
+        }
+      : entity,
+  ),
+};
+const sameTwoCensus: PhysicalState = {
+  ...baseline,
+  capturedAt: "2026-09-30T10:01:30.000Z",
+  entities: census.entities.filter(entity => entity.key !== "census.new-red"),
+};
+const uncertainMerge = mergeDynamicSubjectCensus(uncertainTracked, sameTwoCensus);
+assert(
+  uncertainMerge.added === 0,
+  `Two census subjects must not become false arrivals merely because the tracked pass is uncertain; got ${uncertainMerge.added}.`,
+);
+assert(
+  uncertainMerge.state.entities.filter(entity => isDynamicSubjectEntity(entity)).length === 2,
+  "The independent census must not duplicate dynamic checkpoint identity slots when cardinality is unchanged.",
+);
+
 const movedState: PhysicalState = {
   ...baseline,
   capturedAt: "2026-09-30T10:02:00.000Z",
@@ -175,4 +204,4 @@ assert(
   `Small fixed-camera coordinate jitter should stay matched; got ${jitterMatch.percentage}%.`,
 );
 
-console.log("PASS Ring dynamic census: 2→3 arrival + marker/category drift + deterministic movement threshold + zero manual actions");
+console.log("PASS Ring dynamic census: unchanged cardinality does not create false arrivals; 2→3 arrival + category drift + movement threshold + zero manual actions");
