@@ -29,6 +29,17 @@ function isDynamicSubjectDiff(diff: PhysicalDiff): boolean {
     || diff.actual?.entity?.attributes?.dynamic_subject === true;
 }
 
+function isDynamicCensusDiff(diff: PhysicalDiff): boolean {
+  return diff.entity === "rewind.dynamic-census"
+    || diff.category === "dynamic-census"
+    || diff.expected?.entity?.attributes?.dynamic_census === true
+    || diff.actual?.entity?.attributes?.dynamic_census === true;
+}
+
+function isObservationOnlyDynamicDiff(diff: PhysicalDiff): boolean {
+  return isDynamicSubjectDiff(diff) || isDynamicCensusDiff(diff);
+}
+
 function positionDescription(
   snapshot: PhysicalDiff["expected"] | PhysicalDiff["actual"],
   entity: string,
@@ -80,7 +91,7 @@ function attributeInstruction(entity: string, expected: Record<string, Attribute
 }
 
 function actionForDiff(diff: PhysicalDiff, index: number): RestoreAction | undefined {
-  if (diff.type === "UNCHANGED" || diff.type === "UNKNOWN" || isDynamicSubjectDiff(diff)) return undefined;
+  if (diff.type === "UNCHANGED" || diff.type === "UNKNOWN" || isObservationOnlyDynamicDiff(diff)) return undefined;
   let instruction: string;
   switch (diff.type) {
     case "ADDED":
@@ -110,7 +121,7 @@ function actionForDiff(diff: PhysicalDiff, index: number): RestoreAction | undef
 }
 
 export function buildRestorePlan(diffs: PhysicalDiff[]): RestorePlan {
-  const restorableDiffs = diffs.filter(diff => !isDynamicSubjectDiff(diff));
+  const restorableDiffs = diffs.filter(diff => !isObservationOnlyDynamicDiff(diff));
   const actionable = restorableDiffs.filter((diff) => !["UNCHANGED", "UNKNOWN"].includes(diff.type));
   const actions = actionable
     .map((diff, index) => actionForDiff(diff, index))
