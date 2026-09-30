@@ -17,11 +17,20 @@ const HUMAN_CATEGORIES = new Set(["person", "human"]);
 const DYNAMIC_POSITION_KEYS = ["frame_x", "frame_y"] as const;
 const DYNAMIC_MOVEMENT_THRESHOLD = 8;
 const DYNAMIC_POSITION_MIN_CONFIDENCE = 0.75;
+const DYNAMIC_CENSUS_KEY = "rewind.dynamic-census";
+const DYNAMIC_CENSUS_CONFIDENCE = 0.95;
+const TRUSTED_DYNAMIC_CENSUS_CONFIDENCE = 0.6;
 
 function isDynamicSubject(entity: PhysicalEntity): boolean {
   const category = entity.category.trim().toLowerCase();
   if (HUMAN_CATEGORIES.has(category)) return false;
   return entity.attributes?.dynamic_subject === true;
+}
+
+function isDynamicCensus(entity: PhysicalEntity): boolean {
+  return entity.key === DYNAMIC_CENSUS_KEY
+    || entity.category === "dynamic-census"
+    || entity.attributes?.dynamic_census === true;
 }
 
 /**
@@ -42,6 +51,43 @@ function normalizeForDynamicComparison(input: PhysicalState | unknown): Physical
       }
       return true;
     }),
+  };
+}
+
+function visibleDynamicCount(state: PhysicalState): number {
+  return state.entities.filter(entity =>
+    isDynamicSubject(entity)
+    && entity.attributes?.present !== false
+    && entity.confidence >= 0.85,
+  ).length;
+}
+
+function explicitDynamicCensus(state: PhysicalState): PhysicalEntity | undefined {
+  return state.entities.find(isDynamicCensus);
+}
+
+function censusCount(entity: PhysicalEntity | undefined): number | undefined {
+  const value = entity?.attributes?.dynamic_count;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function withDerivedDynamicCensus(state: PhysicalState, required: boolean): PhysicalState {
+  if (!required || explicitDynamicCensus(state)) return state;
+  return {
+    ...state,
+    entities: [
+      ...state.entities,
+      {
+        key: DYNAMIC_CENSUS_KEY,
+        category: "dynamic-census",
+        confidence: DYNAMIC_CENSUS_CONFIDENCE,
+        attributes: {
+          present: true,
+          dynamic_census: true,
+          dynamic_count: visibleDynamicCount(state),
+        },
+      },
+    ],
   };
 }
 
@@ -116,21 +162,125 @@ function dynamicMovementDiff(
   };
 }
 
+function isDynamicPopulationDiff(diff: PhysicalDiff): boolean {
+  if (diff.type !== "ADDED" && diff.type !== "REMOVED") return false;
+  const entity = diff.actual?.entity ?? diff.expected?.entity;
+  return Boolean(entity && isDynamicSubject(entity));
+}
+
+function syntheticPopulationDiff(type: "ADDED" | "REMOVED", index: number, confidence: number): PhysicalDiff {
+  const entity: PhysicalEntity = {
+    key: type === "ADDED" ? `dynamic.arrival.${index}` : `dynamic.departure.${index}`,
+    category: "dynamic-subject",
+    confidence,
+    attributes: {
+      present: type === "ADDED",
+      dynamic_subject: true,
+    },
+  };
+  return type === "ADDED"
+    ? {
+        type,
+        entity: entity.key,
+        category: entity.category,
+        actual: { entity },
+        confidence,
+        reason: "Independent live-scene census found an additional non-human dynamic subject that checkpoint identity tracking did not fully represent.",
+      }
+    : {
+        type,
+        entity: entity.key,
+        category: entity.category,
+        expected: { entity: { ...entity, attributes: { present: true, dynamic_subject: true } } },
+        actual: { entity: { ...entity, attributes: { present: false, dynamic_subject: true } } },
+        confidence,
+        reason: "Independent live-scene census found fewer non-human dynamic subjects than the saved checkpoint, so at least one saved subject left the scene.",
+      };
+}
+
+function reconcileDynamicPopulation(
+  diffs: PhysicalDiff[],
+  checkpoint: PhysicalState,
+  current: PhysicalState,
+): PhysicalDiff[] {
+  const checkpointCensus = explicitDynamicCensus(checkpoint);
+  const currentCensus = explicitDynamicCensus(current);
+  const expectedCount = censusCount(checkpointCensus);
+  const actualCount = censusCount(currentCensus);
+
+  let result = diffs.filter(diff => diff.entity !== DYNAMIC_CENSUS_KEY);
+  if (expectedCount === undefined || actualCount === undefined) return result;
+
+  const confidence = Math.min(
+    checkpointCensus?.confidence ?? DYNAMIC_CENSUS_CONFIDENCE,
+    currentCensus?.confidence ?? DYNAMIC_CENSUS_CONFIDENCE,
+  );
+
+  if (confidence < TRUSTED_DYNAMIC_CENSUS_CONFIDENCE) {
+    result.push({
+      type: "UNKNOWN",
+      entity: DYNAMIC_CENSUS_KEY,
+      category: "dynamic-census",
+      expected: checkpointCensus ? { entity: checkpointCensus, attributes: { dynamic_count: expectedCount } } : undefined,
+      actual: currentCensus ? { entity: currentCensus, attributes: { dynamic_count: actualCount } } : undefined,
+      confidence,
+      reason: "Checkpoint-guided identity tracking and the independent live-scene census disagree about dynamic-subject cardinality. REWIND will not report 100% until the count is resolved.",
+    });
+    return result;
+  }
+
+  const targetDelta = actualCount - expectedCount;
+  const population = result.filter(isDynamicPopulationDiff);
+  let added = population.filter(diff => diff.type === "ADDED");
+  let removed = population.filter(diff => diff.type === "REMOVED");
+  let net = added.length - removed.length;
+
+  if (net > targetDelta) {
+    let gap = net - targetDelta;
+    const removableAdded = [...added].sort((a, b) => a.confidence - b.confidence || a.entity.localeCompare(b.entity));
+    for (const diff of removableAdded) {
+      if (gap <= 0) break;
+      result = result.filter(candidate => candidate !== diff);
+      gap -= 1;
+    }
+    while (gap > 0) {
+      result.push(syntheticPopulationDiff("REMOVED", gap, confidence));
+      gap -= 1;
+    }
+  } else if (net < targetDelta) {
+    let gap = targetDelta - net;
+    const removableRemoved = [...removed].sort((a, b) => a.confidence - b.confidence || a.entity.localeCompare(b.entity));
+    for (const diff of removableRemoved) {
+      if (gap <= 0) break;
+      result = result.filter(candidate => candidate !== diff);
+      gap -= 1;
+    }
+    while (gap > 0) {
+      result.push(syntheticPopulationDiff("ADDED", gap, confidence));
+      gap -= 1;
+    }
+  }
+
+  return result;
+}
+
 /**
- * Core deterministic comparison with an additional fixed-camera movement signal for
- * explicitly marked non-human dynamic subjects. Nova supplies normalized current position;
- * this function alone decides whether displacement is large enough to count as MOVED.
- *
- * Marked dynamic subjects are canonicalized to one comparison category so wording drift
- * such as bird -> animal -> species-specific noun cannot hide or manufacture changes.
+ * Core deterministic comparison with fixed-camera movement plus a cardinality backstop for
+ * explicitly marked non-human dynamic subjects. Nova interprets identities/positions/counts;
+ * deterministic code alone decides whether those observations imply arrival, departure,
+ * movement, uncertainty, or a restored scene.
  */
 export function compareStates(
   checkpointInput: PhysicalState | unknown,
   currentInput: PhysicalState | unknown,
   options: CompareStatesOptions = {},
 ): PhysicalDiff[] {
-  const checkpoint = normalizeForDynamicComparison(checkpointInput);
-  const current = normalizeForDynamicComparison(currentInput);
+  let checkpoint = normalizeForDynamicComparison(checkpointInput);
+  let current = normalizeForDynamicComparison(currentInput);
+  const needsDynamicCensus = checkpoint.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity))
+    || current.entities.some(entity => isDynamicSubject(entity) || isDynamicCensus(entity));
+  checkpoint = withDerivedDynamicCensus(checkpoint, needsDynamicCensus);
+  current = withDerivedDynamicCensus(current, needsDynamicCensus);
 
   const checkpointByKey = new Map(checkpoint.entities.map(entity => [entity.key, entity]));
   const currentByKey = new Map(current.entities.map(entity => [entity.key, entity]));
@@ -156,5 +306,6 @@ export function compareStates(
     diffs.push(movement);
   }
 
+  diffs = reconcileDynamicPopulation(diffs, checkpoint, current);
   return diffs.sort((left, right) => left.entity.localeCompare(right.entity) || left.type.localeCompare(right.type));
 }
