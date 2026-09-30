@@ -1,4 +1,5 @@
 let activeRewindSessionId;
+let activeRewindCheckpointId;
 let lastVerifiedObservationId;
 let motionCursor = 0;
 let motionPollBusy = false;
@@ -9,7 +10,9 @@ function updateVerifyControls() {
   const button = byId('checkAgain');
   if (!panel || !button) return;
   panel.hidden = !activeRewindSessionId;
-  button.disabled = !activeRewindSessionId || !latestObservationId || latestObservationId === lastVerifiedObservationId || observing || rewinding || motionVerifyBusy;
+  const hasFreshObservedState = Boolean(latestObservationId && latestObservationId !== lastVerifiedObservationId);
+  const canCaptureFreshLiveState = videoReady();
+  button.disabled = !activeRewindSessionId || observing || rewinding || motionVerifyBusy || (!hasFreshObservedState && !canCaptureFreshLiveState);
 }
 
 function applyVerificationResult(result, source) {
@@ -17,7 +20,7 @@ function applyVerificationResult(result, source) {
   byId('verifyState').textContent = result.state;
   byId('verifySummary').textContent = result.progress.restored
     ? `100% RESTORED — the current physical state matches the saved checkpoint.${source === 'motion' ? ' Verified after a signed Ring motion event.' : ''}`
-    : `${result.progress.percentage}% restored · ${result.progress.remainingChanges} semantic difference(s) remain${result.progress.unknownChanges ? ` · ${result.progress.unknownChanges} uncertain` : ''}. Follow the remaining PENDING guidance, then ${source === 'motion' ? 'move again or use Check Again' : 'capture a fresh frame, observe with Nova, then Check Again'}.`;
+    : `${result.progress.percentage}% restored · ${result.progress.remainingChanges} semantic difference(s) remain${result.progress.unknownChanges ? ` · ${result.progress.unknownChanges} uncertain` : ''}. Follow the remaining PENDING guidance, then ${source === 'motion' ? 'move again or use Check Again' : 'use Check Again to capture and verify a fresh live frame'}.`;
   status(result.progress.restored
     ? `${result.checkpoint.name}: 100% RESTORED${source === 'motion' ? ' after Ring motion verification' : ''}.`
     : `${result.progress.percentage}% restored. ${result.progress.remainingChanges} difference(s) remain.`);
@@ -44,15 +47,17 @@ byId('startRewind').onclick = async () => {
       checkpointId: latestDiffCheckpointId,
     });
     activeRewindSessionId = result.rewindSessionId;
+    activeRewindCheckpointId = result.checkpoint.id;
     lastVerifiedObservationId = latestObservationId;
     renderRewind(result);
     byId('verifyState').textContent = result.state === 'RESTORED' ? 'RESTORED' : 'WAITING_FOR_CHANGE';
     byId('verifySummary').textContent = result.state === 'RESTORED'
       ? 'The scene already matches this checkpoint.'
-      : 'Follow one or more guidance steps. Signed Ring motion can trigger verification automatically; Check Again remains available.';
+      : 'Follow one or more guidance steps. Signed Ring motion can trigger verification automatically; Check Again captures and verifies the current live state.';
     status(result.state === 'RESTORED' ? `${result.checkpoint.name} is already restored.` : `REWIND guidance ready: ${result.plan.actions.length} action(s).`);
   } catch (error) {
     activeRewindSessionId = undefined;
+    activeRewindCheckpointId = undefined;
     lastVerifiedObservationId = undefined;
     hideRewind();
     status(error.message || 'Could not start Rewind.');
@@ -64,10 +69,30 @@ byId('startRewind').onclick = async () => {
 };
 
 byId('checkAgain').onclick = async () => {
-  if (!activeRewindSessionId || !latestObservationId || latestObservationId === lastVerifiedObservationId || !byId('space').reportValidity()) return;
-  rewinding = true; controls(); updateVerifyControls(); status('Checking restoration progress against the saved checkpoint…');
+  if (!activeRewindSessionId || rewinding || observing || motionVerifyBusy || !byId('space').reportValidity()) return;
+  rewinding = true; controls(); updateVerifyControls(); status('Capturing a fresh live state for verification…');
   try {
-    await verifyObservation(latestObservationId, 'manual');
+    let observationId = latestObservationId;
+    if (videoReady()) {
+      const frame = await frameForMotionVerification();
+      const observation = await api('observe', {
+        image: frame.image,
+        capturedAt: frame.capturedAt,
+        spaceId: byId('space').value,
+        ...(activeRewindCheckpointId ? { checkpointId: activeRewindCheckpointId } : {}),
+      });
+      latestObservationId = observation.observationId;
+      latestObservationBasis = observation.observationBasis;
+      latestObservationCheckpointId = activeRewindCheckpointId;
+      byId('result').textContent = JSON.stringify(observation, null, 2);
+      byId('result').hidden = false;
+      observationId = observation.observationId;
+    }
+    if (!observationId || observationId === lastVerifiedObservationId) {
+      throw new Error('No fresh live state is available. Start the live view or capture and observe a new frame first.');
+    }
+    status('Checking restoration progress against the saved checkpoint…');
+    await verifyObservation(observationId, 'manual');
   } catch (error) {
     status(error.message || 'Could not verify Rewind progress.');
   } finally {
@@ -78,14 +103,14 @@ byId('checkAgain').onclick = async () => {
 };
 
 async function frameForMotionVerification() {
-  if (!peer || video.readyState < 2 || !video.videoWidth) throw new Error('Live Ring video is not ready for motion verification.');
+  if (!videoReady()) throw new Error('Live video is not ready for verification.');
   const canvas = document.createElement('canvas');
   const scale = Math.min(1, 1280 / video.videoWidth);
   canvas.width = Math.round(video.videoWidth * scale);
   canvas.height = Math.round(video.videoHeight * scale);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .88));
-  if (!blob) throw new Error('Could not capture a Ring frame after motion.');
+  if (!blob) throw new Error('Could not capture a live frame for verification.');
   const image = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -98,7 +123,7 @@ async function frameForMotionVerification() {
 async function verifyFromMotion(event) {
   if (!activeRewindSessionId || motionVerifyBusy || observing || rewinding || !byId('space').reportValidity()) return;
   if (!peer || video.readyState < 2 || !video.videoWidth) {
-    status('Signed Ring motion received. Live video is not ready, so use Check Again after a fresh observation.');
+    status('Signed Ring motion received. Live video is not ready; use Check Again when the stream is available.');
     return;
   }
 
@@ -118,12 +143,15 @@ async function verifyFromMotion(event) {
       image: frame.image,
       capturedAt: frame.capturedAt,
       spaceId: byId('space').value,
+      ...(activeRewindCheckpointId ? { checkpointId: activeRewindCheckpointId } : {}),
     });
     latestObservationId = observation.observationId;
+    latestObservationBasis = observation.observationBasis;
+    latestObservationCheckpointId = activeRewindCheckpointId;
     await verifyObservation(latestObservationId, 'motion');
   } catch (error) {
     byId('verifyState').textContent = 'WAITING_FOR_CHANGE';
-    byId('verifySummary').textContent = 'Automatic motion verification did not complete. Capture/observe a fresh frame and use Check Again; the fallback remains available.';
+    byId('verifySummary').textContent = 'Automatic motion verification did not complete. Use Check Again to capture and verify a fresh live frame; the fallback remains available.';
     status(error.message || 'Motion verification failed. Use Check Again.');
   } finally {
     observing = false;
@@ -156,6 +184,7 @@ async function pollMotionEvents() {
 
 byId('space').addEventListener('change', () => {
   activeRewindSessionId = undefined;
+  activeRewindCheckpointId = undefined;
   lastVerifiedObservationId = undefined;
   byId('verifyPanel').hidden = true;
 });
@@ -320,8 +349,8 @@ void pollMotionEvents();
       const checkAgain = el('checkAgain');
       setPrimary('Check Again', 'verify', Boolean(checkAgain?.disabled));
       setText(focusHint, checkAgain?.disabled
-        ? 'In Controlled Demo, choose Partial or Restored above after making progress.'
-        : 'Capture the new state and recompute restoration progress.');
+        ? 'Verification needs a live frame or a newly observed state.'
+        : 'Capture the current live state and recompute restoration progress.');
       return;
     }
 
