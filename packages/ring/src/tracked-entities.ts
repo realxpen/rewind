@@ -211,29 +211,29 @@ function dynamicCensusIdentityScore(
 /**
  * Merge an independent open live-scene census into a tracked observation.
  *
- * Dynamic cardinality is marker-driven, not noun-driven. Nova may describe the same
- * class of living subject as "bird", "animal", or a species-specific category across
- * two passes. Those wording choices must not hide a real arrival or manufacture several
- * arrivals. We therefore compare total high-confidence dynamic-subject cardinality and
- * use visible identity cues only to decide which census entities are the surplus.
+ * The census is a cardinality backstop, not an identity oracle. Every dynamic entity
+ * already emitted by the tracked pass occupies one semantic identity slot even when that
+ * slot is uncertain, low-confidence, or explicitly absent. Only census subjects beyond
+ * those accounted-for slots are appended as genuinely new arrivals. Clear replacements
+ * remain the responsibility of reconcileDynamicSubjectIdentity, which requires visible
+ * identity conflict instead of location/category coincidence.
  */
 export function mergeDynamicSubjectCensus(
   trackedState: PhysicalState,
   censusState: PhysicalState,
 ): { state: PhysicalState; added: number } {
-  const current = trackedState.entities.filter(entity =>
-    isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
+  const accounted = trackedState.entities.filter(entity => isDynamicSubjectEntity(entity));
   const census = censusState.entities.filter(entity =>
     isDynamicSubjectEntity(entity) && entity.attributes?.present !== false && entity.confidence >= 0.85);
 
-  const surplus = census.length - current.length;
+  const surplus = census.length - accounted.length;
   if (surplus <= 0) return { state: trackedState, added: 0 };
 
   const occupied = new Set(trackedState.entities.map(entity => entity.key));
   const ranked = census
     .map(entity => ({
       entity,
-      bestScore: current.reduce(
+      bestScore: accounted.reduce(
         (best, candidate) => Math.max(best, dynamicCensusIdentityScore(entity, candidate)),
         -1,
       ),
