@@ -12,7 +12,7 @@ import type { PhysicalDiff } from "./types.js";
 
 export type { CompareStatesOptions, ComparisonEvidenceMode } from "./compare.js";
 
-const LEGACY_DYNAMIC_CATEGORIES = new Set(["bird", "animal", "pet"]);
+const LEGACY_TRANSIENT_DYNAMIC_CATEGORIES = new Set(["bird", "animal", "pet"]);
 const HUMAN_CATEGORIES = new Set(["person", "human"]);
 const DYNAMIC_POSITION_KEYS = ["frame_x", "frame_y"] as const;
 const DYNAMIC_MOVEMENT_THRESHOLD = 8;
@@ -21,7 +21,28 @@ const DYNAMIC_POSITION_MIN_CONFIDENCE = 0.75;
 function isDynamicSubject(entity: PhysicalEntity): boolean {
   const category = entity.category.trim().toLowerCase();
   if (HUMAN_CATEGORIES.has(category)) return false;
-  return entity.attributes?.dynamic_subject === true || LEGACY_DYNAMIC_CATEGORIES.has(category);
+  return entity.attributes?.dynamic_subject === true;
+}
+
+/**
+ * Preserve the historical global comparison rule: unmarked living subjects are transient.
+ * Ring/live perception explicitly opts non-human subjects into deterministic comparison by
+ * emitting dynamic_subject=true. This keeps global restoration truth unchanged while allowing
+ * species-specific live categories such as "cardinal" to participate without noun hardcoding.
+ */
+function normalizeForDynamicComparison(input: PhysicalState | unknown): PhysicalState {
+  const state = normalizeState(input, { preserveDynamicSubjects: true });
+  return {
+    ...state,
+    entities: state.entities.filter(entity => {
+      const category = entity.category.trim().toLowerCase();
+      if (HUMAN_CATEGORIES.has(category)) return false;
+      if (LEGACY_TRANSIENT_DYNAMIC_CATEGORIES.has(category) && entity.attributes?.dynamic_subject !== true) {
+        return false;
+      }
+      return true;
+    }),
+  };
 }
 
 function normalizedCoordinate(entity: PhysicalEntity, key: (typeof DYNAMIC_POSITION_KEYS)[number]): number | undefined {
@@ -97,10 +118,10 @@ function dynamicMovementDiff(
 
 /**
  * Core deterministic comparison with an additional fixed-camera movement signal for
- * non-human dynamic subjects. Nova supplies normalized current position; this function
- * alone decides whether displacement is large enough to count as MOVED.
+ * explicitly marked non-human dynamic subjects. Nova supplies normalized current position;
+ * this function alone decides whether displacement is large enough to count as MOVED.
  *
- * All dynamic subjects are canonicalized to one comparison category so wording drift
+ * Marked dynamic subjects are canonicalized to one comparison category so wording drift
  * such as bird -> animal -> species-specific noun cannot hide or manufacture changes.
  */
 export function compareStates(
@@ -108,8 +129,8 @@ export function compareStates(
   currentInput: PhysicalState | unknown,
   options: CompareStatesOptions = {},
 ): PhysicalDiff[] {
-  const checkpoint = normalizeState(checkpointInput, { preserveDynamicSubjects: true });
-  const current = normalizeState(currentInput, { preserveDynamicSubjects: true });
+  const checkpoint = normalizeForDynamicComparison(checkpointInput);
+  const current = normalizeForDynamicComparison(currentInput);
 
   const checkpointByKey = new Map(checkpoint.entities.map(entity => [entity.key, entity]));
   const currentByKey = new Map(current.entities.map(entity => [entity.key, entity]));
