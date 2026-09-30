@@ -34,4 +34,25 @@ assert.match(
   "Verification frame capture should support whichever selected live source is currently ready.",
 );
 
-console.log("PASS Ring VERIFY live refresh: Check Again captures fresh anchored state and remains usable after Start Rewind");
+assert.match(
+  source,
+  /function resetVerificationState\(\)/,
+  "A new comparison must be able to clear the previous Rewind verification session.",
+);
+assert.match(
+  source,
+  /renderDiff = function renderFreshDiff\(result\) \{\s*resetVerificationState\(\);/,
+  "Rendering a fresh DIFF must clear stale VERIFY state before presenting the new match.",
+);
+assert.match(
+  source,
+  /if \(verifyPanel && !verifyPanel\.hidden\) \{\s*const verified = \(el\('verifySummary'\)\?\.textContent \|\| ''\)\.match/,
+  "The focused percentage must ignore an old hidden VERIFY summary.",
+);
+assert.match(
+  source,
+  /if \(verifyPanel && !verifyPanel\.hidden && verifyState === 'RESTORED' && currentPercentage === 100\)/,
+  "The 100% RESTORED presentation must require an active visible VERIFY panel.",
+);
+
+console.log("PASS Ring VERIFY live refresh: fresh anchored verification + stale 100% state cannot override a new DIFF");
