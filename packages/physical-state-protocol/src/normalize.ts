@@ -118,7 +118,7 @@ export function normalizeState(input: PhysicalState | unknown, options: Normaliz
     entities: [...state.entities]
       .map(normalizeEntity)
       .filter((entity) => options.preserveDynamicSubjects || !TRANSIENT_LIVING_CATEGORIES.has(entity.category))
-      .sort((a, b) => a.key.localeCompare(b)),
+      .sort((a, b) => a.key.localeCompare(b.key)),
   };
 
   if (state.zones !== undefined) {
