@@ -1,0 +1,118 @@
+name: Deploy REWIND Ring Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "scripts/cloud-entrypoint.sh"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "packages/**"
+      - ".github/workflows/deploy-ring-cloud.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: rewind-cloud
+  ECS_CLUSTER: rewind-cloud
+  ECS_SERVICE: rewind-ring
+  CONTAINER_NAME: rewind-ring
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::707859598737:role/rewind-github-cloud-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        run: |
+          set -euo pipefail
+          REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+          echo "REGISTRY=$REGISTRY" >> "$GITHUB_ENV"
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          IMAGE_SHA="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+          IMAGE_LATEST="$REGISTRY/$ECR_REPOSITORY:latest"
+          docker build --pull -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
+          docker push "$IMAGE_SHA"
+          docker push "$IMAGE_LATEST"
+          echo "IMAGE=$IMAGE_SHA" >> "$GITHUB_ENV"
+
+      - name: Deploy existing ECS service
+        run: |
+          set -euo pipefail
+          STATUS="$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].status' \
+            --output text 2>/dev/null || true)"
+
+          if [ "$STATUS" != "ACTIVE" ]; then
+            echo "ECR image pushed. ECS service bootstrap has not been created yet; no service update is required on this run."
+            exit 0
+          fi
+
+          CURRENT_TASK="$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)"
+
+          aws ecs describe-task-definition \
+            --task-definition "$CURRENT_TASK" \
+            --query taskDefinition \
+            --output json > /tmp/current-task.json
+
+          jq --arg IMAGE "$IMAGE" --arg NAME "$CONTAINER_NAME" '
+            {
+              family,
+              taskRoleArn,
+              executionRoleArn,
+              networkMode,
+              containerDefinitions,
+              volumes,
+              placementConstraints,
+              requiresCompatibilities,
+              cpu,
+              memory,
+              runtimePlatform,
+              ephemeralStorage
+            }
+            | with_entries(select(.value != null))
+            | .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+          ' /tmp/current-task.json > /tmp/new-task.json
+
+          NEW_TASK="$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/new-task.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)"
+
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$NEW_TASK" \
+            --force-new-deployment \
+            >/dev/null
+
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+
+          echo "Deployed $NEW_TASK"
