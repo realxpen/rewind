@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+dist
+.rewind-secrets
+.env
+.env.*
+coverage
+*.log
+Archive
+Raw
