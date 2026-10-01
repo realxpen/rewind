@@ -22,7 +22,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: rewind-cloud
   ECS_CLUSTER: rewind-cloud
-  ECS_SERVICE: rewind-ring
+  ECS_SERVICE: rewind-ring-cloud
   CONTAINER_NAME: rewind-ring
 
 jobs:
