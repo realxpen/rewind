@@ -83,11 +83,19 @@ function isJsonContentType(value: string | undefined): boolean {
   return mediaType === "application/json";
 }
 
+function isAllowedEventPoll(req: IncomingMessage, allowedOrigins: Set<string>): boolean {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  if (origin) return allowedOrigins.has(origin);
+  const fetchSite = typeof req.headers["sec-fetch-site"] === "string"
+    ? req.headers["sec-fetch-site"].toLowerCase()
+    : "";
+  return fetchSite === "same-origin";
+}
+
 /**
- * Ring ingress for Phase 7 staging.
- * Put TLS 1.2+ in front of this loopback listener with an HTTPS tunnel/reverse proxy.
- * Webhooks are verified and acknowledged quickly; account-link routes share the same
- * public origin so Ring can use one stable staging hostname for all required endpoints.
+ * Ring ingress for Phase 7 staging/cloud.
+ * TLS terminates at the public edge. Webhooks are verified and acknowledged quickly;
+ * account-link routes share the same public origin so Ring can use one stable hostname.
  */
 export function createRingWebhookServer(options: RingWebhookServerOptions) {
   if (!options.signingKey) throw new Error("RING_HMAC_SECRET is required for Ring webhooks.");
@@ -103,13 +111,15 @@ export function createRingWebhookServer(options: RingWebhookServerOptions) {
     }
 
     if (req.method === "GET" && url.pathname === "/events") {
-      const origin = req.headers.origin;
-      if (!origin || !allowedOrigins.has(origin)) {
-        json(res, 403, { error: "Local preview origin required." });
+      const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+      if (!isAllowedEventPoll(req, allowedOrigins)) {
+        json(res, 403, { error: "Same-origin REWIND preview required." });
         return;
       }
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
+      if (origin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+      }
       const cursor = Number(url.searchParams.get("cursor") ?? "0");
       json(res, 200, inbox.since(cursor));
       return;
