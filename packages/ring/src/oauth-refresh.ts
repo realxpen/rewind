@@ -1,3 +1,4 @@
+import { GetSecretValueCommand, PutSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
@@ -11,6 +12,10 @@ interface RingOAuthTokenResponse {
   access_token?: unknown;
   refresh_token?: unknown;
   expires_in?: unknown;
+}
+
+interface SecretsClientLike {
+  send(command: unknown): Promise<unknown>;
 }
 
 function validToken(value: unknown): value is string {
@@ -54,6 +59,9 @@ export interface RingOAuthRefreshManagerOptions {
   accessToken: string;
   oauthTokenUrl?: string;
   cachePath?: string;
+  secretId?: string;
+  region?: string;
+  secretsClient?: SecretsClientLike;
   fetchImpl?: typeof fetch;
   now?: () => number;
 }
@@ -64,6 +72,8 @@ export class RingOAuthRefreshManager {
   private readonly configuredRefreshToken: string | undefined;
   private readonly oauthTokenUrl: string;
   private readonly cachePath: string;
+  private readonly secretId: string | undefined;
+  private readonly secretsClient: SecretsClientLike | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private cacheLoaded = false;
@@ -76,6 +86,10 @@ export class RingOAuthRefreshManager {
     this.configuredRefreshToken = options.refreshToken?.trim() || undefined;
     this.oauthTokenUrl = options.oauthTokenUrl ?? "https://oauth.ring.com/oauth/token";
     this.cachePath = resolve(options.cachePath ?? ".rewind-secrets/ring-oauth.json");
+    this.secretId = options.secretId?.trim() || undefined;
+    this.secretsClient = this.secretId
+      ? options.secretsClient ?? new SecretsManagerClient({ region: options.region ?? process.env.AWS_REGION ?? "us-east-1" })
+      : undefined;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? Date.now;
   }
@@ -132,6 +146,20 @@ export class RingOAuthRefreshManager {
   private async loadCache(): Promise<void> {
     if (this.cacheLoaded) return;
     this.cacheLoaded = true;
+
+    if (this.secretId && this.secretsClient) {
+      try {
+        const response = await this.secretsClient.send(new GetSecretValueCommand({ SecretId: this.secretId })) as {
+          SecretString?: string;
+        };
+        if (!response.SecretString) return;
+        this.cached = parseCachedCredentials(JSON.parse(response.SecretString));
+        return;
+      } catch {
+        throw new Error("Ring OAuth cloud credential cache could not be read.");
+      }
+    }
+
     try {
       const raw = await readFile(this.cachePath, "utf8");
       this.cached = parseCachedCredentials(JSON.parse(raw));
@@ -182,6 +210,18 @@ export class RingOAuthRefreshManager {
   }
 
   private async persist(credentials: CachedRingOAuthCredentials): Promise<void> {
+    if (this.secretId && this.secretsClient) {
+      try {
+        await this.secretsClient.send(new PutSecretValueCommand({
+          SecretId: this.secretId,
+          SecretString: JSON.stringify(credentials),
+        }));
+        return;
+      } catch {
+        throw new Error("Ring OAuth cloud credential cache could not be updated.");
+      }
+    }
+
     const directory = dirname(this.cachePath);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const temporary = `${this.cachePath}.tmp`;
@@ -200,5 +240,7 @@ export function createRingOAuthRefreshManagerFromEnv(
     ...(env.RING_CLIENT_SECRET ? { clientSecret: env.RING_CLIENT_SECRET } : {}),
     ...(env.RING_REFRESH_TOKEN ? { refreshToken: env.RING_REFRESH_TOKEN } : {}),
     ...(env.REWIND_RING_OAUTH_CACHE_PATH ? { cachePath: env.REWIND_RING_OAUTH_CACHE_PATH } : {}),
+    ...(env.REWIND_RING_OAUTH_SECRET_ID ? { secretId: env.REWIND_RING_OAUTH_SECRET_ID } : {}),
+    region: env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1",
   });
 }
