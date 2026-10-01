@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates ffmpeg socat \
+  && apt-get install -y --no-install-recommends ca-certificates ffmpeg nginx socat \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -11,6 +11,7 @@ COPY packages ./packages
 RUN npm install --omit=optional
 RUN npm run build
 
+COPY deploy/nginx-preview.conf /etc/nginx/conf.d/default.conf
 COPY scripts/cloud-entrypoint.sh /usr/local/bin/rewind-cloud-entrypoint
 RUN chmod 0755 /usr/local/bin/rewind-cloud-entrypoint
 
