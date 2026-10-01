@@ -80,7 +80,53 @@ try {
 
   assert.equal(await restarted.token(), "linked-access-token");
   assert.equal(unexpectedNetwork, false, "Restart must reuse the rotated local credential cache.");
-  console.log("PASS Ring OAuth refresh: proactive refresh + 401 retry + rotated credential persistence");
+
+  let cloudSecret = "{}";
+  const cloudClient = {
+    async send(command: unknown) {
+      const name = (command as { constructor?: { name?: string } }).constructor?.name;
+      if (name === "GetSecretValueCommand") return { SecretString: cloudSecret };
+      if (name === "PutSecretValueCommand") {
+        const input = (command as { input?: { SecretString?: string } }).input;
+        assert.equal(typeof input?.SecretString, "string");
+        cloudSecret = input!.SecretString!;
+        return { VersionId: "cloud-version" };
+      }
+      throw new Error(`Unexpected Secrets Manager command: ${name ?? "unknown"}`);
+    },
+  };
+
+  const cloudManager = new RingOAuthRefreshManager({
+    accessToken: "pending-account-link",
+    clientId: "ring-client",
+    clientSecret: "ring-secret",
+    secretId: "rewind/ring/oauth",
+    secretsClient: cloudClient,
+    now: () => 1_800_000_000_000,
+  });
+  await cloudManager.acceptLinkedCredentials({
+    accessToken: "cloud-linked-access",
+    refreshToken: "cloud-linked-refresh",
+    expiresAt: 1_800_014_400_000,
+  });
+  const persistedCloud = JSON.parse(cloudSecret) as Record<string, unknown>;
+  assert.equal(persistedCloud.accessToken, "cloud-linked-access");
+  assert.equal(persistedCloud.refreshToken, "cloud-linked-refresh");
+
+  const cloudRestart = new RingOAuthRefreshManager({
+    accessToken: "pending-account-link",
+    clientId: "ring-client",
+    clientSecret: "ring-secret",
+    secretId: "rewind/ring/oauth",
+    secretsClient: cloudClient,
+    fetchImpl: async () => {
+      throw new Error("cloud restart should reuse valid persisted token");
+    },
+    now: () => 1_800_000_001_000,
+  });
+  assert.equal(await cloudRestart.token(), "cloud-linked-access");
+
+  console.log("PASS Ring OAuth refresh: proactive refresh + 401 retry + local/cloud rotated credential persistence");
 } finally {
   await rm(directory, { recursive: true, force: true });
 }
